@@ -167,7 +167,30 @@ body.dark .model-mistral .answer-body blockquote,body.dark .model-glm .answer-bo
 .create-caption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .create-caption .create-chip{min-height:30px;padding:0 12px;background:rgba(8,16,24,.42);border-color:rgba(255,255,255,.24)}
 @keyframes createSweep{0%,100%{background-position:-70% 0,0 0,0 0;opacity:.42}50%{background-position:140% 0,18px 24px,24px 18px;opacity:.62}}
-@media(prefers-reduced-motion:reduce){.create-wallpaper,.create-effects{transition:none!important;animation:none!important;transform:scale(1.02)!important}.model-glyph,.answer-card:before,.model-new-sparkle,.model-new-sparkle:before{animation:none!important}}
+/* Create chat floats over the wallpaper instead of sitting inside a white panel. */
+.create-pane#chat .two{grid-template-columns:minmax(0,1fr);max-width:min(1080px,100%);gap:12px}
+.create-pane#chat section.panel{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;padding:0}
+.create-pane#chat .create-settings{max-width:760px;margin:0 auto;background:rgba(8,16,24,.38)!important;color:#fff;border:1px solid rgba(255,255,255,.18)!important;box-shadow:0 18px 54px rgba(0,0,0,.18)!important;backdrop-filter:blur(18px) saturate(1.18)}
+.create-pane#chat .create-settings>summary{color:rgba(255,255,255,.88)}
+.create-pane#chat .chatlog{height:auto;min-height:420px;max-height:none;overflow:visible;display:grid;gap:18px;align-content:start;background:transparent!important;border:0!important;box-shadow:none!important;padding:12px 0 96px}
+.create-pane#chat .msg{max-width:min(760px,92%);border:1px solid rgba(255,255,255,.34);border-left:1px solid rgba(255,255,255,.34);border-radius:24px;box-shadow:0 22px 70px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.28);backdrop-filter:blur(18px) saturate(1.18);animation:chatFloat 8s ease-in-out infinite}
+.create-pane#chat .msg.user{justify-self:end;background:rgba(238,246,255,.68);color:#0f172a;border-color:rgba(191,219,254,.58);border-radius:24px 24px 8px 24px}
+.create-pane#chat .msg.assistant{justify-self:start;background:transparent!important;border:0!important;box-shadow:none!important;padding:0;overflow:visible}
+.create-pane#chat .answer-card{overflow:hidden;border-radius:24px;background:rgba(255,255,255,.70);border:1px solid rgba(255,255,255,.42);box-shadow:0 24px 80px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.34);backdrop-filter:blur(20px) saturate(1.2)}
+.create-pane#chat .answer-head{background:linear-gradient(135deg,color-mix(in srgb,var(--model-a),transparent 8%),color-mix(in srgb,var(--model-b),transparent 8%));box-shadow:0 10px 34px var(--model-glow)}
+.create-pane#chat .answer-meta{background:rgba(248,250,252,.62);backdrop-filter:blur(12px);border-color:rgba(15,23,42,.08)}
+.create-pane#chat .answer-actions{background:rgba(251,253,255,.52);backdrop-filter:blur(12px);border-color:rgba(15,23,42,.08)}
+.create-pane#chat .answer-body{background:rgba(255,255,255,.58);color:#101820}
+.create-pane#chat .message-detail{border-radius:0 0 18px 18px}
+.create-pane#chat #chat-info{background:rgba(8,16,24,.46);color:#fff;border:1px solid rgba(255,255,255,.18);box-shadow:0 12px 34px rgba(0,0,0,.16);backdrop-filter:blur(12px)}
+body.dark .create-pane#chat .create-settings{background:rgba(8,13,20,.48)!important;color:#eef4ff;border-color:rgba(238,244,255,.16)!important}
+body.dark .create-pane#chat .chatlog{background:transparent!important;border:0!important;box-shadow:none!important}
+body.dark .create-pane#chat .msg.user{background:rgba(16,33,58,.68);color:#dbeafe;border-color:rgba(80,130,200,.52)}
+body.dark .create-pane#chat .answer-card{background:rgba(13,19,28,.68);border-color:rgba(238,244,255,.16);box-shadow:0 24px 80px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.08)}
+body.dark .create-pane#chat .answer-meta,body.dark .create-pane#chat .answer-actions{background:rgba(10,16,24,.52);border-color:rgba(238,244,255,.10)}
+body.dark .create-pane#chat .answer-body,body.dark .create-pane#chat .model-deepseek .answer-body,body.dark .create-pane#chat .model-codex .answer-body{background:rgba(14,21,31,.58);color:#eef4ff}
+@keyframes chatFloat{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-3px,0)}}
+@media(prefers-reduced-motion:reduce){.create-wallpaper,.create-effects{transition:none!important;animation:none!important;transform:scale(1.02)!important}.model-glyph,.answer-card:before,.model-new-sparkle,.model-new-sparkle:before,.create-pane#chat .msg{animation:none!important}}
 /* Compact Coding console header so the terminal starts near the top. */
 #claude.active .claude-workbench{padding:0;grid-template-rows:auto minmax(0,1fr) auto}
 #claude.active .terminal-commandbar{padding:4px 8px;border-radius:0;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1.65fr) auto;gap:6px;align-items:end}
