@@ -103,6 +103,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted tmux session naming, registry persistence, chooser row enrichment, previous-session read-only rename policy, and usage attribution into `src.console.services.SessionService`.
 - 2026-07-08: Extracted Dedicated Inference config persistence, lifecycle event logging, status/resource parsing, registry registration, build/teardown/policy orchestration, and Dedicated chat fallback into `src.console.services.DedicatedInferenceService`.
 - 2026-07-08: Extracted local image-history persistence, generated image storage, saved chat documents, token estimates, and local chat cost calculations into `src.console.services.LocalPersistenceService`.
+- 2026-07-08: Extracted DigitalOcean platform status, account masking, balance/prepay status, health snapshot caching, and malformed status-payload tolerance into `src.console.services.DigitalOceanHealthService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

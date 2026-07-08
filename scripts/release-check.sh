@@ -19,6 +19,7 @@ python3 -m py_compile \
   src/console/handlers/static_handler.py \
   src/console/handlers/template_handler.py \
   src/console/services/dedicated.py \
+  src/console/services/digitalocean.py \
   src/console/services/health.py \
   src/console/services/model_registry.py \
   src/console/services/persistence.py \
@@ -28,6 +29,7 @@ python3 -m py_compile \
   tests/test_auth_handler.py \
   tests/test_console_smoke.py \
   tests/test_dedicated_service.py \
+  tests/test_digitalocean_service.py \
   tests/test_health_service.py \
   tests/test_model_registry.py \
   tests/test_model_registry_service.py \

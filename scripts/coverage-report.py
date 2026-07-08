@@ -20,6 +20,7 @@ DEFAULT_FILES = [
     "src/console/handlers/static_handler.py",
     "src/console/handlers/template_handler.py",
     "src/console/services/dedicated.py",
+    "src/console/services/digitalocean.py",
     "src/console/services/health.py",
     "src/console/services/model_registry.py",
     "src/console/services/persistence.py",
