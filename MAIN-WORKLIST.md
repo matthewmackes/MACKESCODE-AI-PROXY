@@ -305,6 +305,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Reorganized the Console tab into Carbon-style operational areas for Inference Hosting Lifecycle, LLM Management, Accounting & Time, AgentBoard, and System Operations.
 - 2026-07-08: Moved scroll restoration control into the document head and added load/pageshow top-pinning so the Console opens at the top instead of halfway down the page.
 - 2026-07-08: Added Bing public wallpaper loading through `/api/wallpaper`, same-origin cached image proxying, Create wallpaper crossfade rotation, manual refresh, attribution caption, subtle cinematic sweep/grid effects, parallax, and reduced-motion handling.
+- 2026-07-08: Requirements survey clarified the Create target: prioritize atmosphere first, then conversational presence, then creative workflow. The Create chat should feel alive over the wallpaper with subtle always-on desktop effects, mobile effects disabled, model-specific motion accents, progressive answer reveal, and text-model comparison inside the same conversation.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -316,6 +317,14 @@ The interface refactoring work consolidates previously separate components into 
 3. Keep controls readable over the background with accessible contrast.
 4. Preserve all current Image Studio and Text Chat capabilities.
 5. Avoid copying Microsoft/Bing logos, brand marks, proprietary text, or exact protected UI assets.
+6. Chat bubbles should float over the wallpaper instead of blocking it with large opaque panels.
+7. Add subtle always-on desktop atmosphere: foreground particles/light motes, time/weather-aware mood, and cursor-reactive light, with mobile atmospheric effects disabled.
+8. Particles should pass behind chat bubbles, drift around bubble edges, and react to new messages with a noticeable assistant-reply sparkle/ripple.
+9. Provider/model family styling should use curated overrides with automatic fallback styles; newly discovered DigitalOcean models should immediately receive generated style and 7-day global "new" sparkle.
+10. Assistant replies should reveal word-by-word for newly received answers, save only final text, skip to full text when the message is clicked, and not replay animation for previous chats.
+11. Waiting state should show model badge, routing stage, and elapsed time; fallback/routing changes should add a small notice above the reply and remain as a compact badge.
+12. Add Create text-model comparison for up to five models: stacked result cards, no automatic scoring, compact chips plus Show Detail cost/latency table, and one saved comparison entry in chat history.
+13. Comparison mode should be strict by default: selected unavailable models render an error card rather than silently falling back, while disabled Dedicated models may offer "Build again" with multi-model cost warnings.
 
 **Files to Modify:**
 - `image-studio.py` or extracted templates from INT-001
@@ -327,6 +336,15 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Text tab redesigned around a Bing-like chat/search experience
 - [x] Background uses Bing public wallpaper-style imagery or configurable Bing image source with fallback
 - [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
+- [ ] Create chat bubbles float over the wallpaper without a blocking white conversation panel
+- [ ] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
+- [ ] Mobile disables atmospheric effects for performance
+- [ ] New assistant replies trigger model-specific sparkle/ripple motion
+- [ ] Newly discovered models use generated styles and 7-day global sparkle
+- [ ] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
+- [ ] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
+- [ ] Create supports text-model comparison for up to five selected models
+- [ ] Comparison entries save as one chat-history entry and support "continue with this model"
 - [ ] Mobile and desktop layouts verified visually
 - [ ] Documentation updated if workflows or screenshots change
 
@@ -348,6 +366,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-07: Added Console > Models control pane with add/remove/edit/save/reload controls and `/api/models` GET/POST endpoints.
 - 2026-07-07: Updated `claude-DO.sh` to load model IDs, aliases, text/image test sets, validation, and proxy `--models` from the shared registry.
 - 2026-07-07: Added Console > Inference split for Serverless Inference and Dedicated Inference, with Serverless remaining the fallback/control baseline.
+- 2026-07-08: Requirements survey clarified `config/models.json` as the private-operator source of truth for model availability, metadata, access probe results, and enabled policy. Proxy sync should use both explicit Console sync and file modification polling, with visible stale/sync-failed states.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -360,6 +379,12 @@ The interface refactoring work consolidates previously separate components into 
 4. **Cost auto-detection**: Fetch cost rates from Digital Ocean API
 5. **Caching**: Fall back to cached list if API fails
 6. **Replace hardcoded**: Replace current hardcoded model list with dynamic Digital Ocean list
+7. **Single source of truth**: Treat checked-in `config/models.json` as the operator's intended global model policy, excluding only tokens and endpoint credentials.
+8. **Automatic catalog additions**: New DigitalOcean catalog models should be added to `config/models.json` with generated metadata and default enabled policy.
+9. **Removed model handling**: Models missing from the DigitalOcean catalog should remain in the registry marked unavailable/removed, hidden from normal Code/Create selectors, and visible in Console management.
+10. **Proxy sync reliability**: Proxy reload should use both explicit sync after registry saves and automatic `config/models.json` modification-time polling.
+11. **Stale route protection**: If proxy registry reload fails, show a global registry sync failed alert, keep old routing active, and block sends only for newly selected stale models.
+12. **Routing transparency**: Every routed request should expose requested model, routed model, fallback reason, provider, endpoint mode, and trace ID in Show Detail; mismatches should show a visible badge while details stay collapsed by default.
 
 **Files to Create/Modify:**
 - `do-anthropic-proxy.py` - Add Digital Ocean API client and model caching
@@ -375,6 +400,11 @@ The interface refactoring work consolidates previously separate components into 
 5. Auto-detect cost rates from Digital Ocean pricing
 6. Replace hardcoded `MATTS_VALUE_SET_MODELS` with dynamic list
 7. Add tests for model fetching and filtering
+8. Add generated metadata path for newly discovered DigitalOcean models
+9. Mark catalog-removed models unavailable without deleting registry history
+10. Add proxy registry mtime polling in addition to explicit Console sync
+11. Add global stale/sync-failed UI state and stale-model send blocking
+12. Add compact routing facts to request Show Detail surfaces
 
 **Completion Criteria:**
 - [ ] Digital Ocean API integration working
@@ -383,6 +413,14 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Cost rate auto-detection
 - [ ] Caching and fallback working
 - [ ] Hardcoded models replaced
+- [ ] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
+- [ ] Tokens and endpoint credentials are excluded from checked-in model registry data
+- [ ] New catalog models are added automatically with generated metadata and default enabled policy
+- [ ] Removed catalog models are retained as unavailable and hidden from normal selectors
+- [ ] Proxy reloads model registry changes by both explicit sync and file modification polling
+- [ ] Registry sync failures trigger a global alert and block sends only for newly selected stale models
+- [ ] Show Detail exposes compact routing facts for every routed request
+- [ ] Model mismatch/fallback shows a visible badge while full details remain collapsed by default
 - [ ] Tests for all new functionality
 
 **Dependencies:** INT-004 (Configuration system) - for model visibility settings
@@ -392,11 +430,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-016
 **Title:** Add DigitalOcean Dedicated Inference lifecycle manager
-**Status:** 👀 `NEEDS_REVIEW`
+**Status:** 📋 `TODO`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
-**Completion Time:** 2026-07-07
+**Completion Time:** *Reopened 2026-07-08 for cost-governance scope*
 **Estimated Duration:** 1 pass
 
 **Progress Notes:**
@@ -436,6 +474,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Enriched global model selectors with training-origin country, human-readable cost labels, brand/logo metadata, access-state greyout, and use-case/comparison cards shared across Code, Create, Chat, image generation, and Dedicated fallback controls.
 - 2026-07-08: Rebuilt the Code session picker with enriched live/previous session cards, inline tmux rename support, new-session highlighting, session metadata persistence, and previous-session read-only red styling.
 - 2026-07-08: Consolidated Code session create/select/rename/stop into the running tmux chooser with display-name/tmux-id separation, generated `STARTTIME_` names, preset-based new session creation, pinned current/live/previous groups, and read-only previous sessions.
+- 2026-07-08: Requirements survey reopened this task to harden cost-governance for private-operator dependability. Completed lifecycle work remains checked below, but remaining scope now emphasizes daily budget visibility, budget override logging, idle/unhealthy countdown enforcement, and budget-blocked fallback behavior.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -443,6 +482,20 @@ The interface refactoring work consolidates previously separate components into 
 - `image-studio.py`
 - `templates/main.html`
 - `MAIN-WORKLIST.md`
+
+**Reopened Scope:**
+1. Add a global daily Dedicated budget meter showing dollars used / daily limit, with 70% warning and 90% critical styling.
+2. Block new Dedicated builds by default when daily budget is critical, but allow current console-token users to override.
+3. Log every budget override with timestamp, model, region/GPU, fallback, estimated cost, budget state, and user/session identifier.
+4. Add background idle enforcement outside page-driven refresh: warn everywhere at idle threshold, show teardown countdown, and auto-destroy after the configured idle teardown window.
+5. Add keep-alive extension choices of 5 minutes, 10 minutes, 30 minutes, and 1 hour; if no successful Dedicated work happens during the extension, tear down immediately when it expires.
+6. Count only successful model requests as Dedicated work for idle reset.
+7. Add unhealthy-server countdown: after 3 consecutive failed health/model checks, show teardown countdown and destroy after 5 minutes if not recovered.
+8. While unhealthy countdown is active, new Dedicated requests should fail fast with a clear unhealthy message emphasizing how to keep working.
+9. Preserve full Dedicated lifecycle diagnostics locally for 30 days after teardown, then archive old records as compressed files in the app cache directory.
+10. After auto/manual teardown, leave the Dedicated model visible but disabled with a "Build again" action in model selectors, requiring estimated hourly cost confirmation.
+11. Build-again confirmations should warn, but allow override, if the daily budget would be exceeded.
+12. If Dedicated is blocked by budget, Code/Create should automatically route to configured Serverless fallback with a prominent pre-reply message and trace reason `budget_blocked_fallback`.
 
 **Completion Criteria:**
 - [x] Dedicated state/config persisted locally
@@ -455,6 +508,15 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Live DO account/token/scopes verified against a real Dedicated build
 - [x] Dedicated endpoint request shape verified against the deployed model runtime
 - [ ] Idle auto-teardown background enforcement added outside page-driven refresh
+- [ ] Global daily Dedicated budget meter added to the top interface
+- [ ] Daily budget critical state blocks new Dedicated builds unless overridden
+- [ ] Budget override decisions are logged with full build context
+- [ ] Idle warning and teardown countdown alerts appear across Code, Create, and Console
+- [ ] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
+- [ ] Unhealthy-server countdown tears down after repeated failed health/model checks
+- [ ] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
+- [ ] Disabled Dedicated models expose guarded "Build again" in selectors
+- [ ] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
 
 **Dependencies:** INT-015 (global model registry), DigitalOcean Dedicated Inference account access
 **Blocks:** None
