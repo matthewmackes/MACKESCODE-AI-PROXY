@@ -20,6 +20,7 @@ python3 -m py_compile \
   src/console/handlers/template_handler.py \
   src/console/services/health.py \
   src/console/services/model_registry.py \
+  src/console/services/usage.py \
   tests/test_auth_handler.py \
   tests/test_console_smoke.py \
   tests/test_health_service.py \
@@ -28,6 +29,7 @@ python3 -m py_compile \
   tests/test_proxy_registry_reload.py \
   tests/test_static_handler.py \
   tests/test_template_handler.py \
+  tests/test_usage_service.py \
   scripts/coverage-report.py \
   scripts/browser-smoke.py
 
