@@ -220,6 +220,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added model-registry tests covering default-enable threshold behavior, route gating for serverless access audits, registry save/load filtering, disabled managed Dedicated selector visibility, and enriched model labels/status.
 - 2026-07-08: Added `scripts/release-check.sh` as a repeatable local release gate for unit/smoke tests, Python syntax checks, and template JavaScript syntax checks; documented it in README and verified it passes.
 - 2026-07-08: Added dependency-free `scripts/coverage-report.py` using Python `trace`; release check now generates `build/coverage/coverage.json` and `coverage.md` and currently reports 13.08% line-hit coverage over the main Python entrypoints.
+- 2026-07-08: Added GitHub Actions `Release Check` workflow for pushes and pull requests on `main`; it installs Python and Node, then runs `scripts/release-check.sh`.
 
 **Description:** Create unit and integration tests for the console interface.
 
@@ -247,7 +248,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Core tests implemented
 - [x] Test runner configured
 - [x] Coverage reports working
-- [ ] CI integration ready
+- [x] CI integration ready
 - [x] Release check command documented and repeatable
 - [ ] Browser smoke tests can run headlessly
 
