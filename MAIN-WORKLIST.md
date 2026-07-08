@@ -375,6 +375,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added unittest coverage for model route gating, registry persistence/filtering, managed Dedicated selector visibility, and enriched model labels/status.
 - 2026-07-08: Hardened model-registry normalization so endpoint/token/credential fields are excluded from saved model entries; verified checked-in `config/models.json` has no explicit token or endpoint credential keys.
 - 2026-07-08: Updated Serverless catalog sync to retain models missing from the latest DigitalOcean catalog as disabled `access_status=removed` entries with an explanatory error, keeping them visible in Console but out of active routing/selectors.
+- 2026-07-08: Added proxy-side model registry fingerprint tracking, request-time mtime reloads, explicit `/v1/claude-do/reload`, Console sync display for loaded/stale/error registry state, and regression tests for proxy/GUI sync drift.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -425,7 +426,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Tokens and endpoint credentials are excluded from checked-in model registry data
 - [ ] New catalog models are added automatically with generated metadata and default enabled policy
 - [x] Removed catalog models are retained as unavailable and hidden from normal selectors
-- [ ] Proxy reloads model registry changes by both explicit sync and file modification polling
+- [x] Proxy reloads model registry changes by both explicit sync and file modification polling
 - [ ] Registry sync failures trigger a global alert and block sends only for newly selected stale models
 - [ ] Show Detail exposes compact routing facts for every routed request
 - [ ] Model mismatch/fallback shows a visible badge while full details remain collapsed by default

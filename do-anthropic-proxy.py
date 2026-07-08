@@ -89,8 +89,44 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
     return text + image, aliases, costs, True
 
 
-def _refresh_model_registry(server):
+def _model_config_fingerprint(path):
+    try:
+        stat = os.stat(path)
+        return {
+            "path": str(path),
+            "exists": True,
+            "mtime": stat.st_mtime,
+            "mtime_ns": stat.st_mtime_ns,
+            "size": stat.st_size,
+        }
+    except OSError as exc:
+        return {
+            "path": str(path),
+            "exists": False,
+            "mtime": 0,
+            "mtime_ns": 0,
+            "size": 0,
+            "error": str(exc),
+        }
+
+
+def _same_model_config_fingerprint(left, right):
+    return (
+        bool(left)
+        and bool(right)
+        and left.get("exists") == right.get("exists")
+        and left.get("mtime_ns") == right.get("mtime_ns")
+        and left.get("size") == right.get("size")
+    )
+
+
+def _refresh_model_registry(server, force=False):
     if not getattr(server, "model_config_file", ""):
+        return
+    fingerprint = _model_config_fingerprint(server.model_config_file)
+    server.model_config_last_check_at = time.time()
+    previous = getattr(server, "model_config_fingerprint", None)
+    if not force and _same_model_config_fingerprint(fingerprint, previous):
         return
     models, aliases, costs, loaded = _load_model_registry(
         server.model_config_file,
@@ -102,9 +138,27 @@ def _refresh_model_registry(server):
     server.model_aliases = aliases
     server.costs = costs
     server.model_config_loaded = loaded
+    server.model_config_fingerprint = fingerprint
+    server.model_config_last_loaded_at = time.time()
+    server.model_config_last_error = "" if loaded else (fingerprint.get("error") or "No active route-enabled models loaded from registry.")
     if server.default_model not in server.models and server.models:
         text_models = [model for model in server.models if "image" not in model.lower() and "stable-diffusion" not in model.lower()]
         server.default_model = text_models[0] if text_models else server.models[0]
+
+
+def _model_config_state(server):
+    fingerprint = getattr(server, "model_config_fingerprint", None) or _model_config_fingerprint(getattr(server, "model_config_file", ""))
+    current = _model_config_fingerprint(getattr(server, "model_config_file", ""))
+    return {
+        "file": getattr(server, "model_config_file", ""),
+        "loaded": bool(getattr(server, "model_config_loaded", False)),
+        "loaded_at": getattr(server, "model_config_last_loaded_at", 0),
+        "last_check_at": getattr(server, "model_config_last_check_at", 0),
+        "last_error": getattr(server, "model_config_last_error", ""),
+        "fingerprint": fingerprint,
+        "current_fingerprint": current,
+        "stale": not _same_model_config_fingerprint(fingerprint, current),
+    }
 
 
 def _dedicated_config_path():
@@ -893,8 +947,8 @@ class Handler(BaseHTTPRequestHandler):
         with open(self.server.token_file, "r", encoding="utf-8") as f:
             return f.read().strip()
 
-    def _refresh_models(self):
-        _refresh_model_registry(self.server)
+    def _refresh_models(self, force=False):
+        _refresh_model_registry(self.server, force=force)
 
     def do_GET(self):
         self._refresh_models()
@@ -908,6 +962,7 @@ class Handler(BaseHTTPRequestHandler):
                 "usage_file": self.server.cost_file,
                 "model_config_file": self.server.model_config_file,
                 "model_config_loaded": self.server.model_config_loaded,
+                "model_config_state": _model_config_state(self.server),
             })
         if path == "/v1/claude-do/capabilities":
             return self._json(200, {
@@ -917,6 +972,7 @@ class Handler(BaseHTTPRequestHandler):
                 "models": self.server.models,
                 "model_config_file": self.server.model_config_file,
                 "model_config_loaded": self.server.model_config_loaded,
+                "model_config_state": _model_config_state(self.server),
                 "dedicated": _dedicated_lifecycle(_load_dedicated_config().get("model_id")),
             })
         if path == "/v1/claude-do/budget":
@@ -934,6 +990,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._refresh_models()
         path = urlparse(self.path).path
+        if path == "/v1/claude-do/reload":
+            self._refresh_models(force=True)
+            return self._json(200, {
+                "ok": True,
+                "models": self.server.models,
+                "model_config_loaded": self.server.model_config_loaded,
+                "model_config_state": _model_config_state(self.server),
+            })
+
         if path == "/v1/claude-do/estimate_cost":
             body = self._read_json()
             model = _resolve_model(body.get("model", self.server.default_model), self.server.model_aliases)
@@ -1204,13 +1269,17 @@ def main():
     server.costs = dict(server.fallback_costs)
     server.model_config_file = args.model_config_file
     server.model_config_loaded = False
+    server.model_config_fingerprint = None
+    server.model_config_last_check_at = 0
+    server.model_config_last_loaded_at = 0
+    server.model_config_last_error = ""
     server.cost_file = args.cost_file
     server.budget_file = args.budget_file
     server.log_file = args.log_file
     server.base_url = args.base_url.rstrip("/")
     server.chat_url = _chat_url(args.base_url)
     server.images_url = _images_url(args.base_url)
-    _refresh_model_registry(server)
+    _refresh_model_registry(server, force=True)
     print("listening on http://%s:%d -> %s" % (args.host, args.port, server.chat_url), flush=True)
     server.serve_forever()
 

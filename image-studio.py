@@ -895,6 +895,25 @@ def proxy_capabilities_raw():
         return 599, {"error": str(exc)}
 
 
+def model_config_fingerprint():
+    path = model_config_file()
+    try:
+        stat = path.stat()
+        return {"path": str(path), "exists": True, "mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+    except OSError as exc:
+        return {"path": str(path), "exists": False, "mtime_ns": 0, "size": 0, "error": str(exc)}
+
+
+def same_model_config_fingerprint(left, right):
+    return (
+        bool(left)
+        and bool(right)
+        and left.get("exists") == right.get("exists")
+        and left.get("mtime_ns") == right.get("mtime_ns")
+        and left.get("size") == right.get("size")
+    )
+
+
 def proxy_in_sync():
     if not port_open(proxy_host(), proxy_port()):
         return False, {"reason": "proxy is not listening"}
@@ -902,15 +921,29 @@ def proxy_in_sync():
     expected_base = os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run").rstrip("/")
     actual_base = str(payload.get("base_url", "")).rstrip("/") if isinstance(payload, dict) else ""
     actual_models = payload.get("models") if isinstance(payload, dict) else []
+    expected_fingerprint = model_config_fingerprint()
+    model_state = payload.get("model_config_state") if isinstance(payload, dict) else {}
+    actual_fingerprint = model_state.get("fingerprint") if isinstance(model_state, dict) else {}
+    registry_seen = (
+        isinstance(model_state, dict)
+        and model_state.get("loaded")
+        and not model_state.get("stale")
+        and same_model_config_fingerprint(expected_fingerprint, actual_fingerprint)
+    )
     ok = (
         status < 400
         and isinstance(payload, dict)
         and payload.get("provider") == "matts-value-set"
         and actual_base == expected_base
         and actual_models == ALL_MODELS
+        and registry_seen
     )
     reason = "in sync" if ok else "proxy config differs from GUI registry"
-    return ok, {"reason": reason, "status": status, "capabilities": payload, "expected_models": ALL_MODELS, "expected_base_url": expected_base}
+    if isinstance(model_state, dict) and model_state.get("stale"):
+        reason = "proxy has not reloaded the latest model registry file"
+    elif isinstance(model_state, dict) and model_state.get("last_error"):
+        reason = "proxy model registry load failed: %s" % model_state.get("last_error")
+    return ok, {"reason": reason, "status": status, "capabilities": payload, "expected_models": ALL_MODELS, "expected_base_url": expected_base, "expected_model_config": expected_fingerprint}
 
 
 def stop_proxy():
@@ -935,6 +968,14 @@ def start_proxy_if_needed(force=False):
     in_sync, _ = proxy_in_sync()
     if in_sync and not force:
         return
+    if force and port_open(proxy_host(), proxy_port()):
+        try:
+            request_json(proxy_url("/v1/claude-do/reload"), {})
+            in_sync, _ = proxy_in_sync()
+            if in_sync:
+                return
+        except Exception:
+            pass
     if port_open(proxy_host(), proxy_port()):
         stop_proxy()
     write_token()

@@ -142,6 +142,48 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertNotIn("removed-model", active_ids)
         self.assertIn("dedicated-building", models)
 
+    def test_proxy_sync_requires_loaded_matching_registry_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            models = [{"id": "allowed-text", "type": "text", "enabled": True, "serverless": True, "access_status": "ok"}]
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                studio.save_model_registry(models)
+                fingerprint = studio.model_config_fingerprint()
+                payload = {
+                    "provider": "matts-value-set",
+                    "base_url": "https://inference.do-ai.run",
+                    "models": ["allowed-text"],
+                    "model_config_state": {"loaded": True, "stale": False, "fingerprint": fingerprint},
+                }
+                with patch.object(studio, "port_open", return_value=True), \
+                     patch.object(studio, "proxy_capabilities_raw", return_value=(200, payload)), \
+                     patch.object(studio, "ALL_MODELS", ["allowed-text"]):
+                    ok, details = studio.proxy_in_sync()
+
+        self.assertTrue(ok)
+        self.assertEqual(details["reason"], "in sync")
+        self.assertEqual(details["expected_model_config"]["mtime_ns"], fingerprint["mtime_ns"])
+
+    def test_proxy_sync_rejects_stale_registry_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                path.write_text('{"models":[]}', encoding="utf-8")
+                fingerprint = studio.model_config_fingerprint()
+                payload = {
+                    "provider": "matts-value-set",
+                    "base_url": "https://inference.do-ai.run",
+                    "models": [],
+                    "model_config_state": {"loaded": True, "stale": True, "fingerprint": fingerprint},
+                }
+                with patch.object(studio, "port_open", return_value=True), \
+                     patch.object(studio, "proxy_capabilities_raw", return_value=(200, payload)), \
+                     patch.object(studio, "ALL_MODELS", []):
+                    ok, details = studio.proxy_in_sync()
+
+        self.assertFalse(ok)
+        self.assertIn("not reloaded", details["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()
