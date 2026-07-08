@@ -28,6 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen, urlretrieve
 
+from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.health import ConsoleHealthService
 
@@ -3176,6 +3177,10 @@ def render_template(name, replacements=None):
     return template_handler().render(name, replacements)
 
 
+def static_images_handler():
+    return StaticHandler(app_dir() / "images")
+
+
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -3433,17 +3438,16 @@ class StudioHandler(BaseHTTPRequestHandler):
                 "dedicated_inference": dedicated_status_payload(poll=False),
             })
         if path.startswith("/images/"):
-            filename = Path(path).name
-            file_path = app_dir() / "images" / filename
-            if not file_path.exists():
+            response = static_images_handler().file_response(path, default_content_type="image/png")
+            if response is None:
                 self.send_error(404)
                 return
-            data = file_path.read_bytes()
-            self.send_response(200)
-            self.send_header("content-type", mimetypes.guess_type(str(file_path))[0] or "image/png")
-            self.send_header("content-length", str(len(data)))
+            self.send_response(response["status"])
+            self.send_header("content-type", response["content_type"])
+            for key, value in response["headers"].items():
+                self.send_header(key, value)
             self.end_headers()
-            self.wfile.write(data)
+            self.wfile.write(response["data"])
             return
         self.send_error(404)
 
