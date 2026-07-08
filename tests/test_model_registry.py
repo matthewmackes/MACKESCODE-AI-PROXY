@@ -222,6 +222,79 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("not reloaded", details["reason"])
 
+    def test_registry_sync_issue_blocks_when_selected_model_missing_from_proxy(self):
+        details = {
+            "reason": "proxy has not reloaded the latest model registry file",
+            "expected_models": ["new-model"],
+            "capabilities": {
+                "models": ["old-model"],
+                "model_config_state": {"loaded": True, "stale": True},
+            },
+        }
+        with patch.object(studio, "proxy_in_sync", return_value=(False, details)):
+            issue = studio.registry_sync_issue_for_model("new-model")
+
+        self.assertTrue(issue["blocking"])
+        self.assertFalse(issue["selected_model_loaded"])
+        self.assertIn("not loaded", issue["message"])
+
+    def test_registry_sync_issue_allows_when_selected_model_is_loaded(self):
+        details = {
+            "reason": "proxy config differs from GUI registry",
+            "expected_models": ["loaded-model", "new-model"],
+            "capabilities": {
+                "models": ["loaded-model"],
+                "model_config_state": {"loaded": True, "stale": False},
+            },
+        }
+        with patch.object(studio, "proxy_in_sync", return_value=(False, details)):
+            issue = studio.registry_sync_issue_for_model("loaded-model")
+
+        self.assertFalse(issue["blocking"])
+        self.assertTrue(issue["selected_model_loaded"])
+        self.assertIn("can continue", issue["message"])
+
+    def test_serverless_chat_blocks_stale_selected_model_before_proxy_request(self):
+        issue = {
+            "blocking": True,
+            "message": "The selected model 'new-model' is not loaded by the Claude Code proxy yet.",
+            "selected_model": "new-model",
+            "selected_model_loaded": False,
+            "proxy_models": ["old-model"],
+            "reason": "proxy stale",
+        }
+        with patch.object(studio, "TEXT_MODELS", ["new-model"]), \
+             patch.object(studio, "start_proxy_if_needed", return_value=None), \
+             patch.object(studio, "registry_sync_issue_for_model", return_value=issue), \
+             patch.object(studio, "request_json") as request_json:
+            status, payload = studio.serverless_chat_completion({"messages": [{"role": "user", "content": "hi"}]}, "new-model")
+
+        self.assertEqual(status, studio.HTTPStatus.CONFLICT)
+        self.assertEqual(payload["routing"]["reason"], "registry_sync_blocked")
+        self.assertEqual(payload["registry_sync"]["selected_model"], "new-model")
+        request_json.assert_not_called()
+
+    def test_serverless_chat_attaches_nonblocking_registry_warning(self):
+        issue = {
+            "blocking": False,
+            "message": "The proxy registry needs attention, but the selected model is already loaded.",
+            "selected_model": "loaded-model",
+            "selected_model_loaded": True,
+            "proxy_models": ["loaded-model"],
+            "reason": "proxy stale",
+        }
+        response = {"content": [{"type": "text", "text": "hello"}], "usage": {"input_tokens": 1, "output_tokens": 1}}
+        with patch.object(studio, "TEXT_MODELS", ["loaded-model"]), \
+             patch.object(studio, "start_proxy_if_needed", return_value=None), \
+             patch.object(studio, "registry_sync_issue_for_model", return_value=issue), \
+             patch.object(studio, "request_json", return_value=(200, response)):
+            status, payload = studio.serverless_chat_completion({"messages": [{"role": "user", "content": "hi"}]}, "loaded-model")
+
+        self.assertEqual(status, studio.HTTPStatus.OK)
+        self.assertEqual(payload["text"], "hello")
+        self.assertEqual(payload["routing"]["reason"], "registry_sync_warning")
+        self.assertEqual(payload["routing"]["registry_sync"]["selected_model"], "loaded-model")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1033,6 +1033,37 @@ def proxy_sync_payload(force=False):
     }
 
 
+def registry_sync_issue_for_model(model):
+    in_sync, details = proxy_in_sync()
+    if in_sync:
+        return None
+    details = details if isinstance(details, dict) else {}
+    caps = details.get("capabilities") if isinstance(details.get("capabilities"), dict) else {}
+    proxy_models = caps.get("models") if isinstance(caps.get("models"), list) else []
+    registry_state = caps.get("model_config_state") if isinstance(caps.get("model_config_state"), dict) else {}
+    reason = details.get("reason") or "proxy registry is not synchronized"
+    selected_loaded = model in proxy_models
+    blocking = not selected_loaded
+    message = (
+        "The selected model '%s' is not loaded by the Claude Code proxy yet. %s. "
+        "Use Sync Proxy from Console or wait for the registry reload to finish before sending."
+    ) % (model, reason) if blocking else (
+        "The proxy registry needs attention (%s), but the selected model '%s' is already loaded and the request can continue."
+    ) % (reason, model)
+    return {
+        "ok": False,
+        "blocking": blocking,
+        "message": message,
+        "reason": reason,
+        "selected_model": model,
+        "selected_model_loaded": selected_loaded,
+        "proxy_models": proxy_models,
+        "registry_state": registry_state,
+        "expected_models": details.get("expected_models") or [],
+        "expected_model_config": details.get("expected_model_config") or {},
+    }
+
+
 def request_json(url, payload=None, timeout=240, method="POST"):
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = Request(url, data=data, headers={"content-type": "application/json"}, method=method)
@@ -1929,6 +1960,14 @@ def serverless_chat_completion(data, model, allow_unregistered=False):
     start_proxy_if_needed()
     if not allow_unregistered and model not in TEXT_MODELS:
         return HTTPStatus.BAD_REQUEST, {"error": "unknown text model"}
+    registry_issue = registry_sync_issue_for_model(model)
+    if registry_issue and registry_issue.get("blocking"):
+        return HTTPStatus.CONFLICT, {
+            "error": registry_issue["message"],
+            "message": registry_issue["message"],
+            "registry_sync": registry_issue,
+            "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "registry_sync_blocked"},
+        }
     messages = data.get("messages") if isinstance(data.get("messages"), list) else []
     if not messages:
         return HTTPStatus.BAD_REQUEST, {"error": "message is required"}
@@ -1945,7 +1984,11 @@ def serverless_chat_completion(data, model, allow_unregistered=False):
         return status, response
     text = "".join(part.get("text", "") for part in response.get("content", []) if isinstance(part, dict))
     input_text = "\n".join(str(msg.get("content") or "") for msg in messages if isinstance(msg, dict))
-    return HTTPStatus.OK, {"text": text, "raw": response, "usage": response.get("usage") or {}, "cost": _chat_cost_usd(model, input_text, text), "routing": {"requested": model, "used": model, "backend": "serverless"}}
+    routing = {"requested": model, "used": model, "backend": "serverless"}
+    if registry_issue:
+        routing["reason"] = "registry_sync_warning"
+        routing["registry_sync"] = registry_issue
+    return HTTPStatus.OK, {"text": text, "raw": response, "usage": response.get("usage") or {}, "cost": _chat_cost_usd(model, input_text, text), "routing": routing}
 
 
 def chat_completion(data):

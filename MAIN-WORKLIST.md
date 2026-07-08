@@ -377,6 +377,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Updated Serverless catalog sync to retain models missing from the latest DigitalOcean catalog as disabled `access_status=removed` entries with an explanatory error, keeping them visible in Console but out of active routing/selectors.
 - 2026-07-08: Added proxy-side model registry fingerprint tracking, request-time mtime reloads, explicit `/v1/claude-do/reload`, Console sync display for loaded/stale/error registry state, and regression tests for proxy/GUI sync drift.
 - 2026-07-08: Added regression coverage proving new Serverless catalog models are inserted with generated display/brand/cost metadata and default enabled policy while still requiring access audit before route activation.
+- 2026-07-08: Added global registry sync alert banner, registry-specific chat error card, message-level registry sync details, and selected-model blocking that only stops sends when the chosen model is not loaded by the proxy.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -428,7 +429,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] New catalog models are added automatically with generated metadata and default enabled policy
 - [x] Removed catalog models are retained as unavailable and hidden from normal selectors
 - [x] Proxy reloads model registry changes by both explicit sync and file modification polling
-- [ ] Registry sync failures trigger a global alert and block sends only for newly selected stale models
+- [x] Registry sync failures trigger a global alert and block sends only for newly selected stale models
 - [ ] Show Detail exposes compact routing facts for every routed request
 - [ ] Model mismatch/fallback shows a visible badge while full details remain collapsed by default
 - [ ] Tests for all new functionality
