@@ -107,6 +107,41 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertTrue(by_id["haiku-4-5"]["disabled"])
         self.assertIn("Unavailable for this key", by_id["haiku-4-5"]["label"])
 
+    def test_catalog_sync_marks_missing_serverless_models_removed(self):
+        catalog = {
+            "ok": True,
+            "source": "test",
+            "fetched_at": 1,
+            "payload": {
+                "data": [
+                    {"id": "still-listed", "created": 1, "owned_by": "digitalocean", "max_output_tokens": 128},
+                    {"id": "new-cheap", "created": 2, "owned_by": "digitalocean", "max_output_tokens": 128},
+                ]
+            },
+        }
+        initial = [
+            {"id": "still-listed", "type": "text", "enabled": True, "serverless": True, "access_status": "ok", "pricing": {"input": 0.1, "output": 0.2}},
+            {"id": "removed-model", "type": "text", "enabled": True, "serverless": True, "access_status": "ok", "pricing": {"input": 0.1, "output": 0.2}},
+            {"id": "dedicated-building", "type": "text", "enabled": False, "dedicated": {"managed": True}, "pricing": {"hourly": 2.59}},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}), \
+                 patch.object(studio, "serverless_catalog_payload", return_value=catalog), \
+                 patch.object(studio, "proxy_sync_payload", return_value={"in_sync": True}):
+                studio.save_model_registry(initial)
+                result = studio.sync_serverless_model_catalog(force=True, validate_access=False)
+                models = {model["id"]: model for model in studio.load_model_registry(include_disabled=True)}
+                active_ids = [model["id"] for model in studio.load_model_registry(include_disabled=False)]
+
+        self.assertEqual(result["removed"], 1)
+        self.assertIn("new-cheap", models)
+        self.assertFalse(models["removed-model"]["enabled"])
+        self.assertEqual(models["removed-model"]["access_status"], "removed")
+        self.assertIn("no longer lists", models["removed-model"]["last_error"])
+        self.assertNotIn("removed-model", active_ids)
+        self.assertIn("dedicated-building", models)
+
 
 if __name__ == "__main__":
     unittest.main()

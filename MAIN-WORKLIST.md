@@ -374,6 +374,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Requirements survey clarified `config/models.json` as the private-operator source of truth for model availability, metadata, access probe results, and enabled policy. Proxy sync should use both explicit Console sync and file modification polling, with visible stale/sync-failed states.
 - 2026-07-08: Added unittest coverage for model route gating, registry persistence/filtering, managed Dedicated selector visibility, and enriched model labels/status.
 - 2026-07-08: Hardened model-registry normalization so endpoint/token/credential fields are excluded from saved model entries; verified checked-in `config/models.json` has no explicit token or endpoint credential keys.
+- 2026-07-08: Updated Serverless catalog sync to retain models missing from the latest DigitalOcean catalog as disabled `access_status=removed` entries with an explanatory error, keeping them visible in Console but out of active routing/selectors.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -423,7 +424,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
 - [x] Tokens and endpoint credentials are excluded from checked-in model registry data
 - [ ] New catalog models are added automatically with generated metadata and default enabled policy
-- [ ] Removed catalog models are retained as unavailable and hidden from normal selectors
+- [x] Removed catalog models are retained as unavailable and hidden from normal selectors
 - [ ] Proxy reloads model registry changes by both explicit sync and file modification polling
 - [ ] Registry sync failures trigger a global alert and block sends only for newly selected stale models
 - [ ] Show Detail exposes compact routing facts for every routed request

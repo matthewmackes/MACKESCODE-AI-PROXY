@@ -627,10 +627,12 @@ def sync_serverless_model_catalog(force=False, validate_access=False):
     by_id = {model["id"]: model for model in existing_models}
     added = 0
     updated = 0
+    seen_catalog_ids = set()
     for item in data:
         if not isinstance(item, dict) or not item.get("id"):
             continue
         model_id = str(item["id"])
+        seen_catalog_ids.add(model_id)
         existing = by_id.get(model_id)
         if existing and isinstance(existing.get("dedicated"), dict):
             continue
@@ -641,13 +643,23 @@ def sync_serverless_model_catalog(force=False, validate_access=False):
             updated += 1 if existing else 0
             added += 0 if existing else 1
             by_id[model_id] = entry
+    removed = 0
+    for model_id, model in list(by_id.items()):
+        if model_id in seen_catalog_ids or not model.get("serverless") or isinstance(model.get("dedicated"), dict):
+            continue
+        if model.get("access_status") != "removed" or model.get("enabled") is not False:
+            model["enabled"] = False
+            model["access_status"] = "removed"
+            model["last_error"] = "DigitalOcean catalog no longer lists this model."
+            by_id[model_id] = model
+            removed += 1
     dedicated = [model for model in existing_models if isinstance(model.get("dedicated"), dict) and model["id"] not in by_id]
     merged = list(by_id.values()) + dedicated
     access = validate_serverless_access(merged) if validate_access else {"checked": 0, "disabled": 0}
     merged.sort(key=lambda model: (0 if model.get("serverless") else 1, str(model.get("type") or ""), str(model.get("id") or "")))
     saved = save_model_registry(merged)
     refresh_model_globals()
-    return {"ok": True, "added": added, "updated": updated, "total": len(saved), "catalog": {"ok": catalog.get("ok"), "source": catalog.get("source"), "fetched_at": catalog.get("fetched_at"), "error": catalog.get("error")}, "auto_enable_threshold_usd": MODEL_AUTO_ENABLE_MAX_USD, "access_validation": access, "text_model_options": model_options("text", include_disabled=True), "image_model_options": model_options("image", include_disabled=True), "model_metadata": model_metadata_map()}
+    return {"ok": True, "added": added, "updated": updated, "removed": removed, "total": len(saved), "catalog": {"ok": catalog.get("ok"), "source": catalog.get("source"), "fetched_at": catalog.get("fetched_at"), "error": catalog.get("error")}, "auto_enable_threshold_usd": MODEL_AUTO_ENABLE_MAX_USD, "access_validation": access, "text_model_options": model_options("text", include_disabled=True), "image_model_options": model_options("image", include_disabled=True), "model_metadata": model_metadata_map()}
 
 
 def refresh_model_globals():
