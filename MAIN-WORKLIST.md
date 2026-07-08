@@ -100,6 +100,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added `src.console.handlers.AuthHandler` for request-token parsing and authorization checks while keeping login/response behavior in `StudioHandler`.
 - 2026-07-08: Extracted model registry normalization, route-enabled policy, pricing detection, brand/origin metadata, cost labels, and selector enrichment into `src.console.services.ModelRegistryService`.
 - 2026-07-08: Extracted local usage reports, DigitalOcean billing report aggregation, cost summary, and budget persistence into `src.console.services.UsageService`.
+- 2026-07-08: Extracted tmux session naming, registry persistence, chooser row enrichment, previous-session read-only rename policy, and usage attribution into `src.console.services.SessionService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

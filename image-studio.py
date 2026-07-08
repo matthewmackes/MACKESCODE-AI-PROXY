@@ -33,6 +33,7 @@ from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.health import ConsoleHealthService
 from src.console.services.model_registry import ModelRegistryService
+from src.console.services.session import SessionService
 from src.console.services.usage import UsageService
 
 
@@ -2161,23 +2162,24 @@ class TerminalSession:
             pass
 
 
+def session_service():
+    return SessionService(
+        registry_file=tmux_session_registry_file,
+        log_file=log_file,
+        script_dir=script_dir,
+        tmux_exists=tmux_exists,
+        tmux_cmd=tmux_cmd,
+        model_metadata_map=model_metadata_map,
+        clock=time.time,
+    )
+
+
 def tmux_session_name(value):
-    raw = str(value or "").strip()
-    cleaned = "".join(ch for ch in raw if ch.isalnum() or ch in "-_")
-    return cleaned[:80] if cleaned else "matts-claude"
+    return session_service().session_name(value)
 
 
 def unique_tmux_session_name(base, reserved=None):
-    reserved = set(reserved or [])
-    root = tmux_session_name(base)
-    candidate = root
-    index = 2
-    registry = read_tmux_session_registry()
-    while tmux_exists(candidate) or candidate in registry or candidate in reserved:
-        suffix = "-%d" % index
-        candidate = (root[: max(1, 80 - len(suffix))] + suffix) if len(root) + len(suffix) > 80 else root + suffix
-        index += 1
-    return candidate
+    return session_service().unique_name(base, reserved=reserved)
 
 
 def tmux_cmd(args, check=True):
@@ -2200,183 +2202,31 @@ def tmux_exists(name):
 
 
 def read_tmux_session_registry():
-    path = tmux_session_registry_file()
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    return session_service().read_registry()
 
 
 def write_tmux_session_registry(data):
-    path = tmux_session_registry_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    path.chmod(0o600)
+    session_service().write_registry(data)
 
 
 def tmux_registry_upsert(name, data=None, live=True, stopped=False):
-    registry = read_tmux_session_registry()
-    record = registry.get(name) if isinstance(registry.get(name), dict) else {}
-    now = time.time()
-    record.update({
-        "name": name,
-        "display_name": (data or {}).get("display_name") or record.get("display_name") or name,
-        "updated_at": now,
-        "live": bool(live),
-    })
-    if data:
-        record.update({
-            "model": data.get("model") or record.get("model") or "",
-            "project_dir": data.get("project_dir") or record.get("project_dir") or str(script_dir()),
-            "run_mode": data.get("run_mode") or record.get("run_mode") or "interactive",
-            "permission_mode": data.get("permission_mode") or record.get("permission_mode") or "",
-            "profile": data.get("profile") or record.get("profile") or "",
-            "output_format": data.get("output_format") or record.get("output_format") or "",
-            "claude_session_name": data.get("claude_session_name") or record.get("claude_session_name") or "",
-            "max_budget_usd": data.get("max_budget_usd") or record.get("max_budget_usd") or "",
-        })
-    record.setdefault("created_at", now)
-    if stopped:
-        record["live"] = False
-        record["stopped_at"] = now
-    registry[name] = record
-    write_tmux_session_registry(registry)
-    return record
+    return session_service().upsert(name, data=data, live=live, stopped=stopped)
 
 
 def proxy_usage_since(model, since_ts):
-    if not model:
-        return {"cost_usd": 0.0, "tokens": 0, "requests": 0}
-    total_cost = 0.0
-    total_tokens = 0
-    requests = 0
-    path = log_file()
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()[-5000:]
-    except OSError:
-        return {"cost_usd": 0.0, "tokens": 0, "requests": 0}
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if model and row.get("model") != model:
-            continue
-        if float(row.get("ts") or 0) < float(since_ts or 0):
-            continue
-        cost = row.get("cost") if isinstance(row.get("cost"), dict) else {}
-        total_cost += float(cost.get("total_cost_usd") or 0)
-        total_tokens += int(cost.get("total_tokens_est") or 0)
-        requests += 1
-    return {"cost_usd": total_cost, "tokens": total_tokens, "requests": requests}
+    return session_service().proxy_usage_since(model, since_ts)
 
 
 def tmux_live_session_rows():
-    fmt = "#{session_name}\t#{session_created}\t#{session_activity}\t#{session_attached}\t#{session_windows}"
-    code, out, _ = tmux_cmd(["list-sessions", "-F", fmt], check=False)
-    if code != 0:
-        return {}
-    rows = {}
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 5:
-            continue
-        rows[parts[0]] = {
-            "name": parts[0],
-            "created_at": float(parts[1] or 0),
-            "last_activity_at": float(parts[2] or 0),
-            "attached": str(parts[3]) == "1",
-            "windows": int(parts[4] or 0),
-        }
-    return rows
+    return session_service().live_session_rows()
 
 
 def tmux_session_items():
-    registry = read_tmux_session_registry()
-    live_rows = tmux_live_session_rows()
-    hidden = {"matts-console-web", "matts-value-set-proxy"}
-    for name, live in live_rows.items():
-        if name in hidden:
-            continue
-        record = registry.get(name) if isinstance(registry.get(name), dict) else {}
-        record.update({
-            "name": name,
-            "display_name": record.get("display_name") or name,
-            "live": True,
-            "created_at": record.get("created_at") or live.get("created_at") or time.time(),
-            "last_activity_at": live.get("last_activity_at") or time.time(),
-            "attached": live.get("attached"),
-            "windows": live.get("windows"),
-            "updated_at": time.time(),
-        })
-        registry[name] = record
-    for name, record in list(registry.items()):
-        if name in hidden:
-            continue
-        if name not in live_rows:
-            record["live"] = False
-            record.setdefault("stopped_at", record.get("updated_at") or time.time())
-    write_tmux_session_registry(registry)
-
-    items = []
-    for name, record in registry.items():
-        if name in hidden:
-            continue
-        created = float(record.get("created_at") or 0)
-        spend = proxy_usage_since(record.get("model") or "", created)
-        model_id = record.get("model") or ""
-        meta = model_metadata_map().get(model_id) or {}
-        item = dict(record)
-        item.update({
-            "name": name,
-            "display_name": record.get("display_name") or name,
-            "model_display": meta.get("display_name") or model_id or "Unknown model",
-            "model_cost": meta.get("cost_label") or "Pricing unavailable",
-            "uptime_seconds": int(max(0, time.time() - created)) if created else 0,
-            "idle_seconds": int(max(0, time.time() - float(record.get("last_activity_at") or created or time.time()))),
-            "estimated_cost_usd": spend["cost_usd"],
-            "estimated_tokens": spend["tokens"],
-            "estimated_requests": spend["requests"],
-            "cost_attribution": "model_since_session_start" if model_id else "unattributed",
-            "unattributed": not bool(model_id),
-            "process_status": "running" if record.get("live") else "stopped",
-            "status": "live" if record.get("live") else "previous",
-            "read_only": not bool(record.get("live")),
-        })
-        items.append(item)
-    items.sort(key=lambda item: (0 if item.get("live") else 1, -float(item.get("created_at") or item.get("stopped_at") or 0)))
-    return items
+    return session_service().session_items()
 
 
 def tmux_rename_session(old_name, new_name, display_name=None):
-    old_name = tmux_session_name(old_name)
-    display_name = str(display_name or new_name or old_name).strip() or old_name
-    requested_name = tmux_session_name(new_name or display_name)
-    registry = read_tmux_session_registry()
-    record = registry.get(old_name) if isinstance(registry.get(old_name), dict) else {}
-    if record and not record.get("live") and not tmux_exists(old_name):
-        return HTTPStatus.BAD_REQUEST, {"error": "previous sessions are read-only"}
-    reserved = {old_name}
-    new_name = old_name if requested_name == old_name else unique_tmux_session_name(requested_name, reserved=reserved)
-    if old_name == new_name:
-        record = registry.get(old_name) if isinstance(registry.get(old_name), dict) else {}
-        record["display_name"] = display_name
-        record["updated_at"] = time.time()
-        registry[old_name] = record
-        write_tmux_session_registry(registry)
-        return HTTPStatus.OK, {"ok": True, "name": new_name, "display_name": display_name, "renamed": False, "sessions": tmux_session_items()}
-    if tmux_exists(old_name):
-        code, _, err = tmux_cmd(["rename-session", "-t", old_name, new_name], check=False)
-        if code != 0:
-            return HTTPStatus.BAD_REQUEST, {"error": err or "tmux rename-session failed"}
-    record = registry.pop(old_name, {}) if isinstance(registry.get(old_name), dict) else {}
-    record["name"] = new_name
-    record["display_name"] = display_name
-    record["updated_at"] = time.time()
-    registry[new_name] = record
-    write_tmux_session_registry(registry)
-    return HTTPStatus.OK, {"ok": True, "name": new_name, "display_name": display_name, "renamed": True, "sessions": tmux_session_items()}
+    return session_service().rename_session(old_name, new_name, display_name=display_name)
 
 
 def launcher_health():
@@ -2601,10 +2451,7 @@ def tmux_stop(name):
 
 
 def tmux_sessions():
-    items = tmux_session_items()
-    names = [item["name"] for item in items if item.get("live")]
-    app_names = [name for name in names if name.startswith("matts-")]
-    return app_names or names
+    return session_service().live_session_names()
 
 
 def strip_ansi(value):
