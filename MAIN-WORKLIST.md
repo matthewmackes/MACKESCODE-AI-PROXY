@@ -110,6 +110,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted WebSocket accept-key generation, frame parsing/sending, exact reads, ping/close handling, and PTY resize ioctl behavior into `src.console.services.WebSocketProtocolService`.
 - 2026-07-08: Extracted Claude launcher self-heal, tmux command argument construction, start/attach/reset behavior, capture/send-key/send-text/stop, and live tmux session listing into `src.console.services.TmuxControlService`.
 - 2026-07-08: Extracted lightweight Claude terminal PTY process lifecycle, buffered reads, writes, stop, and cleanup into `src.console.services.TerminalSessionService`.
+- 2026-07-08: Extracted local proxy sync detection, forced reload/start orchestration, listener cleanup, sync payloads, and selected-model registry mismatch warnings into `src.console.services.ProxyProcessService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

@@ -27,6 +27,7 @@ DEFAULT_FILES = [
     "src/console/services/image_generation.py",
     "src/console/services/model_registry.py",
     "src/console/services/persistence.py",
+    "src/console/services/proxy_process.py",
     "src/console/services/session.py",
     "src/console/services/terminal.py",
     "src/console/services/tmux_control.py",

@@ -35,6 +35,7 @@ from src.console.services.digitalocean import DigitalOceanHealthService
 from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
+from src.console.services.proxy_process import ProxyProcessService
 from src.console.services.session import SessionService
 from src.console.services.terminal import TerminalSessionService
 from src.console.services.tmux_control import TmuxControlService
@@ -763,154 +764,50 @@ def same_model_config_fingerprint(left, right):
     )
 
 
+def proxy_process_service(proxy_in_sync_func=None):
+    return ProxyProcessService(
+        proxy_host=proxy_host,
+        proxy_port=proxy_port,
+        port_open=port_open,
+        request_json=request_json,
+        proxy_capabilities_raw=proxy_capabilities_raw,
+        model_config_fingerprint=model_config_fingerprint,
+        same_model_config_fingerprint=same_model_config_fingerprint,
+        all_models=lambda: ALL_MODELS,
+        base_url=lambda: os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run"),
+        write_token=write_token,
+        default_text_model=default_text_model,
+        token_file=token_file,
+        model_config_file=model_config_file,
+        cost_file=cost_file,
+        budget_file=budget_file,
+        log_file=log_file,
+        proxy_script=lambda: Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / "do-anthropic-proxy.py")),
+        executable=sys.executable,
+        env=os.environ,
+        sleep_func=time.sleep,
+        proxy_in_sync_func=proxy_in_sync_func,
+    )
+
+
 def proxy_in_sync():
-    if not port_open(proxy_host(), proxy_port()):
-        return False, {"reason": "proxy is not listening"}
-    status, payload = proxy_capabilities_raw()
-    expected_base = os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run").rstrip("/")
-    actual_base = str(payload.get("base_url", "")).rstrip("/") if isinstance(payload, dict) else ""
-    actual_models = payload.get("models") if isinstance(payload, dict) else []
-    expected_fingerprint = model_config_fingerprint()
-    model_state = payload.get("model_config_state") if isinstance(payload, dict) else {}
-    actual_fingerprint = model_state.get("fingerprint") if isinstance(model_state, dict) else {}
-    registry_seen = (
-        isinstance(model_state, dict)
-        and model_state.get("loaded")
-        and not model_state.get("stale")
-        and same_model_config_fingerprint(expected_fingerprint, actual_fingerprint)
-    )
-    ok = (
-        status < 400
-        and isinstance(payload, dict)
-        and payload.get("provider") == "matts-value-set"
-        and actual_base == expected_base
-        and actual_models == ALL_MODELS
-        and registry_seen
-    )
-    reason = "in sync" if ok else "proxy config differs from GUI registry"
-    if isinstance(model_state, dict) and model_state.get("stale"):
-        reason = "proxy has not reloaded the latest model registry file"
-    elif isinstance(model_state, dict) and model_state.get("last_error"):
-        reason = "proxy model registry load failed: %s" % model_state.get("last_error")
-    return ok, {"reason": reason, "status": status, "capabilities": payload, "expected_models": ALL_MODELS, "expected_base_url": expected_base, "expected_model_config": expected_fingerprint}
+    return proxy_process_service().in_sync()
 
 
 def stop_proxy():
-    tmux_name = os.environ.get("MATTS_VALUE_SET_TMUX_SESSION", "matts-value-set-proxy")
-    subprocess.run(["tmux", "kill-session", "-t", tmux_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    for tool, args in (("lsof", ["lsof", "-tiTCP:%d" % proxy_port(), "-sTCP:LISTEN"]), ("fuser", ["fuser", "-n", "tcp", str(proxy_port())])):
-        try:
-            found = subprocess.check_output(args, text=True, stderr=subprocess.DEVNULL).split()
-        except (OSError, subprocess.SubprocessError):
-            continue
-        for pid in found:
-            try:
-                os.kill(int(pid), signal.SIGTERM)
-            except (OSError, ValueError):
-                pass
-        if found:
-            time.sleep(0.4)
-            break
+    return proxy_process_service().stop()
 
 
 def start_proxy_if_needed(force=False):
-    in_sync, _ = proxy_in_sync()
-    if in_sync and not force:
-        return
-    if force and port_open(proxy_host(), proxy_port()):
-        try:
-            request_json(proxy_url("/v1/claude-do/reload"), {})
-            in_sync, _ = proxy_in_sync()
-            if in_sync:
-                return
-        except Exception:
-            pass
-    if port_open(proxy_host(), proxy_port()):
-        stop_proxy()
-    write_token()
-    proxy_script = Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / "do-anthropic-proxy.py"))
-    cmd = [
-        sys.executable,
-        str(proxy_script),
-        "--provider",
-        "matts-value-set",
-        "--default-model",
-        default_text_model(),
-        "--host",
-        proxy_host(),
-        "--port",
-        str(proxy_port()),
-        "--token-file",
-        str(token_file()),
-        "--base-url",
-        os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run"),
-        "--model-config-file",
-        str(model_config_file()),
-        "--models",
-        json.dumps(ALL_MODELS),
-        "--cost-file",
-        str(cost_file()),
-        "--budget-file",
-        str(budget_file()),
-        "--log-file",
-        str(log_file()),
-    ]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    for _ in range(50):
-        if port_open(proxy_host(), proxy_port()):
-            return
-        time.sleep(0.1)
-    raise RuntimeError("proxy did not start on %s:%d" % (proxy_host(), proxy_port()))
+    return proxy_process_service().start_if_needed(force=force)
 
 
 def proxy_sync_payload(force=False):
-    start_error = ""
-    try:
-        start_proxy_if_needed(force=force)
-    except Exception as exc:
-        start_error = str(exc)
-    in_sync, details = proxy_in_sync()
-    if start_error:
-        details["start_error"] = start_error
-    return {
-        "listening": port_open(proxy_host(), proxy_port()),
-        "in_sync": in_sync,
-        "host": proxy_host(),
-        "port": proxy_port(),
-        "url": "http://%s:%d" % (proxy_host(), proxy_port()),
-        "details": details,
-    }
+    return proxy_process_service().sync_payload(force=force)
 
 
 def registry_sync_issue_for_model(model):
-    in_sync, details = proxy_in_sync()
-    if in_sync:
-        return None
-    details = details if isinstance(details, dict) else {}
-    caps = details.get("capabilities") if isinstance(details.get("capabilities"), dict) else {}
-    proxy_models = caps.get("models") if isinstance(caps.get("models"), list) else []
-    registry_state = caps.get("model_config_state") if isinstance(caps.get("model_config_state"), dict) else {}
-    reason = details.get("reason") or "proxy registry is not synchronized"
-    selected_loaded = model in proxy_models
-    blocking = not selected_loaded
-    message = (
-        "The selected model '%s' is not loaded by the Claude Code proxy yet. %s. "
-        "Use Sync Proxy from Console or wait for the registry reload to finish before sending."
-    ) % (model, reason) if blocking else (
-        "The proxy registry needs attention (%s), but the selected model '%s' is already loaded and the request can continue."
-    ) % (reason, model)
-    return {
-        "ok": False,
-        "blocking": blocking,
-        "message": message,
-        "reason": reason,
-        "selected_model": model,
-        "selected_model_loaded": selected_loaded,
-        "proxy_models": proxy_models,
-        "registry_state": registry_state,
-        "expected_models": details.get("expected_models") or [],
-        "expected_model_config": details.get("expected_model_config") or {},
-    }
+    return proxy_process_service(proxy_in_sync_func=proxy_in_sync).registry_sync_issue_for_model(model)
 
 
 def request_json(url, payload=None, timeout=240, method="POST"):
