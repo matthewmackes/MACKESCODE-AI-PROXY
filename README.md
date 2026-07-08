@@ -106,6 +106,14 @@ Run the local unit/smoke test suite with the standard library runner:
 python3 -m unittest discover -s tests -v
 ```
 
+Before committing or publishing a release, run the repeatable local release check:
+
+```bash
+scripts/release-check.sh
+```
+
+It runs the unit/smoke suite, Python syntax checks, and template JavaScript syntax checks when `node` is available.
+
 DigitalOcean reporting uses the public DigitalOcean API. To enable account billing data, set:
 
 ```bash
