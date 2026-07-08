@@ -6,7 +6,6 @@ import datetime
 import fcntl
 import hashlib
 import json
-import mimetypes
 import os
 import pty
 import re
@@ -34,6 +33,7 @@ from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.health import ConsoleHealthService
 from src.console.services.dedicated import DedicatedInferenceService
 from src.console.services.model_registry import ModelRegistryService
+from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
 from src.console.services.usage import UsageService
 
@@ -1271,27 +1271,27 @@ def is_dedicated_model(model):
 def dedicated_chat_completion(data, cfg):
     return dedicated_service().chat_completion(data, cfg)
 
+
+def persistence_service():
+    return LocalPersistenceService(
+        app_dir=app_dir,
+        chat_cost_per_mtok=CHAT_COST_PER_MTOK,
+        default_text_model=default_text_model,
+        clock=time.time,
+        uuid_factory=uuid.uuid4,
+    )
+
+
 def history_path():
-    return app_dir() / "history.jsonl"
+    return persistence_service().history_path()
 
 
 def read_history(limit=300):
-    rows = []
-    path = history_path()
-    if not path.exists():
-        return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            rows.append(json.loads(line))
-        except ValueError:
-            continue
-    rows.sort(key=lambda item: item.get("created_at", 0), reverse=True)
-    return rows[:limit]
+    return persistence_service().read_history(limit)
 
 
 def append_history(record):
-    with history_path().open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, sort_keys=True) + "\n")
+    return persistence_service().append_history(record)
 
 
 def build_prompt(data):
@@ -1318,19 +1318,7 @@ def build_prompt(data):
 
 
 def save_image_item(item, image_id):
-    image_dir = app_dir() / "images"
-    if item.get("b64_json"):
-        data = base64.b64decode(item["b64_json"])
-        ext = ".png"
-    elif item.get("url"):
-        with urlopen(item["url"], timeout=240) as resp:
-            data = resp.read()
-            ext = mimetypes.guess_extension(resp.headers.get_content_type()) or ".png"
-    else:
-        raise ValueError("image response did not include b64_json or url")
-    out = image_dir / ("%s%s" % (image_id, ext))
-    out.write_bytes(data)
-    return out
+    return persistence_service().save_image_item(item, image_id)
 
 
 def generate_images(data):
@@ -1522,151 +1510,46 @@ def save_budget(data):
 
 
 def delete_history_item(image_id):
-    path = history_path()
-    if not path.exists():
-        return False
-    original = read_history(limit=100000)
-    kept = []
-    removed = None
-    for row in original:
-        if row.get("id") == image_id:
-            removed = row
-        else:
-            kept.append(row)
-    with path.open("w", encoding="utf-8") as f:
-        for row in reversed(kept):
-            f.write(json.dumps(row, sort_keys=True) + "\n")
-    if removed:
-        try:
-            (app_dir() / "images" / removed["filename"]).unlink()
-        except OSError:
-            pass
-    return bool(removed)
+    return persistence_service().delete_history_item(image_id)
 
 
 # ── Chat persistence ──────────────────────────────────────────────────────────
 
 
 def chats_dir():
-    path = app_dir() / "chats"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return persistence_service().chats_dir()
 
 
 def _estimate_tokens(text):
-    """Simple heuristic: words * 1.3 gives a rough token count."""
-    return max(1, int(len(str(text or "").split()) * 1.3))
+    return persistence_service().estimate_tokens(text)
 
 
 def _chat_cost_usd(model, input_text, output_text):
-    rates = CHAT_COST_PER_MTOK.get(model, {})
-    in_tokens = _estimate_tokens(input_text)
-    out_tokens = _estimate_tokens(output_text)
-    in_cost = in_tokens * float(rates.get("input", 0.0)) / 1_000_000
-    out_cost = out_tokens * float(rates.get("output", 0.0)) / 1_000_000
-    return {
-        "input_tokens_est": in_tokens,
-        "output_tokens_est": out_tokens,
-        "total_tokens_est": in_tokens + out_tokens,
-        "input_cost_usd": round(in_cost, 8),
-        "output_cost_usd": round(out_cost, 8),
-        "total_cost_usd": round(in_cost + out_cost, 8),
-    }
+    return persistence_service().chat_cost_usd(model, input_text, output_text)
 
 
 def chat_filename(chat_id):
-    return chats_dir() / ("chat_%s.json" % chat_id)
+    return persistence_service().chat_filename(chat_id)
 
 
 def _make_title(messages):
-    """Use the first user message (first 60 chars) as title."""
-    for msg in (messages or []):
-        if msg.get("role") == "user":
-            text = str(msg.get("content") or "").strip()
-            if text:
-                return text[:60]
-    return "Untitled"
+    return persistence_service().make_title(messages)
 
 
 def save_chat(data):
-    now = time.time()
-    messages = data.get("messages") if isinstance(data.get("messages"), list) else []
-    model = data.get("model") or default_text_model()
-    chat_id = data.get("id") or ("chat_%d_%s" % (now, uuid.uuid4().hex[:12]))
-    title = data.get("title") or _make_title(messages)
-
-    # Stamp each message with timestamp and token estimate if missing
-    for msg in messages:
-        if not msg.get("timestamp"):
-            msg["timestamp"] = now
-        if not msg.get("tokens"):
-            msg["tokens"] = _estimate_tokens(msg.get("content") or "")
-
-    # Compute total cost from user-assistant pairs
-    running_cost = 0.0
-    in_text = ""
-    for msg in messages:
-        if msg.get("role") == "user":
-            in_text += (msg.get("content") or "") + " "
-        elif msg.get("role") == "assistant":
-            out_text = msg.get("content") or ""
-            cost_info = _chat_cost_usd(model, in_text, out_text)
-            running_cost += cost_info["total_cost_usd"]
-            in_text = ""
-
-    running_tokens = sum(int(m.get("tokens", 0)) for m in messages)
-
-    doc = {
-        "id": chat_id,
-        "created_at": data.get("created_at") or now,
-        "updated_at": now,
-        "model": model,
-        "messages": messages,
-        "title": title,
-        "total_tokens": running_tokens,
-        "total_cost_usd": round(running_cost, 8),
-    }
-    path = chat_filename(chat_id)
-    path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return doc
+    return persistence_service().save_chat(data)
 
 
 def list_chats():
-    result = []
-    directory = chats_dir()
-    for path in sorted(directory.glob("chat_*.json"), reverse=True):
-        try:
-            doc = json.loads(path.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            continue
-        result.append({
-            "id": doc.get("id", path.stem),
-            "title": doc.get("title", "Untitled")[:60],
-            "model": doc.get("model", ""),
-            "created_at": doc.get("created_at", 0),
-            "updated_at": doc.get("updated_at", doc.get("created_at", 0)),
-            "message_count": len(doc.get("messages") or []),
-            "total_cost_usd": doc.get("total_cost_usd", 0),
-        })
-    return result
+    return persistence_service().list_chats()
 
 
 def load_chat(chat_id):
-    path = chat_filename(chat_id)
-    if not path.exists():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        return None
+    return persistence_service().load_chat(chat_id)
 
 
 def delete_chat(chat_id):
-    path = chat_filename(chat_id)
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return persistence_service().delete_chat(chat_id)
 
 
 # ── End chat persistence ─────────────────────────────────────────────────────

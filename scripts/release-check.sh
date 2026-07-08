@@ -21,6 +21,7 @@ python3 -m py_compile \
   src/console/services/dedicated.py \
   src/console/services/health.py \
   src/console/services/model_registry.py \
+  src/console/services/persistence.py \
   src/console/services/session.py \
   src/console/services/usage.py \
   tests/test_auth_handler.py \
@@ -29,6 +30,7 @@ python3 -m py_compile \
   tests/test_health_service.py \
   tests/test_model_registry.py \
   tests/test_model_registry_service.py \
+  tests/test_persistence_service.py \
   tests/test_proxy_registry_reload.py \
   tests/test_session_service.py \
   tests/test_static_handler.py \
