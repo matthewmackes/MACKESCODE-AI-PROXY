@@ -491,7 +491,7 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-016
 **Title:** Add DigitalOcean Dedicated Inference lifecycle manager
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
@@ -537,6 +537,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Consolidated Code session create/select/rename/stop into the running tmux chooser with display-name/tmux-id separation, generated `STARTTIME_` names, preset-based new session creation, pinned current/live/previous groups, and read-only previous sessions.
 - 2026-07-08: Requirements survey reopened this task to harden cost-governance for private-operator dependability. Completed lifecycle work remains checked below, but remaining scope now emphasizes daily budget visibility, budget override logging, idle/unhealthy countdown enforcement, and budget-blocked fallback behavior.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Dedicated work should prioritize global cost visibility, idle teardown, budget-governed build/rebuild, and trace-visible fallback.
+- 2026-07-08: Added reusable Dedicated daily budget state, blocked critical-budget builds before DigitalOcean API calls unless explicitly overridden, logged overrides with model/region/GPU/fallback/cost/operator context, and routed budget-blocked Dedicated chat requests to Serverless with a prominent notice plus `budget_blocked_fallback` routing reason. `scripts/release-check.sh` passed with 163 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -571,15 +572,15 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Dedicated endpoint request shape verified against the deployed model runtime
 - [ ] Idle auto-teardown background enforcement added outside page-driven refresh
 - [ ] Global daily Dedicated budget meter added to the top interface
-- [ ] Daily budget critical state blocks new Dedicated builds unless overridden
-- [ ] Budget override decisions are logged with full build context
+- [x] Daily budget critical state blocks new Dedicated builds unless overridden
+- [x] Budget override decisions are logged with full build context
 - [ ] Idle warning and teardown countdown alerts appear across Code, Create, and Console
 - [ ] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
 - [ ] Unhealthy-server countdown tears down after repeated failed health/model checks
 - [ ] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
 - [ ] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
 - [ ] Disabled Dedicated models expose guarded "Build again" in selectors
-- [ ] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
+- [x] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
 
 **Dependencies:** INT-015 (global model registry), DigitalOcean Dedicated Inference account access
 **Blocks:** None

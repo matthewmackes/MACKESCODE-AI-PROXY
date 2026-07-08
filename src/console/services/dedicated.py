@@ -200,6 +200,32 @@ class DedicatedInferenceService:
             "source": "local Dedicated lifecycle events",
         }
 
+    def budget_state(self, cfg, now=None):
+        summary = self.runtime_cost_summary(cfg, now)
+        limit = float(cfg.get("daily_budget_usd") or 0)
+        warning_threshold = float(cfg.get("warning_threshold") or 0.8)
+        critical_threshold = float(cfg.get("cooldown_threshold") or 0.95)
+        used = float(summary.get("last_24h_cost_usd") or 0)
+        percent = round((used / limit) * 100, 2) if limit else 0
+        projected_one_hour = round(used + float(summary.get("hourly_usd") or 0), 8)
+        projected_percent = round((projected_one_hour / limit) * 100, 2) if limit else 0
+        warning_percent = round(warning_threshold * 100, 2)
+        critical_percent = round(critical_threshold * 100, 2)
+        return {
+            "limit_usd": limit,
+            "used_24h_usd": used,
+            "percent": percent,
+            "warning_threshold": warning_threshold,
+            "critical_threshold": critical_threshold,
+            "warning_percent": warning_percent,
+            "critical_percent": critical_percent,
+            "projected_one_hour_usd": projected_one_hour,
+            "projected_one_hour_percent": projected_percent,
+            "warning": bool(limit and percent >= warning_percent),
+            "critical": bool(limit and percent >= critical_percent),
+            "summary": summary,
+        }
+
     def idle_seconds(self, cfg, now=None):
         now = now or self.clock()
         last = float(cfg.get("last_work_at") or cfg.get("run_started_at") or 0)
@@ -227,6 +253,7 @@ class DedicatedInferenceService:
         })
         budget = float(cfg.get("daily_budget_usd") or 0)
         clean["budget_percent"] = round((clean["estimated_cost_usd"] / budget) * 100, 2) if budget else 0
+        clean["budget_state"] = self.budget_state(cfg, now)
         return clean
 
     def extract_id(self, response):
@@ -374,6 +401,9 @@ class DedicatedInferenceService:
         hourly = float(cfg.get("price_per_hour") or 0)
         if budget and hourly and hourly > budget:
             warnings.append("Selected hourly cost exceeds the configured daily budget.")
+        budget_state = self.budget_state(cfg)
+        if budget_state["warning"]:
+            warnings.append("Dedicated daily budget is at %.2f%% of the configured limit." % budget_state["percent"])
         return {"ok": not errors, "errors": errors, "warnings": warnings, "config": self.public_payload(cfg)}
 
     def update_from_resource(self, cfg, resource):
@@ -483,6 +513,32 @@ class DedicatedInferenceService:
             cfg["last_error"] = "; ".join(preflight["errors"])
             self.save_config(cfg)
             return HTTPStatus.BAD_REQUEST, {"error": cfg["last_error"], "preflight": preflight, "dedicated": self.public_payload(cfg)}
+        budget_state = self.budget_state(cfg)
+        budget_override = bool(data.get("budget_override") or data.get("override_budget"))
+        if budget_state["critical"] and not budget_override:
+            message = "Dedicated build blocked because the daily budget is at %.2f%% of the configured limit. Use a Serverless fallback or explicitly override the budget guard." % budget_state["percent"]
+            cfg["last_error"] = message
+            self.save_config(cfg)
+            self.append_event("budget_blocked", message, "warning", {
+                "budget_state": budget_state,
+                "model_id": cfg.get("model_id"),
+                "model_slug": cfg.get("model_slug"),
+                "region": cfg.get("region"),
+                "accelerator_slug": cfg.get("accelerator_slug"),
+                "fallback_model": cfg.get("fallback_model"),
+            })
+            return HTTPStatus.PAYMENT_REQUIRED, {"error": message, "message": message, "budget_state": budget_state, "preflight": preflight, "dedicated": self.public_payload(cfg)}
+        if budget_state["critical"] and budget_override:
+            self.append_event("budget_override", "Dedicated daily budget guard overridden for build", "warning", {
+                "budget_state": budget_state,
+                "model_id": cfg.get("model_id"),
+                "model_slug": cfg.get("model_slug"),
+                "region": cfg.get("region"),
+                "accelerator_slug": cfg.get("accelerator_slug"),
+                "price_per_hour": cfg.get("price_per_hour"),
+                "fallback_model": cfg.get("fallback_model"),
+                "operator": data.get("operator") or data.get("session_id") or data.get("console_token") or "console-token-user",
+            })
         cfg["state"] = "creating"
         cfg["created_at"] = self.clock()
         cfg["run_started_at"] = 0
@@ -589,6 +645,26 @@ class DedicatedInferenceService:
         fallback_model = cfg.get("fallback_model")
         fallback = fallback_model if fallback_model in self.active_text_models() else self.default_text_model()
         endpoint = self.endpoint(cfg)
+        budget_state = self.budget_state(cfg)
+        if budget_state["critical"]:
+            notice = "Dedicated Inference is over the configured daily budget guard, so this request was routed to %s instead." % fallback
+            self.append_event("budget_blocked_fallback", notice, "warning", {
+                "budget_state": budget_state,
+                "requested": data.get("model"),
+                "fallback_model": fallback,
+            })
+            status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
+            if isinstance(fallback_payload, dict):
+                fallback_payload["notice"] = notice
+                fallback_payload["pre_reply_notice"] = notice
+                fallback_payload["routing"] = {
+                    "requested": data.get("model"),
+                    "used": fallback,
+                    "reason": "budget_blocked_fallback",
+                    "backend": "serverless",
+                    "budget_state": budget_state,
+                }
+            return status, fallback_payload
         if cfg.get("state") != "active" or not endpoint or not cfg.get("access_token"):
             payload = self.not_ready_payload(cfg, data.get("model"))
             self.append_event("waiting", "Dedicated request blocked because endpoint is not ready", "warning", payload.get("lifecycle"))

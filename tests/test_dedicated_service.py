@@ -85,6 +85,30 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         )
         return service, registry
 
+    def critical_build_data(self):
+        return {
+            "name": "test-dedicated",
+            "region": "tor1",
+            "vpc_uuid": "vpc-1",
+            "model_slug": "Qwen/Qwen3-32B",
+            "model_provider": "hugging_face",
+            "accelerator_slug": "gpu-mi325x1-256gb",
+            "model_id": "qwen-dedicated",
+            "fallback_model": "serverless-a",
+            "price_per_hour": 10,
+            "daily_budget_usd": 10,
+            "warning_threshold": 0.7,
+            "cooldown_threshold": 0.9,
+        }
+
+    def seed_one_hour_dedicated_runtime(self, tmp, start=6400, end=10000):
+        path = Path(tmp) / "dedicated-events.jsonl"
+        rows = [
+            {"ts": start, "state": "provisioning", "message": "Dedicated Inference creation accepted by DigitalOcean"},
+            {"ts": end, "state": "deleted", "message": "Dedicated model removed and teardown requested"},
+        ]
+        path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
     def test_config_round_trip_and_public_payload_redacts_token(self):
         with tempfile.TemporaryDirectory() as tmp:
             service, _ = self.service(tmp, now=4600)
@@ -136,6 +160,77 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
             self.assertFalse(status["valid"])
             self.assertIn("schema_version 99 is not supported", status["issues"][0])
             self.assertEqual(cfg["state"], "not_configured")
+
+    def test_build_blocks_when_daily_budget_is_critical(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as tmp:
+            self.seed_one_hour_dedicated_runtime(tmp)
+            service, _ = self.service(
+                tmp,
+                now=10000,
+                do_request=lambda *args, **kwargs: calls.append((args, kwargs)) or (500, {}),
+            )
+
+            status, payload = service.build(self.critical_build_data())
+            events = service.events()
+
+        self.assertEqual(status, HTTPStatus.PAYMENT_REQUIRED)
+        self.assertIn("daily budget", payload["message"])
+        self.assertEqual(payload["budget_state"]["percent"], 100.0)
+        self.assertFalse(calls)
+        blocked = next(event for event in events if event["state"] == "budget_blocked")
+        self.assertEqual(blocked["details"]["accelerator_slug"], "gpu-mi325x1-256gb")
+
+    def test_build_budget_override_is_logged_with_context(self):
+        calls = []
+
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            calls.append((path, method))
+            if path.endswith("/tokens"):
+                return 201, {"token": {"value": "runtime-token"}}
+            if method == "POST":
+                return 202, {"id": "server-1"}
+            return 200, {"dedicated_inference": {"id": "server-1", "status": "provisioning"}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.seed_one_hour_dedicated_runtime(tmp)
+            service, _ = self.service(tmp, now=10000, do_request=do_request)
+            data = dict(self.critical_build_data(), budget_override=True, operator="console-token:abc")
+
+            status, _ = service.build(data)
+            events = service.events()
+
+        override = next(event for event in events if event["state"] == "budget_override")
+        self.assertEqual(status, HTTPStatus.ACCEPTED)
+        self.assertIn(("/v2/dedicated-inferences", "POST"), calls)
+        self.assertEqual(override["details"]["operator"], "console-token:abc")
+        self.assertEqual(override["details"]["model_slug"], "Qwen/Qwen3-32B")
+        self.assertEqual(override["details"]["fallback_model"], "serverless-a")
+
+    def test_budget_blocked_chat_routes_to_serverless_with_notice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.seed_one_hour_dedicated_runtime(tmp)
+            service, _ = self.service(tmp, now=10000)
+            cfg = dict(
+                DEFAULT_CONFIG,
+                state="active",
+                public_endpoint_fqdn="ready.example.com",
+                access_token="runtime-token",
+                price_per_hour=10,
+                daily_budget_usd=10,
+                warning_threshold=0.7,
+                cooldown_threshold=0.9,
+            )
+
+            status, payload = service.chat_completion({"model": "qwen-dedicated", "messages": []}, cfg)
+            event = next(item for item in service.events() if item["state"] == "budget_blocked_fallback")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["text"], "fallback")
+        self.assertIn("over the configured daily budget", payload["notice"])
+        self.assertEqual(payload["routing"]["reason"], "budget_blocked_fallback")
+        self.assertEqual(payload["routing"]["used"], "serverless-a")
+        self.assertEqual(event["details"]["fallback_model"], "serverless-a")
 
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):
         with tempfile.TemporaryDirectory() as tmp:
