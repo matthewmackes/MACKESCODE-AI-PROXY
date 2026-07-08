@@ -105,6 +105,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted local image-history persistence, generated image storage, saved chat documents, token estimates, and local chat cost calculations into `src.console.services.LocalPersistenceService`.
 - 2026-07-08: Extracted DigitalOcean platform status, account masking, balance/prepay status, health snapshot caching, and malformed status-payload tolerance into `src.console.services.DigitalOceanHealthService`.
 - 2026-07-08: Extracted image prompt construction, request validation, proxy image-generation payload shaping, and generated-image history record creation into `src.console.services.ImageGenerationService`.
+- 2026-07-08: Extracted Serverless chat validation, stale-registry blocking/warning routing metadata, Dedicated chat dispatch, proxy chat payload shaping, and proxy GET helper behavior into `src.console.services.ChatRoutingService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
