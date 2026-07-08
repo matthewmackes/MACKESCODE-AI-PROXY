@@ -306,6 +306,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Moved scroll restoration control into the document head and added load/pageshow top-pinning so the Console opens at the top instead of halfway down the page.
 - 2026-07-08: Added Bing public wallpaper loading through `/api/wallpaper`, same-origin cached image proxying, Create wallpaper crossfade rotation, manual refresh, attribution caption, subtle cinematic sweep/grid effects, parallax, and reduced-motion handling.
 - 2026-07-08: Requirements survey clarified the Create target: prioritize atmosphere first, then conversational presence, then creative workflow. The Create chat should feel alive over the wallpaper with subtle always-on desktop effects, mobile effects disabled, model-specific motion accents, progressive answer reveal, and text-model comparison inside the same conversation.
+- 2026-07-08: Added Create chat pending model cards with model identity, routing stage, elapsed timer, routing-change notice, model-colored reply ripple, word-by-word answer reveal, click-to-skip reveal, and clean chat-history saves that persist final answer text only.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -336,13 +337,13 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Text tab redesigned around a Bing-like chat/search experience
 - [x] Background uses Bing public wallpaper-style imagery or configurable Bing image source with fallback
 - [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
-- [ ] Create chat bubbles float over the wallpaper without a blocking white conversation panel
+- [x] Create chat bubbles float over the wallpaper without a blocking white conversation panel
 - [ ] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
 - [ ] Mobile disables atmospheric effects for performance
-- [ ] New assistant replies trigger model-specific sparkle/ripple motion
+- [x] New assistant replies trigger model-specific sparkle/ripple motion
 - [ ] Newly discovered models use generated styles and 7-day global sparkle
-- [ ] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
-- [ ] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
+- [x] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
+- [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
 - [ ] Create supports text-model comparison for up to five selected models
 - [ ] Comparison entries save as one chat-history entry and support "continue with this model"
 - [ ] Mobile and desktop layouts verified visually
