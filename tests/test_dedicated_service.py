@@ -31,6 +31,7 @@ DEFAULT_CONFIG = {
     "cooldown_threshold": 0.95,
     "idle_warning_seconds": 300,
     "idle_teardown_seconds": 600,
+    "unhealthy_teardown_seconds": 300,
     "auto_rebuild": True,
     "public_endpoint_fqdn": "",
     "private_endpoint_fqdn": "",
@@ -349,6 +350,69 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
 
         self.assertEqual(result["action"], "teardown")
         self.assertEqual(result["reason"], "keep_alive_extension_expired")
+        self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
+
+    def test_repeated_status_failures_start_unhealthy_countdown(self):
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            return 503, {"message": "endpoint unhealthy"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1000, do_request=do_request)
+            service.save_config(dict(DEFAULT_CONFIG, state="active", inference_id="server-1"))
+
+            service.status_payload(poll=True)
+            service.status_payload(poll=True)
+            payload = service.status_payload(poll=True)
+            cfg = service.load_config()
+            event = next(item for item in service.events() if item["state"] == "unhealthy")
+
+        self.assertEqual(cfg["unhealthy_failed_checks"], 3)
+        self.assertEqual(cfg["unhealthy_started_at"], 1000)
+        self.assertTrue(payload["dedicated"]["unhealthy_policy"]["unhealthy"])
+        self.assertEqual(event["details"]["failed_checks"], 3)
+
+    def test_unhealthy_dedicated_chat_fails_fast_with_fallback_guidance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1100)
+            cfg = dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                public_endpoint_fqdn="ready.example.com",
+                access_token="runtime-token",
+                unhealthy_failed_checks=3,
+                unhealthy_started_at=1000,
+            )
+
+            status, payload = service.chat_completion({"model": "dedicated-inference", "messages": []}, cfg)
+
+        self.assertEqual(status, HTTPStatus.SERVICE_UNAVAILABLE)
+        self.assertIn("marked unhealthy", payload["message"])
+        self.assertEqual(payload["routing"]["reason"], "dedicated_unhealthy")
+        self.assertEqual(payload["routing"]["fallback_model"], "serverless-a")
+
+    def test_unhealthy_policy_auto_tears_down_after_countdown(self):
+        calls = []
+
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            calls.append((path, method))
+            return 202, {"ok": True}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1301, do_request=do_request)
+            service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                unhealthy_failed_checks=3,
+                unhealthy_started_at=1000,
+                unhealthy_teardown_seconds=300,
+            ))
+
+            result = service.enforce_policy()
+
+        self.assertEqual(result["action"], "teardown")
+        self.assertEqual(result["reason"], "unhealthy_timeout")
         self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
 
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):

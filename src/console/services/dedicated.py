@@ -67,7 +67,7 @@ class DedicatedInferenceService:
             issues.append("Dedicated Inference config is missing schema_version; assuming schema_version 1.")
         if "state" in data and not isinstance(data.get("state"), str):
             raise ValueError("Dedicated Inference config state must be a string.")
-        for key in ("scale", "idle_warning_seconds", "idle_teardown_seconds"):
+        for key in ("scale", "idle_warning_seconds", "idle_teardown_seconds", "unhealthy_teardown_seconds"):
             if key in data:
                 try:
                     int(data.get(key))
@@ -261,11 +261,56 @@ class DedicatedInferenceService:
             "extension_expired_unused": extension_expired_unused,
         }
 
+    def unhealthy_policy_state(self, cfg, now=None):
+        now = now or self.clock()
+        started = float(cfg.get("unhealthy_started_at") or 0)
+        teardown_seconds = max(0, int(cfg.get("unhealthy_teardown_seconds") or 300))
+        elapsed = max(0, int(now - started)) if started else 0
+        return {
+            "failed_checks": int(cfg.get("unhealthy_failed_checks") or 0),
+            "unhealthy": bool(started),
+            "unhealthy_started_at": started,
+            "teardown_seconds": teardown_seconds,
+            "teardown_countdown_seconds": max(0, teardown_seconds - elapsed) if started else 0,
+            "teardown_due": bool(started and elapsed >= teardown_seconds),
+            "last_error": cfg.get("last_error") or "",
+        }
+
+    def record_health_success(self, cfg):
+        if cfg.get("unhealthy_failed_checks") or cfg.get("unhealthy_started_at"):
+            cfg["unhealthy_failed_checks"] = 0
+            cfg["unhealthy_started_at"] = 0
+            self.append_event("healthy", "Dedicated health checks recovered", "success", {"model_id": cfg.get("model_id")})
+        return cfg
+
+    def record_health_failure(self, cfg, reason, details=None):
+        cfg["unhealthy_failed_checks"] = int(cfg.get("unhealthy_failed_checks") or 0) + 1
+        cfg["last_error"] = reason
+        if cfg["unhealthy_failed_checks"] >= 3 and not cfg.get("unhealthy_started_at"):
+            cfg["unhealthy_started_at"] = self.clock()
+            self.append_event("unhealthy", "Dedicated health countdown started after repeated failures", "error", {
+                "failed_checks": cfg["unhealthy_failed_checks"],
+                "reason": reason,
+                "details": details or {},
+                "model_id": cfg.get("model_id"),
+                "inference_id": cfg.get("inference_id"),
+            })
+        return cfg
+
     def enforce_policy(self):
         cfg = self.load_config()
         idle_policy = self.idle_policy_state(cfg)
+        unhealthy_policy = self.unhealthy_policy_state(cfg)
         if cfg.get("state") != "active":
-            return {"action": "none", "reason": "not_active", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+            return {"action": "none", "reason": "not_active", "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
+        if unhealthy_policy["teardown_due"]:
+            self.append_event("unhealthy_teardown", "Dedicated unhealthy policy triggered teardown", "error", {
+                "unhealthy_policy": unhealthy_policy,
+                "model_id": cfg.get("model_id"),
+                "inference_id": cfg.get("inference_id"),
+            })
+            status, payload = self.teardown({"reason": "unhealthy_timeout"})
+            return {"action": "teardown", "reason": "unhealthy_timeout", "status": int(status), "payload": payload}
         if idle_policy["teardown_due"]:
             reason = "keep_alive_extension_expired" if idle_policy["extension_expired_unused"] else "idle_timeout"
             self.append_event("idle_teardown", "Dedicated idle policy triggered teardown", "warning", {
@@ -288,7 +333,7 @@ class DedicatedInferenceService:
                     "inference_id": cfg.get("inference_id"),
                 })
                 return {"action": "warning", "reason": "idle_warning", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
-        return {"action": "none", "reason": "within_policy", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+        return {"action": "none", "reason": "within_policy", "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
 
     def keep_alive(self, data):
         data = data or {}
@@ -325,6 +370,7 @@ class DedicatedInferenceService:
             "elapsed_seconds": self.elapsed_seconds(cfg, now),
             "idle_seconds": self.idle_seconds(cfg, now),
             "idle_policy": self.idle_policy_state(cfg, now),
+            "unhealthy_policy": self.unhealthy_policy_state(cfg, now),
             "estimated_cost_usd": self.cost_usd(cfg, now),
             "build_age_seconds": max(0, int(now - float(cfg.get("created_at") or now))),
             "status_age_seconds": max(0, int(now - float(cfg.get("last_status_at") or cfg.get("created_at") or now))),
@@ -551,6 +597,7 @@ class DedicatedInferenceService:
             if status < 400:
                 previous = cfg.get("state")
                 cfg = self.update_from_resource(cfg, self.extract_resource(response))
+                cfg = self.record_health_success(cfg)
                 if cfg.get("state") != previous:
                     self.append_event(cfg.get("state"), "DigitalOcean state changed to %s" % cfg.get("state"), "info", {"previous": previous})
                 if cfg.get("state") == "active" and not cfg.get("access_token"):
@@ -559,7 +606,8 @@ class DedicatedInferenceService:
                     self.register_model(cfg)
                 self.save_config(cfg)
             else:
-                cfg["last_error"] = json.dumps(response)[:1000]
+                error = json.dumps(response)[:1000]
+                cfg = self.record_health_failure(cfg, error, {"status": status, "response": response})
                 self.save_config(cfg)
                 self.append_event("status", "Failed to refresh Dedicated status", "error", {"status": status, "response": response})
         return {"dedicated": self.public_payload(cfg), "events": self.events(), "models": self.models_payload(), "digitalocean": self.digitalocean_health_snapshot()}
@@ -700,7 +748,7 @@ class DedicatedInferenceService:
 
     def policy(self, data):
         cfg = self.load_config()
-        for key in ("daily_budget_usd", "warning_threshold", "cooldown_threshold", "idle_warning_seconds", "idle_teardown_seconds", "auto_rebuild", "fallback_model"):
+        for key in ("daily_budget_usd", "warning_threshold", "cooldown_threshold", "idle_warning_seconds", "idle_teardown_seconds", "unhealthy_teardown_seconds", "auto_rebuild", "fallback_model"):
             if key in data:
                 cfg[key] = data[key]
         cfg["daily_budget_usd"] = float(cfg.get("daily_budget_usd") or 0)
@@ -708,6 +756,7 @@ class DedicatedInferenceService:
         cfg["cooldown_threshold"] = float(cfg.get("cooldown_threshold") or 0.95)
         cfg["idle_warning_seconds"] = int(cfg.get("idle_warning_seconds") or 300)
         cfg["idle_teardown_seconds"] = int(cfg.get("idle_teardown_seconds") or 600)
+        cfg["unhealthy_teardown_seconds"] = int(cfg.get("unhealthy_teardown_seconds") or 300)
         self.save_config(cfg)
         self.append_event("policy", "Dedicated policy updated", "success", {"policy": self.public_payload(cfg)})
         return HTTPStatus.OK, self.status_payload(poll=False)
@@ -728,6 +777,22 @@ class DedicatedInferenceService:
         fallback_model = cfg.get("fallback_model")
         fallback = fallback_model if fallback_model in self.active_text_models() else self.default_text_model()
         endpoint = self.endpoint(cfg)
+        unhealthy_policy = self.unhealthy_policy_state(cfg)
+        if unhealthy_policy["unhealthy"]:
+            message = "Dedicated Inference is marked unhealthy after repeated failed checks. Use the Serverless fallback '%s' or wait for recovery; teardown will occur in %s seconds if health does not recover." % (fallback, unhealthy_policy["teardown_countdown_seconds"])
+            return HTTPStatus.SERVICE_UNAVAILABLE, {
+                "error": message,
+                "message": message,
+                "routing": {
+                    "requested": data.get("model"),
+                    "used": None,
+                    "backend": "dedicated",
+                    "reason": "dedicated_unhealthy",
+                    "fallback_model": fallback,
+                    "unhealthy_policy": unhealthy_policy,
+                },
+                "dedicated": self.public_payload(cfg),
+            }
         budget_state = self.budget_state(cfg)
         if budget_state["critical"]:
             notice = "Dedicated Inference is over the configured daily budget guard, so this request was routed to %s instead." % fallback
@@ -775,12 +840,16 @@ class DedicatedInferenceService:
                 error = json.loads(exc.read().decode("utf-8", errors="replace"))
             except ValueError:
                 error = {"error": exc.reason}
+            cfg = self.record_health_failure(cfg, json.dumps(error)[:1000], {"status": exc.code, "response": error})
+            self.save_config(cfg)
             self.append_event("fallback", "Dedicated request failed; routed chat to Serverless", "warning", {"status": exc.code, "response": error})
             status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
             if isinstance(fallback_payload, dict):
                 fallback_payload["routing"] = {"requested": data.get("model"), "used": fallback, "reason": "Dedicated request failed", "backend": "serverless"}
             return status, fallback_payload
         except URLError as exc:
+            cfg = self.record_health_failure(cfg, str(exc.reason), {"error": str(exc.reason)})
+            self.save_config(cfg)
             self.append_event("fallback", "Dedicated endpoint unreachable; routed chat to Serverless", "warning", {"error": str(exc.reason)})
             status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
             if isinstance(fallback_payload, dict):
@@ -793,6 +862,7 @@ class DedicatedInferenceService:
             text = message.get("content") or choices[0].get("text") or ""
         cfg["last_work_at"] = self.clock()
         cfg["idle_warning_started_at"] = 0
+        cfg = self.record_health_success(cfg)
         self.save_config(cfg)
         self.append_event("active", "Dedicated served chat request", "success", {"model": cfg.get("model_id")})
         usage = raw.get("usage") if isinstance(raw, dict) else {}

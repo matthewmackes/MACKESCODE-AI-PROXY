@@ -540,6 +540,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added reusable Dedicated daily budget state, blocked critical-budget builds before DigitalOcean API calls unless explicitly overridden, logged overrides with model/region/GPU/fallback/cost/operator context, and routed budget-blocked Dedicated chat requests to Serverless with a prominent notice plus `budget_blocked_fallback` routing reason. `scripts/release-check.sh` passed with 163 tests.
 - 2026-07-08: Added a background Dedicated policy worker, reusable idle policy state, one-shot idle warning events with teardown countdown data, automatic idle teardown after the configured threshold, and successful-request idle warning reset. `scripts/release-check.sh` passed with 165 tests.
 - 2026-07-08: Added `/api/dedicated/keep-alive` with allowed extensions of 5, 10, 30, and 60 minutes; active unused extensions suppress idle teardown until expiry, then immediately trigger teardown if no successful Dedicated work occurred. `scripts/release-check.sh` passed with 168 tests.
+- 2026-07-08: Added unhealthy-server governance: repeated failed status/model checks start a teardown countdown, recovery clears the counter, new Dedicated requests fail fast with fallback guidance while unhealthy, and background enforcement tears down after the countdown expires. `scripts/release-check.sh` passed with 171 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -578,7 +579,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Budget override decisions are logged with full build context
 - [ ] Idle warning and teardown countdown alerts appear across Code, Create, and Console
 - [x] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
-- [ ] Unhealthy-server countdown tears down after repeated failed health/model checks
+- [x] Unhealthy-server countdown tears down after repeated failed health/model checks
 - [ ] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
 - [ ] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
 - [ ] Disabled Dedicated models expose guarded "Build again" in selectors

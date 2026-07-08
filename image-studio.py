@@ -115,6 +115,7 @@ DEFAULT_DEDICATED_CONFIG = {
     "cooldown_threshold": 0.95,
     "idle_warning_seconds": 300,
     "idle_teardown_seconds": 600,
+    "unhealthy_teardown_seconds": 300,
     "auto_rebuild": True,
     "public_endpoint_fqdn": "",
     "private_endpoint_fqdn": "",
