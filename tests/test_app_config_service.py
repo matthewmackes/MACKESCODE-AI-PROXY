@@ -32,6 +32,7 @@ class ConsoleConfigServiceTests(unittest.TestCase):
         self.assertEqual(config["server"]["port"], 19000)
         self.assertEqual(config["models"]["auto_enable_max_usd"], 0.25)
         self.assertEqual(config["proxy"]["port"], 19999)
+        self.assertEqual(config["paths"]["template_dir"], "templates")
         self.assertFalse(config["auth"]["enabled"])
 
     def test_validation_rejects_bad_ports_and_bad_json(self):

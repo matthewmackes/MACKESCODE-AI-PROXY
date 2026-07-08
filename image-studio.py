@@ -49,7 +49,8 @@ from src.console.utils.errors import error_payload
 
 
 EMBEDDED_ACCESS_KEY = ""
-STARTUP_CONFIG = ConsoleConfigService(file_path=Path(__file__).resolve()).load()
+PROJECT_DIR = Path(__file__).resolve().parent
+STARTUP_CONFIG = ConsoleConfigService(file_path=PROJECT_DIR / "image-studio.py").load()
 DEFAULT_MODEL_REGISTRY = [
     {"id": "deepseek-3.2", "display_name": "DeepSeek 3.2", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek"], "pricing": {"input": 0.50, "output": 1.50}, "context_window": 128000},
     {"id": "deepseek-v4-pro", "display_name": "DeepSeek V4 Pro", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek-v4"], "pricing": {"input": 1.00, "output": 3.00}, "context_window": 128000},
@@ -166,28 +167,38 @@ DEFAULT_DEDICATED_CONFIG = {
 }
 
 
+def configured_path(key, default, env_name=None, base_dir=None):
+    raw = os.environ.get(env_name, "") if env_name else ""
+    if not raw:
+        raw = STARTUP_CONFIG.get("paths", {}).get(key, default)
+    path = Path(str(raw))
+    if not path.is_absolute():
+        path = Path(base_dir or PROJECT_DIR) / path
+    return path
+
+
 def model_config_file():
-    return Path(os.environ.get("MATTS_MODEL_CONFIG_FILE", Path(__file__).resolve().parent / "config" / "models.json"))
+    return configured_path("model_config_file", "config/models.json", "MATTS_MODEL_CONFIG_FILE", PROJECT_DIR)
 
 
 def serverless_catalog_cache_file():
-    return Path(os.environ.get("MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir() / "serverless-model-catalog.json"))
+    return configured_path("serverless_catalog_cache_file", "serverless-model-catalog.json", "MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir())
 
 
 def dedicated_config_file():
-    return Path(os.environ.get("MATTS_DEDICATED_CONFIG_FILE", Path(__file__).resolve().parent / "config" / "dedicated-inference.json"))
+    return configured_path("dedicated_config_file", "config/dedicated-inference.json", "MATTS_DEDICATED_CONFIG_FILE", PROJECT_DIR)
 
 
 def dedicated_events_file():
-    return Path(os.environ.get("MATTS_DEDICATED_EVENTS_FILE", app_dir() / "dedicated-events.jsonl"))
+    return configured_path("dedicated_events_file", "dedicated-events.jsonl", "MATTS_DEDICATED_EVENTS_FILE", app_dir())
 
 
 def tmux_session_registry_file():
-    return Path(os.environ.get("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir() / "tmux-sessions.json"))
+    return configured_path("tmux_session_registry_file", "tmux-sessions.json", "MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir())
 
 
 def wallpaper_cache_dir():
-    return Path(os.environ.get("MATTS_WALLPAPER_CACHE_DIR", home_dir() / ".cache/matts-value-set/wallpapers"))
+    return configured_path("wallpaper_cache_dir", ".cache/matts-value-set/wallpapers", "MATTS_WALLPAPER_CACHE_DIR", home_dir())
 
 
 def model_registry_service():
@@ -1251,7 +1262,7 @@ def set_pty_size(fd, rows, cols):
 
 
 def template_dir():
-    return script_dir() / "templates"
+    return configured_path("template_dir", "templates", None, script_dir())
 
 
 _TEMPLATE_HANDLER = None

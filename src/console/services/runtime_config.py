@@ -31,6 +31,15 @@ class RuntimeConfigService:
             return section_value[key]
         return default
 
+    def configured_path(self, key, default, env_name=None, base_dir=None):
+        raw = self.env.get(env_name, "") if env_name else ""
+        if not raw:
+            raw = self.config_value("paths", key, default)
+        path = Path(str(raw))
+        if not path.is_absolute():
+            path = Path(base_dir or self.home_dir()) / path
+        return path
+
     def home_dir(self):
         return Path(self.env.get("HOME") or "/root")
 
@@ -38,13 +47,13 @@ class RuntimeConfigService:
         return self.file_path.parent
 
     def app_dir(self):
-        path = Path(self.env.get("MATTS_STUDIO_DIR", self.home_dir() / ".cache/matts-value-set/studio"))
+        path = self.configured_path("studio_dir", ".cache/matts-value-set/studio", "MATTS_STUDIO_DIR", self.home_dir())
         path.mkdir(parents=True, exist_ok=True)
         (path / "images").mkdir(exist_ok=True)
         return path
 
     def auth_token_file(self):
-        return Path(self.env.get("MATTS_CONSOLE_AUTH_FILE", self.app_dir() / "console-auth-token"))
+        return self.configured_path("auth_token_file", "console-auth-token", "MATTS_CONSOLE_AUTH_FILE", self.app_dir())
 
     def auth_token(self):
         env_token = self.env.get("MATTS_CONSOLE_AUTH_TOKEN")
@@ -97,13 +106,13 @@ class RuntimeConfigService:
         return "http://%s:%d%s" % (self.proxy_host(), self.proxy_port(), path)
 
     def cost_file(self):
-        return Path(self.env.get("MATTS_VALUE_SET_COST_FILE", self.home_dir() / ".cache/matts-value-set/usage.jsonl"))
+        return self.configured_path("cost_file", ".cache/matts-value-set/usage.jsonl", "MATTS_VALUE_SET_COST_FILE", self.home_dir())
 
     def budget_file(self):
-        return Path(self.env.get("MATTS_VALUE_SET_BUDGET_FILE", self.home_dir() / ".cache/matts-value-set/budgets.json"))
+        return self.configured_path("budget_file", ".cache/matts-value-set/budgets.json", "MATTS_VALUE_SET_BUDGET_FILE", self.home_dir())
 
     def log_file(self):
-        return Path(self.env.get("MATTS_VALUE_SET_LOG_FILE", "/tmp/matts-value-set-proxy.jsonl"))
+        return self.configured_path("proxy_log_file", "/tmp/matts-value-set-proxy.jsonl", "MATTS_VALUE_SET_LOG_FILE", self.home_dir())
 
     def digitalocean_token_file(self):
         return Path(self.env.get("DIGITALOCEAN_TOKEN_FILE", self.home_dir() / ".config/digitalocean/token"))

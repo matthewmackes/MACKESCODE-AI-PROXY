@@ -17,6 +17,20 @@ DEFAULT_CONSOLE_CONFIG = {
         "base_url": "https://inference.do-ai.run",
         "script": "do-anthropic-proxy.py",
     },
+    "paths": {
+        "template_dir": "templates",
+        "studio_dir": ".cache/matts-value-set/studio",
+        "model_config_file": "config/models.json",
+        "dedicated_config_file": "config/dedicated-inference.json",
+        "serverless_catalog_cache_file": "serverless-model-catalog.json",
+        "dedicated_events_file": "dedicated-events.jsonl",
+        "tmux_session_registry_file": "tmux-sessions.json",
+        "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
+        "auth_token_file": "console-auth-token",
+        "cost_file": ".cache/matts-value-set/usage.jsonl",
+        "budget_file": ".cache/matts-value-set/budgets.json",
+        "proxy_log_file": "/tmp/matts-value-set-proxy.jsonl",
+    },
     "rate_limits": {"enabled": False},
 }
 
@@ -88,7 +102,7 @@ class ConsoleConfigService:
     def validate(self, config):
         if not isinstance(config, dict):
             raise ConfigError("console config must be a JSON object")
-        for section in ("server", "auth", "logging", "models", "serverless", "proxy", "rate_limits"):
+        for section in ("server", "auth", "logging", "models", "serverless", "proxy", "paths", "rate_limits"):
             self.require_section(config, section)
         self.require_int(config, ("server", "port"), 1, 65535)
         self.require_int(config, ("proxy", "port"), 1, 65535)
@@ -99,6 +113,8 @@ class ConsoleConfigService:
         self.require_string(config, ("proxy", "base_url"))
         self.require_string(config, ("proxy", "script"))
         self.require_string(config, ("logging", "level"))
+        for key in DEFAULT_CONSOLE_CONFIG["paths"]:
+            self.require_string(config, ("paths", key))
         if not isinstance(config["auth"].get("enabled"), bool):
             raise ConfigError("auth.enabled must be a boolean")
         if not isinstance(config["rate_limits"].get("enabled"), bool):

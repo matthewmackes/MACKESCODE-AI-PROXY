@@ -26,6 +26,28 @@ class RuntimeConfigServiceTests(unittest.TestCase):
             self.assertEqual(service.token_file(), Path(tmp) / ".mcnf-do-model-access-token")
             self.assertEqual(service.log_file(), Path("/tmp/matts-value-set-proxy.jsonl"))
 
+    def test_runtime_paths_can_come_from_console_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = RuntimeConfigService(
+                env={"HOME": tmp},
+                file_path=Path(tmp) / "image-studio.py",
+                config={
+                    "paths": {
+                        "studio_dir": "runtime/studio",
+                        "auth_token_file": "auth/token",
+                        "cost_file": "runtime/usage.jsonl",
+                        "budget_file": "runtime/budget.json",
+                        "proxy_log_file": "runtime/proxy.log",
+                    }
+                },
+            )
+
+            self.assertEqual(service.app_dir(), Path(tmp) / "runtime/studio")
+            self.assertEqual(service.auth_token_file(), Path(tmp) / "runtime/studio/auth/token")
+            self.assertEqual(service.cost_file(), Path(tmp) / "runtime/usage.jsonl")
+            self.assertEqual(service.budget_file(), Path(tmp) / "runtime/budget.json")
+            self.assertEqual(service.log_file(), Path(tmp) / "runtime/proxy.log")
+
     def test_auth_token_prefers_env_then_file_then_generated_token(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = {"HOME": tmp, "MATTS_CONSOLE_AUTH_TOKEN": " env-token "}

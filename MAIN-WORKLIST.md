@@ -207,6 +207,7 @@ The interface refactoring work consolidates previously separate components into 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as prerequisite for separating release config, runtime state, secrets, gateway policy, and trace/eval settings.
 - 2026-07-08: Added `config/console.json` plus `ConsoleConfigService` for JSON config loading, deep merge defaults, environment overrides, and validation. Wired server host/port, logging level, model auto-enable threshold, serverless catalog TTL, proxy host/port/base URL/script, and auth enable defaults through the config layer while keeping secrets env/file based.
+- 2026-07-08: Added validated `paths` config for templates, model registry, Dedicated config/events, Serverless catalog cache, tmux session registry, wallpaper cache, studio runtime dir, auth token file, usage/budget files, and proxy logs. Existing path environment variables still take precedence. Release check passed with 154 tests; local browser smoke was skipped because Playwright is not installed.
 
 **Description:** Move hardcoded constants to configuration file with environment variable support.
 

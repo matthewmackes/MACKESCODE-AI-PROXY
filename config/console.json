@@ -21,6 +21,20 @@
     "base_url": "https://inference.do-ai.run",
     "script": "do-anthropic-proxy.py"
   },
+  "paths": {
+    "template_dir": "templates",
+    "studio_dir": ".cache/matts-value-set/studio",
+    "model_config_file": "config/models.json",
+    "dedicated_config_file": "config/dedicated-inference.json",
+    "serverless_catalog_cache_file": "serverless-model-catalog.json",
+    "dedicated_events_file": "dedicated-events.jsonl",
+    "tmux_session_registry_file": "tmux-sessions.json",
+    "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
+    "auth_token_file": "console-auth-token",
+    "cost_file": ".cache/matts-value-set/usage.jsonl",
+    "budget_file": ".cache/matts-value-set/budgets.json",
+    "proxy_log_file": "/tmp/matts-value-set-proxy.jsonl"
+  },
   "rate_limits": {
     "enabled": false
   }
