@@ -208,11 +208,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-005
 **Title:** Create comprehensive test suite
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 3 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Platform review expanded this from handler tests into a release-gating suite covering routing, cost math, model registry sync, Dedicated state transitions, chat persistence, auth, proxy translation, and browser UI smoke tests.
@@ -221,6 +222,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added `scripts/release-check.sh` as a repeatable local release gate for unit/smoke tests, Python syntax checks, and template JavaScript syntax checks; documented it in README and verified it passes.
 - 2026-07-08: Added dependency-free `scripts/coverage-report.py` using Python `trace`; release check now generates `build/coverage/coverage.json` and `coverage.md` and currently reports 13.08% line-hit coverage over the main Python entrypoints.
 - 2026-07-08: Added GitHub Actions `Release Check` workflow for pushes and pull requests on `main`; it installs Python and Node, then runs `scripts/release-check.sh`.
+- 2026-07-08: Added Playwright-backed headless browser smoke coverage for Code, Create, Console, and terminal page navigation; local release check runs it when Playwright is installed and CI requires it.
 
 **Description:** Create unit and integration tests for the console interface.
 
@@ -250,7 +252,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Coverage reports working
 - [x] CI integration ready
 - [x] Release check command documented and repeatable
-- [ ] Browser smoke tests can run headlessly
+- [x] Browser smoke tests can run headlessly
 
 **Dependencies:** INT-004 (Configuration system)
 **Blocks:** None

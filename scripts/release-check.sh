@@ -17,7 +17,9 @@ python3 -m py_compile \
   matts-console.py \
   tests/test_console_smoke.py \
   tests/test_model_registry.py \
-  tests/test_proxy_registry_reload.py
+  tests/test_proxy_registry_reload.py \
+  scripts/coverage-report.py \
+  scripts/browser-smoke.py
 
 if command -v node >/dev/null 2>&1; then
   echo "==> Template JavaScript syntax"
@@ -35,6 +37,13 @@ PY
   node --check "$tmp_js"
 else
   echo "==> Template JavaScript syntax skipped: node is not installed"
+fi
+
+echo "==> Headless browser smoke"
+if [[ "${MATTS_BROWSER_SMOKE_REQUIRED:-0}" == "1" ]]; then
+  python3 scripts/browser-smoke.py --required
+else
+  python3 scripts/browser-smoke.py
 fi
 
 echo "Release check passed."

@@ -112,7 +112,15 @@ Before committing or publishing a release, run the repeatable local release chec
 scripts/release-check.sh
 ```
 
-It runs the unit/smoke suite, Python syntax checks, and template JavaScript syntax checks when `node` is available.
+It runs the unit/smoke suite, coverage report, Python syntax checks, template JavaScript syntax checks when `node` is available, and a headless browser smoke check when Playwright is installed. GitHub Actions installs Playwright and requires the browser smoke pass for Code, Create, Console, and terminal page navigation.
+
+To run the browser smoke locally:
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+scripts/browser-smoke.py --required
+```
 
 Generate the dependency-free line-hit coverage report directly with:
 
