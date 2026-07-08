@@ -675,6 +675,24 @@ def refresh_model_globals():
 refresh_model_globals()
 
 
+def default_text_model():
+    if TEXT_MODELS:
+        return TEXT_MODELS[0]
+    for model in DEFAULT_MODEL_REGISTRY:
+        if model.get("type") == "text" and model.get("enabled"):
+            return model["id"]
+    return "text-model-unavailable"
+
+
+def default_image_model():
+    if IMAGE_MODELS:
+        return IMAGE_MODELS[0]
+    for model in DEFAULT_MODEL_REGISTRY:
+        if model.get("type") == "image" and model.get("enabled"):
+            return model["id"]
+    return "image-model-unavailable"
+
+
 def selectable_text_models():
     models = list(TEXT_MODELS)
     for model in load_model_registry(include_disabled=True):
@@ -986,7 +1004,7 @@ def start_proxy_if_needed(force=False):
         "--provider",
         "matts-value-set",
         "--default-model",
-        "deepseek-3.2",
+        default_text_model(),
         "--host",
         proxy_host(),
         "--port",
@@ -1803,7 +1821,7 @@ def is_dedicated_model(model):
 
 def dedicated_chat_completion(data, cfg):
     messages = data.get("messages") if isinstance(data.get("messages"), list) else []
-    fallback = cfg.get("fallback_model") if cfg.get("fallback_model") in TEXT_MODELS else (TEXT_MODELS[0] if TEXT_MODELS else "deepseek-3.2")
+    fallback = cfg.get("fallback_model") if cfg.get("fallback_model") in TEXT_MODELS else default_text_model()
     endpoint = dedicated_endpoint(cfg)
     if cfg.get("state") != "active" or not endpoint or not cfg.get("access_token"):
         payload = dedicated_not_ready_payload(cfg, data.get("model"))
@@ -1918,7 +1936,7 @@ def save_image_item(item, image_id):
 
 def generate_images(data):
     start_proxy_if_needed()
-    model = data.get("model") or IMAGE_MODELS[0]
+    model = data.get("model") or default_image_model()
     if model not in IMAGE_MODELS:
         return HTTPStatus.BAD_REQUEST, {"error": "unknown image model"}
     prompt = build_prompt(data)
@@ -1992,7 +2010,7 @@ def serverless_chat_completion(data, model, allow_unregistered=False):
 
 
 def chat_completion(data):
-    model = data.get("model") or "deepseek-3.2"
+    model = data.get("model") or default_text_model()
     messages = data.get("messages") if isinstance(data.get("messages"), list) else []
     if not messages:
         return HTTPStatus.BAD_REQUEST, {"error": "message is required"}
@@ -2306,7 +2324,7 @@ def _make_title(messages):
 def save_chat(data):
     now = time.time()
     messages = data.get("messages") if isinstance(data.get("messages"), list) else []
-    model = data.get("model") or "deepseek-3.2"
+    model = data.get("model") or default_text_model()
     chat_id = data.get("id") or ("chat_%d_%s" % (now, uuid.uuid4().hex[:12]))
     title = data.get("title") or _make_title(messages)
 
@@ -2780,7 +2798,7 @@ def tmux_start(data):
     health = launcher_health()
     if not health.get("ok"):
         return HTTPStatus.BAD_REQUEST, {"error": "Claude launcher is not runnable", "launcher": health}
-    model = data.get("model") if data.get("model") in TEXT_MODELS else "deepseek-3.2"
+    model = data.get("model") if data.get("model") in TEXT_MODELS else default_text_model()
     project_dir = data.get("project_dir") or str(script_dir())
     if not Path(project_dir).is_dir():
         return HTTPStatus.BAD_REQUEST, {"error": "project directory does not exist"}
@@ -3460,8 +3478,9 @@ class StudioHandler(BaseHTTPRequestHandler):
             for model in TEXT_MODELS:
                 status, payload = chat_completion({"model": model, "messages": [{"role": "user", "content": "Reply only ok"}], "max_tokens": 8})
                 results.append({"model": model, "status": int(status), "ok": int(status) < 400, "response": payload})
-            status, payload = generate_images({"model": IMAGE_MODELS[0], "prompt": "small smoke test tile with the word OK", "size": "512x512", "count": 1, "style": "technical"})
-            results.append({"model": IMAGE_MODELS[0], "status": int(status), "ok": int(status) < 400, "response": payload})
+            image_model = default_image_model()
+            status, payload = generate_images({"model": image_model, "prompt": "small smoke test tile with the word OK", "size": "512x512", "count": 1, "style": "technical"})
+            results.append({"model": image_model, "status": int(status), "ok": int(status) < 400, "response": payload})
             return self.send_json(200, {"results": results})
         if path == "/api/tmux/start":
             status, payload = tmux_start(data)
@@ -3482,7 +3501,7 @@ class StudioHandler(BaseHTTPRequestHandler):
             status, payload = tmux_rename_session(data.get("old_name"), data.get("new_name"), data.get("display_name"))
             return self.send_json(status, payload)
         if path == "/api/terminal/start":
-            model = data.get("model") if data.get("model") in TEXT_MODELS else "deepseek-3.2"
+            model = data.get("model") if data.get("model") in TEXT_MODELS else default_text_model()
             project_dir = data.get("project_dir") or str(script_dir())
             if not Path(project_dir).is_dir():
                 return self.send_json(400, {"error": "project directory does not exist"})

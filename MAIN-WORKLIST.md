@@ -381,6 +381,8 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added visible route badges for model changes/sync warnings while preserving compact routing facts under each message's Show Detail panel; template smoke tests assert the detail/badge wiring remains present.
 - 2026-07-08: Added `/v1/models?available=true|false|all` proxy filtering backed by preserved registry records, including unavailable/disabled model metadata without making those models routeable.
 - 2026-07-08: Added deterministic tests for the DigitalOcean Serverless `/v1/models` catalog request and cache fallback behavior when a refresh fails.
+- 2026-07-08: Added template and backend tests for the Console LLM Management admin interface, including edit persistence, duplicate ID rejection, text-model safety validation, and proxy sync after save.
+- 2026-07-08: Replaced hardcoded Studio runtime text/image defaults with active-registry default helpers so chat, Dedicated fallback, tmux launch, terminal launch, proxy startup, image generation, and model smoke tests choose current registry models.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -423,10 +425,10 @@ The interface refactoring work consolidates previously separate components into 
 **Completion Criteria:**
 - [x] Digital Ocean API integration working
 - [x] Model filtering via endpoint parameter
-- [ ] Admin interface for model selection
+- [x] Admin interface for model selection
 - [ ] Cost rate auto-detection
 - [x] Caching and fallback working
-- [ ] Hardcoded models replaced
+- [x] Hardcoded models replaced
 - [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
 - [x] Tokens and endpoint credentials are excluded from checked-in model registry data
 - [x] New catalog models are added automatically with generated metadata and default enabled policy

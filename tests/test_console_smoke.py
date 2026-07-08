@@ -27,6 +27,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("function routeBadge", html)
         self.assertIn("registry_sync:routing.registry_sync", html)
         self.assertIn("route-badge", html)
+        self.assertIn("LLM Management", html)
+        self.assertIn('id="models-editor"', html)
+        self.assertIn('id="models-save"', html)
+        self.assertIn('id="models-add"', html)
+        self.assertIn('id="models-import-serverless"', html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

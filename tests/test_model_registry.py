@@ -51,6 +51,12 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertFalse(studio.model_route_enabled(unchecked))
         self.assertTrue(studio.model_route_enabled(image))
 
+    def test_default_models_follow_active_registry_lists(self):
+        with patch.object(studio, "TEXT_MODELS", ["registry-text-a", "registry-text-b"]), \
+             patch.object(studio, "IMAGE_MODELS", ["registry-image-a"]):
+            self.assertEqual(studio.default_text_model(), "registry-text-a")
+            self.assertEqual(studio.default_image_model(), "registry-image-a")
+
     def test_registry_round_trip_filters_route_enabled_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
@@ -69,6 +75,35 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual([model["id"] for model in saved], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in all_models], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in active], ["allowed-text", "image-ok"])
+
+    def test_admin_save_models_payload_persists_edits_and_syncs_proxy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            models = [
+                {"id": "admin-text", "display_name": "Admin Text", "type": "text", "enabled": True, "pricing": {"input": 0.12, "output": 0.34}, "aliases": ["admin"]},
+                {"id": "admin-image", "display_name": "Admin Image", "type": "image", "enabled": False, "pricing": {"image": 0.08}},
+            ]
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}), \
+                 patch.object(studio, "proxy_sync_payload", return_value={"in_sync": True}) as sync:
+                status, payload = studio.save_models_payload({"models": models})
+                saved = studio.load_model_registry(include_disabled=True)
+
+        self.assertEqual(status, studio.HTTPStatus.OK)
+        self.assertEqual([model["id"] for model in saved], ["admin-text", "admin-image"])
+        self.assertEqual(payload["models"][0]["display_name"], "Admin Text")
+        self.assertEqual(payload["active_text_models"], ["admin-text"])
+        self.assertEqual(payload["proxy_sync"], {"in_sync": True})
+        sync.assert_called_once_with(force=True)
+
+    def test_admin_save_models_payload_rejects_duplicate_ids_and_no_text_model(self):
+        duplicate = [{"id": "dup", "type": "text", "enabled": True}, {"id": "dup", "type": "text", "enabled": True}]
+        status, payload = studio.save_models_payload({"models": duplicate})
+        self.assertEqual(status, studio.HTTPStatus.BAD_REQUEST)
+        self.assertIn("unique", payload["error"])
+
+        status, payload = studio.save_models_payload({"models": [{"id": "image-only", "type": "image", "enabled": True}]})
+        self.assertEqual(status, studio.HTTPStatus.BAD_REQUEST)
+        self.assertIn("text model", payload["error"])
 
     def test_registry_normalization_drops_token_endpoint_and_secret_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
