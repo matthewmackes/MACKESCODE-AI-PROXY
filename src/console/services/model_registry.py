@@ -271,6 +271,7 @@ class ModelRegistryService:
     def enriched_option(self, model):
         profile = self.brand_profile(model)
         disabled = not self.route_enabled(model)
+        dedicated = (model or {}).get("dedicated") if isinstance((model or {}).get("dedicated"), dict) else {}
         name = str((model or {}).get("display_name") or (model or {}).get("id") or "")
         cost = self.readable_cost(model)
         status = self.status_label(model)
@@ -294,6 +295,9 @@ class ModelRegistryService:
             "access_status": (model or {}).get("access_status") or "not_checked",
             "use_case": use_case,
             "comparison": use_case,
+            "pricing": dict((model or {}).get("pricing") or {}),
+            "dedicated": dict(dedicated),
+            "dedicated_rebuildable": bool(disabled and dedicated.get("managed")),
         }
 
     def options(self, rows, model_type=None, include_disabled=True):

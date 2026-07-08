@@ -491,11 +491,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-016
 **Title:** Add DigitalOcean Dedicated Inference lifecycle manager
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
-**Completion Time:** *Reopened 2026-07-08 for cost-governance scope*
+**Completion Time:** 2026-07-08
 **Estimated Duration:** 1 pass
 
 **Progress Notes:**
@@ -543,12 +543,18 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added unhealthy-server governance: repeated failed status/model checks start a teardown countdown, recovery clears the counter, new Dedicated requests fail fast with fallback guidance while unhealthy, and background enforcement tears down after the countdown expires. `scripts/release-check.sh` passed with 171 tests.
 - 2026-07-08: Added lifecycle diagnostics retention: the Dedicated policy worker archives event records older than 30 days into gzip JSONL files in the app cache while retaining recent diagnostics. `scripts/release-check.sh` passed with 172 tests.
 - 2026-07-08: Added a global top-bar Dedicated daily budget pill backed by `budget_state`, cross-tab lifecycle alerts for idle/unhealthy/budget countdowns, and richer Console overview status showing Dedicated uptime, spend, daily budget usage, DigitalOcean account/prepay/platform health. `scripts/release-check.sh` passed with 172 tests.
+- 2026-07-08: Added guarded Build Again actions for disabled managed Dedicated models in global selectors. Rebuildable Dedicated entries stay selectable, show estimated hourly cost, require confirmation, and retry with explicit budget override only after a second prompt. `scripts/release-check.sh` passed with 173 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
 **Files Modified:**
 - `image-studio.py`
+- `src/console/services/dedicated.py`
+- `src/console/services/model_registry.py`
 - `templates/main.html`
+- `tests/test_dedicated_service.py`
+- `tests/test_model_registry_service.py`
+- `tests/test_console_smoke.py`
 - `MAIN-WORKLIST.md`
 
 **Reopened Scope:**
@@ -584,7 +590,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Unhealthy-server countdown tears down after repeated failed health/model checks
 - [x] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
 - [x] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
-- [ ] Disabled Dedicated models expose guarded "Build again" in selectors
+- [x] Disabled Dedicated models expose guarded "Build again" in selectors
 - [x] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
 
 **Dependencies:** INT-015 (global model registry), DigitalOcean Dedicated Inference account access

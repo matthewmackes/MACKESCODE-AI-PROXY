@@ -44,6 +44,9 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("budget_state", html)
         self.assertIn("idle_policy", html)
         self.assertIn("unhealthy_policy", html)
+        self.assertIn("dedicatedBuildAgainHtml", html)
+        self.assertIn("buildDedicatedFromModel", html)
+        self.assertIn("dedicated-build-again", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

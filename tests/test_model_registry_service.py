@@ -60,6 +60,29 @@ class ModelRegistryServiceTests(unittest.TestCase):
         self.assertFalse(option["disabled"])
         self.assertIn("Fast, economical", option["use_case"])
 
+    def test_disabled_managed_dedicated_option_is_rebuildable(self):
+        option = self.service().enriched_option({
+            "id": "qwen3-32b-dedicated",
+            "display_name": "Qwen3-32B Dedicated",
+            "type": "text",
+            "enabled": False,
+            "pricing": {"hourly": 2.59},
+            "dedicated": {
+                "managed": True,
+                "state": "deleted",
+                "region": "tor1",
+                "model_slug": "Qwen/Qwen3-32B",
+                "accelerator_slug": "gpu-mi325x1-256gb",
+                "hourly_usd": 2.59,
+            },
+        })
+
+        self.assertTrue(option["disabled"])
+        self.assertTrue(option["dedicated_rebuildable"])
+        self.assertEqual(option["dedicated"]["region"], "tor1")
+        self.assertEqual(option["pricing"]["hourly"], 2.59)
+        self.assertIn("$2.59 / hour", option["cost_label"])
+
     def test_catalog_pricing_detects_common_shapes(self):
         pricing = self.service().catalog_pricing_from_item({
             "pricing": {
