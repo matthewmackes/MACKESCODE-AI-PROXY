@@ -307,6 +307,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added Bing public wallpaper loading through `/api/wallpaper`, same-origin cached image proxying, Create wallpaper crossfade rotation, manual refresh, attribution caption, subtle cinematic sweep/grid effects, parallax, and reduced-motion handling.
 - 2026-07-08: Requirements survey clarified the Create target: prioritize atmosphere first, then conversational presence, then creative workflow. The Create chat should feel alive over the wallpaper with subtle always-on desktop effects, mobile effects disabled, model-specific motion accents, progressive answer reveal, and text-model comparison inside the same conversation.
 - 2026-07-08: Added Create chat pending model cards with model identity, routing stage, elapsed timer, routing-change notice, model-colored reply ripple, word-by-word answer reveal, click-to-skip reveal, and clean chat-history saves that persist final answer text only.
+- 2026-07-08: Disabled the Create atmospheric effect layer on mobile/coarse-pointer devices and reduced wallpaper transition work there for better small-device performance.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -339,7 +340,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
 - [x] Create chat bubbles float over the wallpaper without a blocking white conversation panel
 - [ ] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
-- [ ] Mobile disables atmospheric effects for performance
+- [x] Mobile disables atmospheric effects for performance
 - [x] New assistant replies trigger model-specific sparkle/ripple motion
 - [ ] Newly discovered models use generated styles and 7-day global sparkle
 - [x] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message

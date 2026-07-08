@@ -192,6 +192,7 @@ body.dark .create-pane#chat .answer-card{background:rgba(13,19,28,.68);border-co
 body.dark .create-pane#chat .answer-meta,body.dark .create-pane#chat .answer-actions{background:rgba(10,16,24,.52);border-color:rgba(238,244,255,.10)}
 body.dark .create-pane#chat .answer-body,body.dark .create-pane#chat .model-deepseek .answer-body,body.dark .create-pane#chat .model-codex .answer-body{background:rgba(14,21,31,.58);color:#eef4ff}
 @keyframes chatFloat{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-3px,0)}}
+@media(max-width:760px),(pointer:coarse){.create-effects{display:none}.create-wallpaper{transform:scale(1.02)!important;transition:opacity 600ms ease}}
 @media(prefers-reduced-motion:reduce){.create-wallpaper,.create-effects{transition:none!important;animation:none!important;transform:scale(1.02)!important}.model-glyph,.answer-card:before,.answer-card.revealing:after,.thinking-dot,.model-new-sparkle,.model-new-sparkle:before,.create-pane#chat .msg{animation:none!important}}
 /* Compact Coding console header so the terminal starts near the top. */
 #claude.active .claude-workbench{padding:0;grid-template-rows:auto minmax(0,1fr) auto}
