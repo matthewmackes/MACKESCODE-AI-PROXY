@@ -21,8 +21,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, quote, urlencode, urlparse
-from urllib.request import Request, urlopen, urlretrieve
+from urllib.parse import parse_qs, quote, urlparse
+from urllib.request import Request, urlopen
 
 from src.console.handlers.auth_handler import AuthHandler
 from src.console.handlers.static_handler import StaticHandler
@@ -30,6 +30,7 @@ from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.agentboard import AgentBoardService
 from src.console.services.chat import ChatRoutingService
 from src.console.services.health import ConsoleHealthService
+from src.console.services.http_json import JsonHttpService
 from src.console.services.dedicated import DedicatedInferenceService
 from src.console.services.digitalocean import DigitalOceanHealthService
 from src.console.services.image_generation import ImageGenerationService
@@ -810,64 +811,20 @@ def registry_sync_issue_for_model(model):
     return proxy_process_service(proxy_in_sync_func=proxy_in_sync).registry_sync_issue_for_model(model)
 
 
+def http_json_service():
+    return JsonHttpService(urlopen_func=urlopen)
+
+
 def request_json(url, payload=None, timeout=240, method="POST"):
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
-    req = Request(url, data=data, headers={"content-type": "application/json"}, method=method)
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
-    except HTTPError as exc:
-        try:
-            detail = json.loads(exc.read().decode("utf-8", errors="replace"))
-        except ValueError:
-            detail = {"error": {"message": "provider request failed"}}
-        return exc.code, detail
-    except URLError as exc:
-        return 502, {"error": {"message": str(exc.reason)}}
+    return http_json_service().request_json(url, payload=payload, timeout=timeout, method=method)
 
 
 def do_get(path, token, query=None, timeout=30):
-    url = "https://api.digitalocean.com" + path
-    if query:
-        url += "?" + urlencode(query)
-    req = Request(url, headers={
-        "content-type": "application/json",
-        "authorization": "Bearer " + token,
-    }, method="GET")
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
-    except HTTPError as exc:
-        try:
-            detail = json.loads(exc.read().decode("utf-8", errors="replace"))
-        except ValueError:
-            detail = {"error": exc.read().decode("utf-8", errors="replace")}
-        return exc.code, detail
-    except URLError as exc:
-        return 502, {"error": str(exc.reason)}
-
+    return http_json_service().do_get(path, token, query=query, timeout=timeout)
 
 
 def do_request(path, token, payload=None, timeout=60, method="GET"):
-    url = "https://api.digitalocean.com" + path
-    data = None if payload is None else json.dumps(payload).encode("utf-8")
-    req = Request(url, data=data, headers={
-        "content-type": "application/json",
-        "authorization": "Bearer " + token,
-    }, method=method)
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode("utf-8")
-            return resp.status, json.loads(body) if body else {}
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        try:
-            detail = json.loads(body)
-        except ValueError:
-            detail = {"error": body or exc.reason}
-        return exc.code, detail
-    except URLError as exc:
-        return 502, {"error": str(exc.reason)}
+    return http_json_service().do_request(path, token, payload=payload, timeout=timeout, method=method)
 
 
 def dedicated_service():
@@ -941,18 +898,7 @@ def mask_email(value):
 
 
 def public_json_url(url, timeout=12):
-    req = Request(url, headers={"accept": "application/json", "user-agent": "matts-console/1.0"}, method="GET")
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
-    except HTTPError as exc:
-        try:
-            detail = json.loads(exc.read().decode("utf-8", errors="replace"))
-        except ValueError:
-            detail = {"error": exc.reason}
-        return exc.code, detail
-    except URLError as exc:
-        return 502, {"error": str(exc.reason)}
+    return http_json_service().public_json_url(url, timeout=timeout)
 
 
 def wallpaper_service():

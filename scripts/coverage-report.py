@@ -24,6 +24,7 @@ DEFAULT_FILES = [
     "src/console/services/dedicated.py",
     "src/console/services/digitalocean.py",
     "src/console/services/health.py",
+    "src/console/services/http_json.py",
     "src/console/services/image_generation.py",
     "src/console/services/model_registry.py",
     "src/console/services/persistence.py",
