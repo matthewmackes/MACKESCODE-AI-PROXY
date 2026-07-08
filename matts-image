@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""One-shot image generator for Matts Value Set image models."""
+import argparse
+import base64
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+
+EMBEDDED_ACCESS_KEY = ""
+MODEL = "stable-diffusion-3.5-large"
+
+
+def home_dir():
+    return Path(os.environ.get("HOME") or "/root")
+
+
+def token_file():
+    return Path(os.environ.get("MATTS_VALUE_SET_TOKEN_FILE", home_dir() / ".mcnf-do-model-access-token"))
+
+
+def access_key():
+    if os.environ.get("MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE") == "1" and os.environ.get("MATTS_VALUE_SET_ACCESS_KEY"):
+        return os.environ["MATTS_VALUE_SET_ACCESS_KEY"]
+    return EMBEDDED_ACCESS_KEY
+
+
+def write_token():
+    path = token_file()
+    key = access_key()
+    if not key:
+        raise SystemExit("Set MATTS_VALUE_SET_ACCESS_KEY or write a model access key to %s" % path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(key + "\n", encoding="utf-8")
+    path.chmod(0o600)
+
+
+def proxy_host():
+    return os.environ.get("MATTS_VALUE_SET_PROXY_HOST", "127.0.0.1")
+
+
+def proxy_port():
+    return int(os.environ.get("MATTS_VALUE_SET_PROXY_PORT", "18081"))
+
+
+def proxy_is_listening():
+    sock = socket.socket()
+    sock.settimeout(0.25)
+    try:
+        sock.connect((proxy_host(), proxy_port()))
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
+def start_proxy_if_needed():
+    if proxy_is_listening():
+        return
+    script_dir = Path(__file__).resolve().parent
+    proxy_script = Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir / "do-anthropic-proxy.py"))
+    cmd = [
+        sys.executable,
+        str(proxy_script),
+        "--provider",
+        "matts-value-set",
+        "--default-model",
+        "deepseek-3.2",
+        "--host",
+        proxy_host(),
+        "--port",
+        str(proxy_port()),
+        "--token-file",
+        str(token_file()),
+        "--base-url",
+        os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run"),
+        "--models",
+        json.dumps([
+            "deepseek-3.2",
+            "deepseek-v4-pro",
+            "glm-5",
+            "mistral-3-14B",
+            "openai-gpt-5.3-codex",
+            MODEL,
+        ]),
+        "--cost-file",
+        os.environ.get("MATTS_VALUE_SET_COST_FILE", str(home_dir() / ".cache/matts-value-set/usage.jsonl")),
+        "--budget-file",
+        os.environ.get("MATTS_VALUE_SET_BUDGET_FILE", str(home_dir() / ".cache/matts-value-set/budgets.json")),
+        "--log-file",
+        os.environ.get("MATTS_VALUE_SET_LOG_FILE", "/tmp/matts-value-set-proxy.jsonl"),
+    ]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    for _ in range(50):
+        if proxy_is_listening():
+            return
+        time.sleep(0.1)
+    raise SystemExit("proxy did not start on %s:%d" % (proxy_host(), proxy_port()))
+
+
+def generate(prompt, size):
+    body = json.dumps({"model": MODEL, "prompt": prompt, "size": size, "n": 1}).encode("utf-8")
+    req = Request(
+        "http://%s:%d/v1/images/generations" % (proxy_host(), proxy_port()),
+        data=body,
+        headers={"content-type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=600) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:
+        sys.stderr.write(exc.read().decode("utf-8", errors="replace") + "\n")
+        raise SystemExit(exc.code)
+
+
+def write_output(response, output_path):
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    item = (response.get("data") or [{}])[0]
+    if item.get("b64_json"):
+        output.write_bytes(base64.b64decode(item["b64_json"]))
+    elif item.get("url"):
+        with urlopen(item["url"], timeout=600) as resp:
+            output.write_bytes(resp.read())
+    else:
+        raise SystemExit("image response did not contain b64_json or url")
+    print(output)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate one image through Matts Value Set.")
+    parser.add_argument("prompt_arg", nargs="?", help="Prompt text.")
+    parser.add_argument("--prompt", "-p", help="Prompt text.")
+    parser.add_argument("--size", default=os.environ.get("MATTS_IMAGE_SIZE", "1024x1024"))
+    parser.add_argument("--output", "-o", default=os.environ.get("MATTS_IMAGE_OUTPUT", ""))
+    args = parser.parse_args()
+    prompt = args.prompt or args.prompt_arg
+    if not prompt:
+        parser.error("--prompt or prompt argument is required")
+    write_token()
+    start_proxy_if_needed()
+    response = generate(prompt, args.size)
+    if args.output:
+        write_output(response, args.output)
+    else:
+        print(json.dumps(response, indent=2))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,1394 @@
+{
+  "models": [
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 32768,
+      "created": 1776717589,
+      "display_name": "Qwen3 TTS Voicedesign",
+      "enabled": true,
+      "id": "qwen3-tts-voicedesign",
+      "max_output_tokens": 1,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "audio"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1727124486,
+      "display_name": "All Mini Lm L6 V2",
+      "enabled": true,
+      "id": "all-mini-lm-l6-v2",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.009
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1774281224,
+      "display_name": "BGE M3",
+      "enabled": true,
+      "id": "bge-m3",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.02
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1774281191,
+      "display_name": "E5 Large V2",
+      "enabled": true,
+      "id": "e5-large-v2",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.02
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1727124486,
+      "display_name": "Gte Large En V1.5",
+      "enabled": true,
+      "id": "gte-large-en-v1.5",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.09
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1727124486,
+      "display_name": "Multi Qa Mpnet Base Dot V1",
+      "enabled": true,
+      "id": "multi-qa-mpnet-base-dot-v1",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.009
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1765803500,
+      "display_name": "Qwen3 Embedding 0.6b",
+      "enabled": true,
+      "id": "qwen3-embedding-0.6b",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.04
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "embedding"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1759330300,
+      "display_name": "Openai Gpt Image 1",
+      "enabled": true,
+      "id": "openai-gpt-image-1",
+      "max_output_tokens": 16384,
+      "owned_by": "openai",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "image"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1774645563,
+      "display_name": "Openai Gpt Image 1.5",
+      "enabled": true,
+      "id": "openai-gpt-image-1.5",
+      "max_output_tokens": 16384,
+      "owned_by": "openai",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "image"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1776952170,
+      "display_name": "Openai Gpt Image 2",
+      "enabled": true,
+      "id": "openai-gpt-image-2",
+      "max_output_tokens": 16384,
+      "owned_by": "openai",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "image"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [
+        "sd35"
+      ],
+      "context_window": 256,
+      "created": 1776529563,
+      "display_name": "Stable Diffusion 3.5 Large",
+      "enabled": true,
+      "id": "stable-diffusion-3.5-large",
+      "max_output_tokens": 1,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.08
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "image"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1775636284,
+      "display_name": "BGE Reranker V2 M3",
+      "enabled": true,
+      "id": "bge-reranker-v2-m3",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.01
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "rerank"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1775748006,
+      "display_name": "Router General",
+      "enabled": true,
+      "id": "router:general",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "router"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1776390534,
+      "display_name": "Router Knowledge Base Document",
+      "enabled": true,
+      "id": "router:knowledge-base-document",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "router"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1775748006,
+      "display_name": "Router Software Engineering",
+      "enabled": true,
+      "id": "router:software-engineering",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "router"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 0,
+      "created": 1775748006,
+      "display_name": "Router Writing",
+      "enabled": true,
+      "id": "router:writing",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "router"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 32768,
+      "created": 1752255238,
+      "display_name": "Alibaba Qwen3 32b",
+      "enabled": true,
+      "id": "alibaba-qwen3-32b",
+      "max_output_tokens": 32768,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.25,
+        "output": 0.55
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1762288203,
+      "display_name": "Anthropic Claude 4.1 Opus",
+      "enabled": false,
+      "id": "anthropic-claude-4.1-opus",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1762371241,
+      "display_name": "Anthropic Claude 4.5 Sonnet",
+      "enabled": false,
+      "id": "anthropic-claude-4.5-sonnet",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1771366786,
+      "display_name": "Anthropic Claude 4.6 Sonnet",
+      "enabled": false,
+      "id": "anthropic-claude-4.6-sonnet",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1000000,
+      "created": 1782856178,
+      "display_name": "Anthropic Claude 5 Sonnet",
+      "enabled": false,
+      "id": "anthropic-claude-5-sonnet",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1000000,
+      "created": 1781035402,
+      "display_name": "Anthropic Claude Fable 5",
+      "enabled": false,
+      "id": "anthropic-claude-fable-5",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1770276853,
+      "display_name": "Anthropic Claude Haiku 4.5",
+      "enabled": false,
+      "id": "anthropic-claude-haiku-4.5",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1764790378,
+      "display_name": "Anthropic Claude Opus 4.5",
+      "enabled": false,
+      "id": "anthropic-claude-opus-4.5",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1770333973,
+      "display_name": "Anthropic Claude Opus 4.6",
+      "enabled": false,
+      "id": "anthropic-claude-opus-4.6",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1776379334,
+      "display_name": "Anthropic Claude Opus 4.7",
+      "enabled": false,
+      "id": "anthropic-claude-opus-4.7",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 8192,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1000000,
+      "created": 1780009573,
+      "display_name": "Anthropic Claude Opus 4.8",
+      "enabled": false,
+      "id": "anthropic-claude-opus-4.8",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "anthropic",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1775072224,
+      "display_name": "Arcee Trinity Large Thinking",
+      "enabled": false,
+      "id": "arcee-trinity-large-thinking",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 32000,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.25,
+        "output": 0.9
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [
+        "deepseek"
+      ],
+      "context_window": 131072,
+      "created": 1776375302,
+      "display_name": "DeepSeek 3.2",
+      "enabled": true,
+      "id": "deepseek-3.2",
+      "max_output_tokens": 131072,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.425,
+        "output": 1.36
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "rate_limited",
+      "aliases": [],
+      "context_window": 65536,
+      "created": 1779896095,
+      "display_name": "Deepseek 4 Flash",
+      "enabled": true,
+      "id": "deepseek-4-flash",
+      "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
+      "max_output_tokens": 65536,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.112,
+        "output": 0.224
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 32678,
+      "created": 1738947921,
+      "display_name": "Deepseek R1 Distill Llama 70b",
+      "enabled": true,
+      "id": "deepseek-r1-distill-llama-70b",
+      "max_output_tokens": 8192,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.99,
+        "output": 0.99
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [
+        "deepseek-v4"
+      ],
+      "context_window": 87040,
+      "created": 1777633630,
+      "display_name": "DeepSeek V4 Pro",
+      "enabled": true,
+      "id": "deepseek-v4-pro",
+      "max_output_tokens": 87040,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 1.392,
+        "output": 2.784
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 256000,
+      "created": 1776195691,
+      "display_name": "Gemma 4 31B It",
+      "enabled": true,
+      "id": "gemma-4-31B-it",
+      "max_output_tokens": 8192,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.18,
+        "output": 0.5
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [
+        "glm"
+      ],
+      "context_window": 64000,
+      "created": 1773360634,
+      "display_name": "GLM 5",
+      "enabled": true,
+      "id": "glm-5",
+      "max_output_tokens": 64000,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.75,
+        "output": 2.4
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "rate_limited",
+      "aliases": [],
+      "context_window": 65536,
+      "created": 1782322674,
+      "display_name": "GLM 5.1",
+      "enabled": false,
+      "id": "glm-5.1",
+      "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
+      "max_output_tokens": 65536,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.975,
+        "output": 4.3
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 262144,
+      "created": 1782174301,
+      "display_name": "GLM 5.2",
+      "enabled": true,
+      "id": "glm-5.2",
+      "max_output_tokens": 262144,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 1.05,
+        "output": 4.4
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 256000,
+      "created": 1773347767,
+      "display_name": "Kimi K2.5",
+      "enabled": true,
+      "id": "kimi-k2.5",
+      "max_output_tokens": 32768,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.375,
+        "output": 2.025
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 96000,
+      "created": 1778000987,
+      "display_name": "Kimi K2.6",
+      "enabled": true,
+      "id": "kimi-k2.6",
+      "max_output_tokens": 96000,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.76,
+        "output": 3.2
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1776729457,
+      "display_name": "Llama 4 Maverick",
+      "enabled": true,
+      "id": "llama-4-maverick",
+      "max_output_tokens": 16384,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.25,
+        "output": 0.87
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1736801780,
+      "display_name": "Llama3.3 70b Instruct",
+      "enabled": true,
+      "id": "llama3.3-70b-instruct",
+      "max_output_tokens": 4096,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.65,
+        "output": 0.65
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 32000,
+      "created": 1781303831,
+      "display_name": "Mimo V2.5",
+      "enabled": true,
+      "id": "mimo-v2.5",
+      "max_output_tokens": 32000,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.105,
+        "output": 0.28
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 87040,
+      "created": 1781721728,
+      "display_name": "Mimo V2.5 Pro",
+      "enabled": true,
+      "id": "mimo-v2.5-pro",
+      "max_output_tokens": 87040,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.6,
+        "output": 3.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 65536,
+      "created": 1773360634,
+      "display_name": "Minimax M2.5",
+      "enabled": true,
+      "id": "minimax-m2.5",
+      "max_output_tokens": 65536,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.225,
+        "output": 0.9
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [
+        "mistral"
+      ],
+      "context_window": 262144,
+      "created": 1776471052,
+      "display_name": "Mistral 3 14B",
+      "enabled": true,
+      "id": "mistral-3-14B",
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.2,
+        "output": 0.2
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 65536,
+      "created": 1777148824,
+      "display_name": "Nemotron 3 Nano Omni",
+      "enabled": true,
+      "id": "nemotron-3-nano-omni",
+      "max_output_tokens": 65536,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.5,
+        "output": 0.9
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 131072,
+      "created": 1780548582,
+      "display_name": "Nemotron 3 Ultra 550b",
+      "enabled": true,
+      "id": "nemotron-3-ultra-550b",
+      "max_output_tokens": 131072,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.9,
+        "output": 1.7
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1777025607,
+      "display_name": "Nemotron Nano 12b V2 VL",
+      "enabled": true,
+      "id": "nemotron-nano-12b-v2-vl",
+      "max_output_tokens": 16384,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.2,
+        "output": 0.6
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 1000000,
+      "created": 1773783814,
+      "display_name": "Nvidia Nemotron 3 Super 120b",
+      "enabled": true,
+      "id": "nvidia-nemotron-3-super-120b",
+      "max_output_tokens": 32768,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.21,
+        "output": 0.455
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1047576,
+      "created": 1753359599,
+      "display_name": "Openai Gpt 4.1",
+      "enabled": false,
+      "id": "openai-gpt-4.1",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 32768,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 2.0,
+        "output": 8.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1740436938,
+      "display_name": "Openai Gpt 4o",
+      "enabled": false,
+      "id": "openai-gpt-4o",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 16384,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 2.5,
+        "output": 10.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1740436938,
+      "display_name": "Openai Gpt 4o Mini",
+      "enabled": false,
+      "id": "openai-gpt-4o-mini",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 16384,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 0.15,
+        "output": 0.6
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1754595084,
+      "display_name": "Openai Gpt 5",
+      "enabled": false,
+      "id": "openai-gpt-5",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 1.25,
+        "output": 10.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1757445018,
+      "display_name": "Openai Gpt 5 Mini",
+      "enabled": false,
+      "id": "openai-gpt-5-mini",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 0.25,
+        "output": 2.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1757445022,
+      "display_name": "Openai Gpt 5 Nano",
+      "enabled": false,
+      "id": "openai-gpt-5-nano",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 0.05,
+        "output": 0.4
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1769527931,
+      "display_name": "Openai Gpt 5.1 Codex Max",
+      "enabled": false,
+      "id": "openai-gpt-5.1-codex-max",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 1.25,
+        "output": 10.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1769527931,
+      "display_name": "Openai Gpt 5.2",
+      "enabled": false,
+      "id": "openai-gpt-5.2",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 1.75,
+        "output": 14.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1770208836,
+      "display_name": "Openai Gpt 5.2 Pro",
+      "enabled": false,
+      "id": "openai-gpt-5.2-pro",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 21.0,
+        "output": 168.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [
+        "codex"
+      ],
+      "context_window": 400000,
+      "created": 1772046998,
+      "display_name": "GPT 5.3 Codex",
+      "enabled": false,
+      "id": "openai-gpt-5.3-codex",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 1.75,
+        "output": 14.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1772819368,
+      "display_name": "Openai Gpt 5.4",
+      "enabled": false,
+      "id": "openai-gpt-5.4",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 2.5,
+        "output": 15.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1774645563,
+      "display_name": "Openai Gpt 5.4 Mini",
+      "enabled": false,
+      "id": "openai-gpt-5.4-mini",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 0.75,
+        "output": 4.5
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 400000,
+      "created": 1774645564,
+      "display_name": "Openai Gpt 5.4 Nano",
+      "enabled": false,
+      "id": "openai-gpt-5.4-nano",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 0.2,
+        "output": 1.25
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1050000,
+      "created": 1774645563,
+      "display_name": "Openai Gpt 5.4 Pro",
+      "enabled": false,
+      "id": "openai-gpt-5.4-pro",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 30.0,
+        "output": 180.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 1000000,
+      "created": 1777317140,
+      "display_name": "Openai Gpt 5.5",
+      "enabled": false,
+      "id": "openai-gpt-5.5",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 5.0,
+        "output": 30.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1754595080,
+      "display_name": "Openai Gpt Oss 120b",
+      "enabled": true,
+      "id": "openai-gpt-oss-120b",
+      "max_output_tokens": 4096,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.1,
+        "output": 0.7
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 128000,
+      "created": 1754595075,
+      "display_name": "Openai Gpt Oss 20b",
+      "enabled": true,
+      "id": "openai-gpt-oss-20b",
+      "max_output_tokens": 4096,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.05,
+        "output": 0.45
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1740436938,
+      "display_name": "Openai O1",
+      "enabled": false,
+      "id": "openai-o1",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 100000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 15.0,
+        "output": 60.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1751565087,
+      "display_name": "Openai O3",
+      "enabled": false,
+      "id": "openai-o3",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 100000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 2.0,
+        "output": 8.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "forbidden",
+      "aliases": [],
+      "context_window": 200000,
+      "created": 1740436938,
+      "display_name": "Openai O3 Mini",
+      "enabled": false,
+      "id": "openai-o3-mini",
+      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
+      "max_output_tokens": 100000,
+      "owned_by": "openai",
+      "pricing": {
+        "input": 1.1,
+        "output": 4.4
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 262144,
+      "created": 1776366668,
+      "display_name": "Qwen3 Coder Flash",
+      "enabled": true,
+      "id": "qwen3-coder-flash",
+      "max_output_tokens": 65536,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.45,
+        "output": 1.7
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "ok",
+      "aliases": [],
+      "context_window": 131072,
+      "created": 1776379991,
+      "display_name": "Qwen3.5 397b A17b",
+      "enabled": true,
+      "id": "qwen3.5-397b-a17b",
+      "max_output_tokens": 81920,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "input": 0.385,
+        "output": 2.45
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 100,
+      "created": 1776464527,
+      "display_name": "Wan2 2 T2v A14b",
+      "enabled": true,
+      "id": "wan2-2-t2v-a14b",
+      "max_output_tokens": 1,
+      "owned_by": "digitalocean",
+      "pricing": {
+        "image": 0.0,
+        "input": 0.0,
+        "output": 0.0
+      },
+      "pricing_source": "digitalocean_pricing_docs_2026_07_01",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "video"
+    }
+  ]
+}

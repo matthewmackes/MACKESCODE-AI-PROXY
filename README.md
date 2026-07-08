@@ -1,0 +1,132 @@
+# Matts Value Set Claude Code Proxy
+
+Private Claude Code launcher and Anthropic-compatible local proxy for the current Matts Value Set models.
+
+## Current Models
+
+- `deepseek` -> `deepseek-3.2`
+- `deepseek-v4` -> `deepseek-v4-pro`
+- `glm` -> `glm-5`
+- `mistral` -> `mistral-3-14B`
+- `codex` -> `openai-gpt-5.3-codex`
+- `sd35` -> `stable-diffusion-3.5-large`
+
+## Launch Claude Code
+
+```bash
+./claude-DO.sh --model deepseek
+./claude-DO.sh --model deepseek-v4
+./claude-DO.sh --model glm
+./claude-DO.sh --model mistral
+./claude-DO.sh --model codex
+```
+
+Shortcut wrappers:
+
+```bash
+./claude-deepseek
+./claude-deepseek-v4
+./claude-glm
+./claude-mistral
+./claude-codex
+```
+
+All local controls are exposed through the pure Python unified web console:
+
+```bash
+./matts-console.py
+```
+
+On a headless machine, the console binds to `0.0.0.0:18181` and prints a token-protected URL such as:
+
+```text
+http://SERVER_IP:18181/?token=...
+```
+
+The console includes:
+
+- embedded Claude Code terminal
+- persistent Claude Code tmux sessions that survive browser refreshes
+- full-screen external browser terminal backed by xterm.js and tmux attach
+- autonomy profiles, permission modes, tool allow/deny lists, context dirs, run modes, output formats, and budget caps
+- text model chat and smoke tests
+- image prompt studio, comparison grid, builder, history, and iteration
+- proxy status, costs, budgets, and recent logs
+- reporting page for local model usage and DigitalOcean billing data
+- AgentBoard tab for all local tmux sessions, status inference, task/trajectory summaries, approximate eval metrics, and model/session leaderboard data
+
+Stable Diffusion is also available through the one-shot helper:
+
+```bash
+./matts-image --prompt "a product render of a titanium keyboard" --output out.png
+```
+
+## Operations
+
+```bash
+./claude-DO.sh --doctor
+./claude-DO.sh --list-models
+./claude-DO.sh --costs
+./claude-DO.sh --budget
+./claude-DO.sh --restart --doctor
+./claude-DO.sh --test-models
+./matts-console.py --no-open
+```
+
+The launcher writes the embedded Matts Value Set access key to:
+
+```text
+$HOME/.mcnf-do-model-access-token
+```
+
+To intentionally override the embedded key for one run:
+
+```bash
+MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1 MATTS_VALUE_SET_ACCESS_KEY=... ./claude-DO.sh --doctor
+```
+
+The proxy listens on:
+
+```text
+127.0.0.1:18081
+```
+
+The web console exposes unauthenticated operational endpoints for local smoke checks and monitoring:
+
+```text
+/health   basic liveness
+/ready    readiness with proxy and launcher checks
+/version  console version metadata
+/metrics  Prometheus text metrics
+```
+
+DigitalOcean reporting uses the public DigitalOcean API. To enable account billing data, set:
+
+```bash
+export DIGITALOCEAN_TOKEN=...
+export DIGITALOCEAN_ACCOUNT_URN=do:team:...
+```
+
+The token needs `billing:read`. Without those values, the Reporting page still shows local model spend from proxy logs.
+
+## AgentBoard
+
+The console includes an AgentBoard-inspired tab built into the existing `18181` GUI. It discovers all local tmux sessions, captures pane previews, infers whether sessions are working, waiting, or asking for permission, and exposes full controls to open, send input, send common keys, or kill a selected session. The task, eval, and leaderboard views are derived from tmux pane state plus local proxy usage logs; no separate AgentBoard service or database is required.
+
+Real-time usage and estimated costs are appended to:
+
+```text
+$HOME/.cache/matts-value-set/usage.jsonl
+```
+
+Budget limits can be configured in:
+
+```text
+$HOME/.cache/matts-value-set/budgets.json
+```
+
+Example:
+
+```json
+{"daily_usd": 10, "monthly_usd": 100}
+```

@@ -1,0 +1,79 @@
+{
+  "accelerator_slug": "gpu-mi325x1-256gb",
+  "accelerator_type": "prefill_decode",
+  "access_token": "",
+  "auto_rebuild": false,
+  "ca_certificate": "",
+  "cooldown_threshold": 0.9,
+  "created_at": 1783503857.0799003,
+  "daily_budget_usd": 15.0,
+  "deployment_name": "primary",
+  "display_name": "Qwen3-32B Dedicated",
+  "enable_public_endpoint": true,
+  "fallback_model": "qwen3-coder-flash",
+  "idle_teardown_seconds": 600,
+  "idle_warning_seconds": 300,
+  "inference_id": "",
+  "last_error": "",
+  "last_status_at": 1783509382.3576262,
+  "last_work_at": 0,
+  "model_id": "qwen3-32b-dedicated",
+  "model_provider": "hugging_face",
+  "model_slug": "Qwen/Qwen3-32B",
+  "name": "matts-qwen3-32b-dedicated",
+  "price_per_hour": 2.98,
+  "private_endpoint_fqdn": "",
+  "public_endpoint_fqdn": "",
+  "raw": {
+    "created_at": "2026-07-08T09:44:18Z",
+    "endpoints": {
+      "private_endpoint_fqdn": "https://9xv7r7gf8to6ag8xdru2r7lcf-private-dedicated-inference.do-infra.ai",
+      "public_endpoint_fqdn": "https://9xv7r7gf8to6ag8xdru2r7lcf-public-dedicated-inference.do-infra.ai"
+    },
+    "id": "a7e947fa-73fa-40f4-a26e-ee8d46344acf",
+    "name": "matts-qwen3-32b-dedicated",
+    "region": "tor1",
+    "spec": {
+      "created_at": "2026-07-08T09:44:18Z",
+      "dedicated_inference_id": "a7e947fa-73fa-40f4-a26e-ee8d46344acf",
+      "enable_public_endpoint": true,
+      "id": "f8eadad4-5db3-4104-b916-0c42eaf28aaf",
+      "model_deployments": [
+        {
+          "accelerators": [
+            {
+              "accelerator_id": "69a6da6a-24d0-45e9-953a-91524dc5c5a9",
+              "accelerator_slug": "gpu-mi325x1-256gb",
+              "autoscale_config": {
+                "enabled": false
+              },
+              "scale": 1,
+              "status": "active",
+              "type": "prefill_decode"
+            }
+          ],
+          "model_id": "3d7992c9-13fc-4648-b80e-824c46bd7dd3",
+          "model_provider": "hugging_face",
+          "model_slug": "Qwen/Qwen3-32B",
+          "provider_model_id": "Qwen/Qwen3-32B"
+        }
+      ],
+      "status": "active",
+      "updated_at": "2026-07-08T10:02:54Z",
+      "version": 1,
+      "vpc_config": {
+        "vpc_uuid": "1af9cea4-16ba-4b8a-a0bf-49f291479f62"
+      }
+    },
+    "status": "active",
+    "updated_at": "2026-07-08T10:03:25Z",
+    "vpc_uuid": "1af9cea4-16ba-4b8a-a0bf-49f291479f62"
+  },
+  "region": "tor1",
+  "run_started_at": 0,
+  "scale": 1,
+  "state": "deleted",
+  "version": 1,
+  "vpc_uuid": "1af9cea4-16ba-4b8a-a0bf-49f291479f62",
+  "warning_threshold": 0.7
+}

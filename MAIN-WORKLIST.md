@@ -1,0 +1,926 @@
+# MAIN-WORKLIST
+
+**Purpose:** Central tracking document for all development work in the Matts Value Set Claude Code Proxy project. All AI assistants should document planned work here before execution and update status during/after completion.
+
+**Created:** 2026-07-07  
+**Last Updated:** 2026-07-08  
+
+## Work Tracking System
+
+### Status Tags:
+- 📋 `TODO` - Work not yet started
+- 🔄 `IN_PROGRESS` - Actively being worked on
+- ✅ `COMPLETED` - Work finished and verified
+- 🚧 `BLOCKED` - Work blocked by dependencies
+- 📝 `NEEDS_REVIEW` - Work complete but needs review
+- ❌ `CANCELLED` - Work abandoned or no longer needed
+
+### Priority Levels:
+- **P0** - Critical/urgent (blocks everything)
+- **P1** - High priority (should be done soon)
+- **P2** - Medium priority (nice to have)
+- **P3** - Low priority (future enhancements)
+
+---
+
+## Current Interface Refactoring Work
+
+### Overview
+The interface refactoring work consolidates previously separate components into a unified web console (`image-studio.py`) that provides:
+- Image generation studio
+- Claude Code terminal interface via tmux
+- Text model chat interface
+- Bing-like Image and Text interfaces with a public-wallpaper-style background
+- Status dashboard with proxy health, costs, budgets, logs
+- Reporting page for local usage and DigitalOcean billing
+- Full-screen xterm.js terminal over WebSocket
+
+### Current Status: 📋 `TODO`
+
+### Tasks to Complete:
+
+## Active Tasks
+
+### Task ID: INT-001
+**Title:** Clean up HTML template separation  
+**Status:** ✅ `COMPLETED`  
+**Priority:** P1  
+**Assigned To:** Codex  
+**Start Time:** 2026-07-07  
+**Estimated Duration:** 2 hours  
+**Completion Time:** 2026-07-07  
+
+**Progress Notes:**
+- 2026-07-07: Extracted embedded login, terminal, and main console HTML into `templates/`.
+- 2026-07-07: Added template loading/rendering helpers and updated `StudioHandler` to serve templates from files.
+- 2026-07-07: Verified `/`, `/terminal`, `/health`, and `/version` render from extracted templates with `200 OK` responses.
+- 2026-07-07: Tightened the Coding console command bar in `templates/main.html` to remove excess top whitespace above the embedded terminal.
+
+**Description:** Move large HTML strings from `image-studio.py` to separate template files. The current file contains multiple large HTML strings (main interface, terminal interface, login page) embedded in Python code.
+
+**Files to Modify:**
+- `image-studio.py` - Remove HTML strings
+- Create `templates/main.html` - Main interface template
+- Create `templates/terminal.html` - Terminal interface template  
+- Create `templates/login.html` - Login page template
+- Create `templates/` directory structure
+
+**Implementation Steps:**
+1. Extract HTML strings from `image-studio.py`
+2. Create template loading function
+3. Update `StudioHandler` to use templates
+4. Test template rendering
+5. Update documentation
+
+**Completion Criteria:**
+- [x] All HTML moved to template files
+- [x] Template loading system working
+- [x] All endpoints render correctly
+- [x] Tests pass
+- [x] Documentation updated
+
+**Dependencies:** None
+**Blocks:** INT-002 (Refactor HTTP handler class)
+
+---
+
+### Task ID: INT-002
+**Title:** Refactor HTTP handler class  
+**Status:** 📋 `TODO`  
+**Priority:** P1  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 3 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
+
+**Target Structure:**
+- `AuthHandler` - Authentication and token management
+- `ApiHandler` - REST API endpoints (chat, tmux, terminal, status)
+- `WebSocketHandler` - Terminal WebSocket connections
+- `StaticHandler` - Static file serving
+- `TemplateHandler` - HTML template rendering
+
+**Files to Create/Modify:**
+- Create `src/console/handlers/` directory
+- Create handler classes in separate files
+- Update `image-studio.py` to use new handlers
+- Update server initialization
+
+**Completion Criteria:**
+- [ ] Handler classes created
+- [ ] All endpoints migrated
+- [ ] Backward compatibility maintained
+- [ ] Tests pass
+- [ ] Performance comparable or better
+
+**Dependencies:** INT-001 (Template separation)
+**Blocks:** INT-003 (Error handling improvements)
+
+---
+
+### Task ID: INT-003
+**Title:** Improve error handling  
+**Status:** 📋 `TODO`  
+**Priority:** P1  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 1.5 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Standardize error responses across all endpoints and add comprehensive error logging.
+
+**Files to Modify:**
+- Create `src/console/utils/errors.py`
+- Update all handler classes
+- Add error logging configuration
+- Update `image-studio.py`
+
+**Key Improvements:**
+1. Standard error response format
+2. Comprehensive logging
+3. Error categorization (client, server, auth, etc.)
+4. Graceful degradation
+5. User-friendly error messages
+
+**Completion Criteria:**
+- [ ] Error utility functions created
+- [ ] All endpoints use standardized errors
+- [ ] Error logging implemented
+- [ ] Tests for error scenarios
+- [ ] Documentation updated
+
+**Dependencies:** INT-002 (Handler refactoring)
+**Blocks:** INT-004 (Configuration system)
+
+---
+
+### Task ID: INT-004
+**Title:** Add configuration system  
+**Status:** 📋 `TODO`  
+**Priority:** P1  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 2 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Move hardcoded constants to configuration file with environment variable support.
+
+**Files to Create/Modify:**
+- Create `config/console.yaml` or `config/console.json`
+- Create configuration loading module
+- Update all hardcoded values
+- Add configuration validation
+
+**Configuration Items:**
+- Server host/port
+- Model lists and costs
+- Authentication settings
+- Template paths
+- Logging configuration
+- Rate limiting settings
+
+**Completion Criteria:**
+- [ ] Configuration file created
+- [ ] Configuration loader implemented
+- [ ] All hardcoded values replaced
+- [ ] Environment variable support
+- [ ] Configuration validation
+- [ ] Tests pass
+
+**Dependencies:** INT-003 (Error handling improvements)
+**Blocks:** INT-005 (Test suite creation)
+
+---
+
+### Task ID: INT-005
+**Title:** Create comprehensive test suite  
+**Status:** 📋 `TODO`  
+**Priority:** P1  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 3 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Create unit and integration tests for the console interface.
+
+**Files to Create:**
+- Create `tests/` directory
+- `tests/test_handlers.py` - Handler unit tests
+- `tests/test_api.py` - API integration tests
+- `tests/test_websocket.py` - WebSocket tests
+- `tests/test_templates.py` - Template rendering tests
+- `tests/conftest.py` - Test fixtures
+
+**Test Coverage Goals:**
+- 80%+ code coverage
+- All handler classes tested
+- API endpoints tested
+- WebSocket connections tested
+- Error scenarios covered
+
+**Completion Criteria:**
+- [ ] Test directory structure created
+- [ ] Core tests implemented
+- [ ] Test runner configured
+- [ ] Coverage reports working
+- [ ] CI integration ready
+
+**Dependencies:** INT-004 (Configuration system)
+**Blocks:** None
+
+---
+
+### Task ID: INT-006
+**Title:** Add health check endpoints  
+**Status:** 📝 `NEEDS_REVIEW`  
+**Priority:** P1  
+**Assigned To:** Codex  
+**Start Time:** 2026-07-07  
+**Estimated Duration:** 1 hour  
+**Completion Time:** 2026-07-07  
+
+**Progress Notes:**
+- 2026-07-07: Added `/health`, `/ready`, `/version`, and `/metrics` endpoints to `image-studio.py`.
+- 2026-07-07: Added console health helpers, basic request counters, Prometheus text metrics, and README operations documentation.
+
+**Description:** Add early health monitoring endpoints for operational visibility. Basic health and version endpoints should be implemented before the larger refactor chain so smoke tests and deployment checks are available while refactoring proceeds.
+
+**Endpoints to Add:**
+- `/health` - Basic service health
+- `/ready` - Readiness for traffic  
+- `/metrics` - Prometheus metrics
+- `/version` - Service version info
+
+**Files to Modify:**
+- Add to current `StudioHandler` route table, then move into `ApiHandler` during INT-002
+- Create health check utility functions
+- Add metrics collection
+
+**Completion Criteria:**
+- [x] Health endpoints implemented
+- [x] Metrics collection working
+- [x] Integration with monitoring
+- [x] Documentation updated
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: INT-014
+**Title:** Redesign Image and Text interfaces with Bing-like layout  
+**Status:** 🔄 `IN_PROGRESS`  
+**Priority:** P1  
+**Assigned To:** Codex  
+**Start Time:** 2026-07-07  
+**Estimated Duration:** 3 hours  
+
+**Progress Notes:**
+- 2026-07-07: Added exhaustive GLM-5 build artifact: `BING-UPDATE-SPEC.md`.
+- 2026-07-07: Started first visible slice: three-tab navigation, cinematic Create shell, shared prompt, Text/Image mode toggle, and Console grouping.
+- 2026-07-07: Added rich text response cards with answering model, original question, posed time, estimated cost, token metadata, answer body, model-specific glyphs, motion accents, and lightweight Markdown rendering.
+- 2026-07-07: Fixed Create response scrolling so long chats grow the document normally, and added a hard top-level tab gate so Console content cannot bleed under other tabs.
+- 2026-07-08: Reorganized the Console tab into Carbon-style operational areas for Inference Hosting Lifecycle, LLM Management, Accounting & Time, AgentBoard, and System Operations.
+- 2026-07-08: Moved scroll restoration control into the document head and added load/pageshow top-pinning so the Console opens at the top instead of halfway down the page.
+- 2026-07-08: Added Bing public wallpaper loading through `/api/wallpaper`, same-origin cached image proxying, Create wallpaper crossfade rotation, manual refresh, attribution caption, subtle cinematic sweep/grid effects, parallax, and reduced-motion handling.
+
+**Specification:** `BING-UPDATE-SPEC.md`
+
+**Description:** Redesign the Image Studio and Text Chat tabs to closely follow the Bing search/chat visual language: prominent centered input, clean translucent controls, large scenic background treatment, compact result surfaces, and a calm wallpaper-forward first view. The background should match the feel of Bing public wallpaper imagery without bundling copyrighted wallpaper assets directly.
+
+**Design Requirements:**
+1. Image and Text tabs should feel like sibling experiences with a shared Bing-like layout.
+2. Use a public-wallpaper-style scenic background, preferably through a configurable remote Bing image endpoint or locally generated/approved fallback asset.
+3. Keep controls readable over the background with accessible contrast.
+4. Preserve all current Image Studio and Text Chat capabilities.
+5. Avoid copying Microsoft/Bing logos, brand marks, proprietary text, or exact protected UI assets.
+
+**Files to Modify:**
+- `image-studio.py` or extracted templates from INT-001
+- Template/CSS files created by INT-001
+- Documentation screenshots or usage notes if the interface changes materially
+
+**Completion Criteria:**
+- [ ] Image tab redesigned around a Bing-like centered prompt/search experience
+- [ ] Text tab redesigned around a Bing-like chat/search experience
+- [x] Background uses Bing public wallpaper-style imagery or configurable Bing image source with fallback
+- [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
+- [ ] Mobile and desktop layouts verified visually
+- [ ] Documentation updated if workflows or screenshots change
+
+**Dependencies:** INT-001 (Template separation recommended; can be done in current HTML if prioritized)
+**Blocks:** INT-012 (Theming system)
+
+---
+
+### Task ID: INT-015
+**Title:** Add Digital Ocean Serverless Inference model catalog  
+**Status:** 🔄 `IN_PROGRESS`  
+**Priority:** P1  
+**Assigned To:** Codex  
+**Start Time:** 2026-07-07  
+**Estimated Duration:** 3 hours  
+
+**Progress Notes:**
+- 2026-07-07: Added `config/models.json` as the persistent global model registry with enabled state, aliases, type, display name, provider, pricing, and context metadata.
+- 2026-07-07: Added Console > Models control pane with add/remove/edit/save/reload controls and `/api/models` GET/POST endpoints.
+- 2026-07-07: Updated `claude-DO.sh` to load model IDs, aliases, text/image test sets, validation, and proxy `--models` from the shared registry.
+- 2026-07-07: Added Console > Inference split for Serverless Inference and Dedicated Inference, with Serverless remaining the fallback/control baseline.
+
+**Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
+
+**Description:** Fetch full catalog of Digital Ocean Serverless Inference models dynamically from Digital Ocean API and make them available in the API with selective visibility.
+
+**Key Features:**
+1. **Dynamic model fetching**: Get models from Digital Ocean API at startup
+2. **Model filtering**: Use `?available=true/false` parameter on `/v1/models` endpoint
+3. **Admin interface**: Web console admin panel to toggle model visibility
+4. **Cost auto-detection**: Fetch cost rates from Digital Ocean API
+5. **Caching**: Fall back to cached list if API fails
+6. **Replace hardcoded**: Replace current hardcoded model list with dynamic Digital Ocean list
+
+**Files to Create/Modify:**
+- `do-anthropic-proxy.py` - Add Digital Ocean API client and model caching
+- `image-studio.py` - Add admin interface for model selection
+- Configuration system - Add model visibility settings
+- Add model metadata cache file
+
+**Implementation Steps:**
+1. Create Digital Ocean API client to fetch available models
+2. Add model caching with fallback to last-known list
+3. Update `/v1/models` endpoint with `?available=true/false` parameter
+4. Add admin panel in web console for model selection
+5. Auto-detect cost rates from Digital Ocean pricing
+6. Replace hardcoded `MATTS_VALUE_SET_MODELS` with dynamic list
+7. Add tests for model fetching and filtering
+
+**Completion Criteria:**
+- [ ] Digital Ocean API integration working
+- [ ] Model filtering via endpoint parameter
+- [ ] Admin interface for model selection
+- [ ] Cost rate auto-detection
+- [ ] Caching and fallback working
+- [ ] Hardcoded models replaced
+- [ ] Tests for all new functionality
+
+**Dependencies:** INT-004 (Configuration system) - for model visibility settings
+**Blocks:** None - can work in parallel with other tasks
+
+---
+
+### Task ID: INT-016
+**Title:** Add DigitalOcean Dedicated Inference lifecycle manager  
+**Status:** 👀 `NEEDS_REVIEW`  
+**Priority:** P1  
+**Assigned To:** Codex  
+**Start Time:** 2026-07-07  
+**Completion Time:** 2026-07-07  
+**Estimated Duration:** 1 pass  
+
+**Progress Notes:**
+- 2026-07-07: Added persistent Dedicated Inference config and event log files.
+- 2026-07-07: Added DigitalOcean Dedicated API helpers for discovery, create, status polling, token creation, and delete.
+- 2026-07-07: Added `/api/dedicated/*` Console endpoints for preflight, build, teardown, policy, status, events, sizes, and GPU/model config.
+- 2026-07-07: Added Dedicated model registration/removal in the global model registry.
+- 2026-07-07: Added chat routing support for Dedicated models with Serverless fallback provenance.
+- 2026-07-07: Added Console > Inference panel with Serverless and Dedicated side-by-side controls, global cost meter, build sequence, discovery output, and activity timeline.
+- 2026-07-07: Saved live Qwen3 Coder Dedicated config and launched DigitalOcean Dedicated Inference build `b4d236be-1bc2-41d3-b9b4-75630d64b137`; first selected GPU plan was unavailable in-region.
+- 2026-07-08: Reconfigured Dedicated Inference to `Qwen/Qwen3-32B` on `gpu-mi300x1-192gb` in `atl1`; live build `7b259fa9-b984-4279-b89a-186d5a5a4b02` is currently `provisioning`.
+- 2026-07-08: Added top-header dark mode toggle with persisted theme selection.
+- 2026-07-08: Added global model defaulting rule: models without an explicit `enabled` flag auto-enable only when every configured price is below `$0.50`.
+- 2026-07-08: Dedicated builds now register immediately as disabled managed model entries while provisioning, so they are visible in global model management before endpoint readiness.
+- 2026-07-08: Direct requests to a Dedicated model that is not ready now return a human-friendly lifecycle error with state, server id, region, accelerator, endpoint readiness, and next step.
+- 2026-07-08: Added GUI sparkle treatment for newly discovered model ids and managed Dedicated server entries.
+- 2026-07-08: Added `selectable_text_models` so managed Dedicated models appear in Chat/Create selectors while active launcher/fallback selections remain limited to ready models.
+- 2026-07-08: Hardened top-level tab hiding and navigation scroll reset so Console no longer remains visible beneath Coding/Create or starts halfway down the page.
+- 2026-07-08: Improved Dedicated chat lifecycle feedback so the UI shows a compact user-friendly status card instead of raw JSON, with diagnostics tucked behind a details toggle.
+- 2026-07-08: Added DigitalOcean account status, masked account identity, prepay/balance status, month-to-date usage, build age, and last-status age to Dedicated lifecycle feedback.
+- 2026-07-08: Added nested Dedicated accelerator failure detection; current Qwen3-32B build is marked `failed` because DigitalOcean reported `gpu-mi300x1-192gb` as invalid for the model.
+- 2026-07-08: Tore down failed `atl1` MI300X Dedicated build after DO reported invalid accelerator state.
+- 2026-07-08: Rebuilt Qwen3-32B Dedicated in `tor1` on `gpu-mi325x1-256gb`; new build `a7e947fa-73fa-40f4-a26e-ee8d46344acf` is `provisioning`.
+- 2026-07-08: Relaxed nested accelerator `invalid` detection for pending/provisioning specs without accelerator assignment to avoid prematurely failing valid in-progress builds.
+- 2026-07-08: Corrected endpoint display to clear stale create-response endpoint values until latest DigitalOcean status reports an endpoint.
+- 2026-07-08: Qwen3-32B Dedicated is active in `tor1` on `gpu-mi325x1-256gb`; proxy chat requests now route directly to Dedicated and return visible answer text.
+- 2026-07-08: Added DigitalOcean platform uptime, unresolved incidents, account status, prepay/balance, and month-to-date usage to the Console lifecycle health strip.
+- 2026-07-08: Replaced the inaccurate top-toolbar runtime/token cost indicator with a DigitalOcean cost pill showing account month-to-date, last-24-hour total, and month-to-date Dedicated server estimate from lifecycle runtime.
+- 2026-07-08: Connected Dedicated proxy routing to the GUI lifecycle state: the Claude Code proxy now uses the Dedicated endpoint/token/model slug, returns human-friendly not-ready lifecycle errors, auto-syncs when the global model registry changes, and exposes sync state/actions in Console.
+- 2026-07-08: Fixed Claude Code 400s against Qwen3-32B Dedicated by clamping Dedicated max output tokens before upstream requests and retrying context-length 400s with a lower calculated token budget.
+- 2026-07-08: Added live DigitalOcean Serverless catalog import from `/v1/models`, expanded the registry/UI to show all serverless model classes, and default-enable newly discovered models only when every known price is below `$0.45` per 1M/unit.
+- 2026-07-08: Added access probes for cheap serverless text models during catalog refresh, so low-cost models that the current model access key cannot call remain visible but disabled with `access_status=forbidden` instead of producing provider 403s in Chat/Code.
+- 2026-07-08: Added automated model access key verification with masked key source/fingerprint display and a full serverless text LLM audit that probes each model, disables forbidden models, enables allowed low-cost models, and syncs the proxy registry.
+- 2026-07-08: Updated local DigitalOcean model access token files and fixed Console/launcher startup so existing token files are preserved instead of being overwritten by the embedded fallback key.
+- 2026-07-08: Fixed forbidden Serverless LLM routing in Code by requiring audited `access_status=ok` before serverless text models are exposed to the Console launcher or proxy; Haiku 4.5 now stays disabled and local requests are rejected before reaching DigitalOcean.
+- 2026-07-08: Consolidated runtime model selection around `config/models.json` as the source of truth: the proxy now refreshes active models, aliases, and pricing from the registry instead of relying on stale startup JSON, and both Console and launcher pass the same config path.
+- 2026-07-08: Enriched global model selectors with training-origin country, human-readable cost labels, brand/logo metadata, access-state greyout, and use-case/comparison cards shared across Code, Create, Chat, image generation, and Dedicated fallback controls.
+- 2026-07-08: Rebuilt the Code session picker with enriched live/previous session cards, inline tmux rename support, new-session highlighting, session metadata persistence, and previous-session read-only red styling.
+- 2026-07-08: Consolidated Code session create/select/rename/stop into the running tmux chooser with display-name/tmux-id separation, generated `STARTTIME_` names, preset-based new session creation, pinned current/live/previous groups, and read-only previous sessions.
+
+**Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
+
+**Files Modified:**
+- `image-studio.py`
+- `templates/main.html`
+- `MAIN-WORKLIST.md`
+
+**Completion Criteria:**
+- [x] Dedicated state/config persisted locally
+- [x] DO Dedicated API build/status/delete/token endpoints wrapped
+- [x] Console build/preflight/teardown/policy controls added
+- [x] Global Dedicated model add/remove wired to model registry
+- [x] Dedicated chat routing and Serverless fallback metadata added
+- [x] Live elapsed/cost UI meter added
+- [x] Activity timeline and step variation added
+- [x] Live DO account/token/scopes verified against a real Dedicated build
+- [x] Dedicated endpoint request shape verified against the deployed model runtime
+- [ ] Idle auto-teardown background enforcement added outside page-driven refresh
+
+**Dependencies:** INT-015 (global model registry), DigitalOcean Dedicated Inference account access
+**Blocks:** None
+
+---
+
+### Task ID: INT-017
+**Title:** Add detailed Hero Card descriptions for each model  
+**Status:** 📋 `TODO`  
+**Priority:** P1  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 2.5 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Specification:** `MODEL-HERO-CARD-SPEC.md`
+
+**Description:** Create impressive, detailed Hero Cards for each model showing what they're good at, what they're not, what to expect, and alternatives.
+
+**Key Features:**
+1. **Detailed modal display**: Full-page detailed view when clicking "Info" button
+2. **Manual curation**: Well-written descriptions for each model
+3. **Feature-rich design**: Icons, badges, metrics, and visual elements
+4. **Standard sections**: Strengths, weaknesses, use cases, alternatives
+5. **Separate storage**: Model descriptions stored in JSON/YAML files for easy updates
+
+**Files to Create/Modify:**
+- Create `config/model-descriptions/` directory with JSON files
+- Update `image-studio.py` to add model info modal
+- Add API endpoint `/api/models/{id}/info`
+- Update templates with model info button and modal HTML/CSS
+- Create hero card styling (feature-rich design)
+
+**Implementation Steps:**
+1. Research and write detailed descriptions for each model
+2. Create JSON structure for model metadata and descriptions
+3. Add "Info" button next to each model in the UI
+4. Implement modal overlay with hero card design
+5. Add API endpoint to serve model information
+6. Create visually impressive card design with icons and metrics
+7. Test across all models and screen sizes
+
+**Completion Criteria:**
+- [ ] Detailed descriptions written for all current models
+- [ ] JSON description files created and organized
+- [ ] Model info modal implemented with feature-rich design
+- [ ] API endpoint serving model information
+- [ ] Info buttons added throughout UI (chat, image studio, model selection)
+- [ ] Responsive design working on all screen sizes
+- [ ] Documentation updated
+
+**Dependencies:** INT-001 (Template separation) - for modal HTML/CSS
+**Blocks:** None
+
+---
+
+## P2 Tasks - Enhancements
+
+### Task ID: INT-007
+**Title:** Improve WebSocket terminal  
+**Status:** 📋 `TODO`  
+**Priority:** P2  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 2 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Complete WebSocket terminal polish. Terminal resizing and tmux-backed persistence already exist in the current console, so this task should focus on verification, edge cases, and missing operational polish.
+
+**Improvements:**
+1. Cross-browser resizing verification and bug fixes
+2. Character encoding improvements
+3. Session lifecycle cleanup and reconnect edge cases
+4. Terminal logging
+5. Connection pooling if profiling shows it is needed
+
+**Files to Modify:**
+- Update `WebSocketHandler` class
+- Refine terminal session management
+- Improve encoding handling
+
+**Completion Criteria:**
+- [ ] Terminal resizing verified across supported browsers
+- [ ] Encoding issues resolved
+- [ ] Session reconnect and cleanup edge cases covered
+- [ ] Connection pooling added or explicitly documented as unnecessary
+- [ ] Tests updated
+
+**Dependencies:** INT-002 (Handler refactoring)
+**Blocks:** None
+
+---
+
+### Task ID: INT-008
+**Title:** Add API versioning  
+**Status:** 📋 `TODO`  
+**Priority:** P2  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 1.5 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Implement API versioning with backward compatibility support.
+
+**Changes:**
+- `/api/v1/` prefix for all endpoints
+- Version negotiation
+- Deprecation warnings
+- Migration documentation
+
+**Files to Modify:**
+- Update route definitions
+- Add version middleware
+- Update documentation
+
+**Completion Criteria:**
+- [ ] Versioned API endpoints
+- [ ] Backward compatibility
+- [ ] Deprecation system
+- [ ] Migration guide
+- [ ] Tests updated
+
+**Dependencies:** INT-002 (Handler refactoring)
+**Blocks:** None
+
+---
+
+### Task ID: INT-009
+**Title:** Add rate limiting  
+**Status:** 📋 `TODO`  
+**Priority:** P2  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 2 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Implement rate limiting to protect against abuse.
+
+**Features:**
+- Token-based rate limiting
+- Configurable limits per endpoint
+- Rate limit headers
+- Quota management
+
+**Files to Create/Modify:**
+- Create rate limiting middleware
+- Update handler classes
+- Add configuration options
+
+**Completion Criteria:**
+- [ ] Rate limiting implemented
+- [ ] Configurable limits
+- [ ] Proper headers
+- [ ] Abuse protection
+- [ ] Tests added
+
+**Dependencies:** INT-004 (Configuration system)
+**Blocks:** None
+
+---
+
+### Task ID: INT-010
+**Title:** Improve authentication  
+**Status:** 📋 `TODO`  
+**Priority:** P2  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 2.5 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Enhance authentication system with JWT tokens and session management.
+
+**Improvements:**
+1. JWT token support
+2. Token rotation
+3. Session management
+4. Refresh tokens
+5. Audit logging
+
+**Files to Modify:**
+- Update `AuthHandler` class
+- Add JWT utilities
+- Implement session storage
+- Add audit logging
+
+**Completion Criteria:**
+- [ ] JWT authentication
+- [ ] Token rotation
+- [ ] Session management
+- [ ] Audit logging
+- [ ] Security tests
+
+**Dependencies:** INT-002 (Handler refactoring)
+**Blocks:** None
+
+## P3 Tasks - Future Enhancements
+
+### Task ID: INT-011
+**Title:** Add plugin system  
+**Status:** 📋 `TODO`  
+**Priority:** P3  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 4 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Create plugin system for modular interface components and third-party extensions.
+
+**Features:**
+- Plugin lifecycle management
+- Extension points
+- Third-party plugin support
+- Plugin configuration
+
+**Files to Create:**
+- Plugin framework
+- Plugin registry
+- Extension point definitions
+- Plugin examples
+
+**Completion Criteria:**
+- [ ] Plugin framework created
+- [ ] Extension points defined
+- [ ] Example plugins
+- [ ] Documentation
+- [ ] Tests
+
+**Dependencies:** INT-002 (Handler refactoring), INT-004 (Configuration system)
+**Blocks:** None
+
+---
+
+### Task ID: INT-012
+**Title:** Add theming system  
+**Status:** 📋 `TODO`  
+**Priority:** P3  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 3 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Implement theming system with light/dark mode support.
+
+**Features:**
+- Light/dark mode toggle
+- Customizable colors
+- CSS variable system
+- Theme persistence
+
+**Files to Modify:**
+- Update templates with CSS variables
+- Add theme switching JavaScript
+- Theme configuration
+- Theme storage
+
+**Completion Criteria:**
+- [ ] Theme switching working
+- [ ] CSS variable system
+- [ ] Theme persistence
+- [ ] Browser preferences respected
+- [ ] Documentation
+
+**Dependencies:** INT-001 (Template separation)
+**Blocks:** None
+
+---
+
+### Task ID: INT-013
+**Title:** Add analytics dashboard  
+**Status:** 📋 `TODO`  
+**Priority:** P3  
+**Assigned To:** *Unassigned*  
+**Start Time:** *Not started*  
+**Estimated Duration:** 4 hours  
+
+**Progress Notes:**
+- *None yet*
+
+**Description:** Create analytics dashboard for usage statistics and performance metrics.
+
+**Features:**
+- Usage statistics visualization
+- Cost tracking charts
+- Performance metrics
+- Export functionality
+
+**Files to Create:**
+- Analytics data collection
+- Dashboard templates
+- Chart rendering
+- Export utilities
+
+**Completion Criteria:**
+- [ ] Analytics collection
+- [ ] Dashboard UI
+- [ ] Chart visualizations
+- [ ] Export functionality
+- [ ] Documentation
+
+**Dependencies:** INT-001 (Template separation), INT-004 (Configuration system)
+**Blocks:** None
+
+---
+
+## Work Execution Protocol for AI Assistants
+
+### Before Starting Work:
+1. **Check MAIN-WORKLIST.md** for existing tasks and priorities
+2. **Create a new task entry** if work isn't already documented
+3. **Update task status** to `IN_PROGRESS` before beginning
+4. **Note start time** and **assistant name/type**
+
+### During Work:
+1. **Document progress** in task notes section
+2. **Update status** if blocked or dependencies change
+3. **Add intermediate commits** with clear messages
+
+### After Completing Work:
+1. **Update status** to `COMPLETED` or `NEEDS_REVIEW`
+2. **Add completion timestamp**
+3. **Document any follow-up work needed**
+4. **Run verification tests** if applicable
+5. **Update related documentation** (CLAUDE.md, README.md)
+
+### Work Format Example:
+```
+### Task ID: INT-001
+**Title:** Clean up HTML template separation  
+**Status:** 🔄 `IN_PROGRESS`  
+**Priority:** P1  
+**Assigned To:** Claude (general-purpose agent)  
+**Start Time:** 2026-07-07 15:30  
+**Estimated Duration:** 2 hours  
+
+**Description:** Move large HTML strings from image-studio.py to separate template files...
+
+**Progress Notes:**
+- 2026-07-07 15:35: Created templates/ directory with main.html template
+- 2026-07-07 15:45: Implemented template loading function
+- 2026-07-07 16:00: Refactored main HTML template (70% complete)
+
+**Completion Criteria:**
+- [ ] All HTML moved to template files
+- [ ] Template loading system working
+- [ ] Tests pass
+- [ ] Documentation updated
+
+**Dependencies:** None
+**Blocks:** INT-002 (Refactor HTTP handler class)
+```
+
+---
+
+## Recent Work History
+
+### 2026-07-07 - Interface Refactoring Planning
+- **Status:** Planning and documentation phase
+- **Work Completed:**
+  - Created MAIN-WORKLIST.md for tracking interface refactoring work
+  - Documented 14 specific tasks with priorities and dependencies
+  - Established work tracking protocol for AI assistants
+  - Analyzed current `image-studio.py` structure (1873 lines)
+
+### 2026-07-07 - Worklist Review Corrections
+- **Status:** Review corrections applied
+- **Work Completed:**
+  - Made early health endpoints independent from the full test-suite task
+  - Added progress-note placeholders to task entries
+  - Re-scoped WebSocket terminal polish around remaining gaps because resizing and tmux persistence already exist
+  - Added INT-014 for Bing-like Image/Text interface redesign with public-wallpaper-style background requirements
+
+### Current State Analysis:
+- **File:** `image-studio.py` (modified 2026-07-07 15:09)
+- **Lines:** 1873
+- **Key Issues Identified:**
+  1. **Monolithic structure** - Single large file with mixed concerns
+  2. **Embedded HTML** - Large HTML strings in Python code
+  3. **Limited error handling** - Inconsistent error responses
+  4. **Hardcoded values** - Constants scattered throughout code
+  5. **No comprehensive tests** - Limited testing coverage
+  6. **Authentication limitations** - Basic token system only
+
+### Key Features Currently Working:
+- Unified HTTP handler (`StudioHandler`)
+- WebSocket terminal support via tmux
+- Combined image studio and console interfaces
+- Authentication token system
+- Tmux session management
+- Status dashboard with proxy health monitoring
+- Cost tracking and budget enforcement
+- Image generation with prompt builder
+- Chat interface for text models
+
+### Next Immediate Actions (P1 Priority):
+1. **Start with INT-006:** Early health check endpoints (1 hour)
+2. **Then INT-001:** HTML template separation (2 hours)
+3. **Follow with INT-014:** Bing-like Image/Text redesign (3 hours)
+4. **Continue with INT-002:** HTTP handler refactoring (3 hours)
+5. **Then INT-003:** Error handling improvements (1.5 hours)
+6. **Then INT-004:** Configuration system (2 hours)
+7. **Then INT-005:** Comprehensive test suite (3 hours)
+
+**Total P1 Work Estimate:** 15.5 hours
+
+---
+
+## Project Structure Notes
+
+### Current File Organization:
+```
+DO-ClaudeCode-Proxy/
+├── image-studio.py          # Unified web console (1873 lines)
+├── do-anthropic-proxy.py    # API proxy server
+├── claude-DO.sh            # Main launcher script
+├── matts-console.py         # Console entry point
+├── matts-image              # Image generator CLI
+├── claude-*                # Model wrapper scripts
+└── MAIN-WORKLIST.md        # This file
+```
+
+### Target Architecture:
+```
+DO-ClaudeCode-Proxy/
+├── src/
+│   ├── console/
+│   │   ├── handlers/       # HTTP handlers
+│   │   ├── templates/      # HTML templates
+│   │   ├── websocket/      # WebSocket handling
+│   │   └── utils/         # Utility functions
+│   ├── proxy/             # API proxy logic
+│   └── cli/              # CLI interfaces
+├── tests/                # Test suite
+├── config/              # Configuration files
+└── docs/               # Documentation
+```
+
+---
+
+## Next Immediate Actions (P1)
+
+1. **Start with INT-006:** Early health check endpoints
+2. **Then INT-001:** HTML template separation
+3. **Follow with INT-014:** Bing-like Image/Text redesign
+4. **Continue with INT-002:** HTTP handler refactoring
+5. **Then INT-003:** Error handling improvements
+6. **Then INT-004:** Configuration system
+7. **Then INT-005:** Comprehensive test suite
+
+## Dependencies & Blockers
+
+- INT-006 is intentionally independent so health smoke checks can land before the larger refactor chain.
+- INT-014 depends on INT-001 when possible, but can be implemented directly in the current HTML if UI redesign is prioritized ahead of template extraction.
+- Most refactor tasks should proceed sequentially because they touch the same `image-studio.py` surfaces.
+
+## Quality Standards
+
+- All code changes must include tests
+- Documentation must be updated
+- Backward compatibility must be maintained
+- Security considerations must be addressed
+- Performance impact must be evaluated
+
+---
+
+*This document should be updated by all AI assistants working on the project.*
+*Last updated by: Codex*
+*Timestamp: 2026-07-07*

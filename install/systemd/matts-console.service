@@ -1,0 +1,42 @@
+[Unit]
+Description=Matts Value Set Web Console
+Documentation=https://github.com/user/matts-value-set-proxy
+After=network.target matts-value-set-proxy.service
+Wants=network.target matts-value-set-proxy.service
+
+[Service]
+Type=simple
+User=matts
+Group=matts
+WorkingDirectory=/var/lib/matts-value-set
+EnvironmentFile=/etc/matts-value-set/environment.conf
+ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/image-studio.py \
+  --host 0.0.0.0 \
+  --port 18181 \
+  --no-open
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=matts-console
+
+[Install]
+WantedBy=multi-user.target
