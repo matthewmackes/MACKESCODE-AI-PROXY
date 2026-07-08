@@ -67,6 +67,19 @@ class ModelRegistryTests(unittest.TestCase):
             {"image": 0.08},
         )
 
+    def test_documented_serverless_pricing_comes_from_registry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            path.write_text(json.dumps({"models": [
+                {"id": "priced", "type": "text", "serverless": True, "pricing": {"input": 0.1, "output": 0.2}},
+                {"id": "local", "type": "text", "serverless": False, "pricing": {"input": 9}},
+                {"id": "unpriced", "type": "text", "serverless": True},
+            ]}), encoding="utf-8")
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                pricing = studio.documented_serverless_pricing()
+
+        self.assertEqual(pricing, {"priced": {"input": 0.1, "output": 0.2}})
+
     def test_registry_round_trip_filters_route_enabled_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
@@ -222,7 +235,7 @@ class ModelRegistryTests(unittest.TestCase):
             path = Path(tmp) / "models.json"
             with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}), \
                  patch.object(studio, "serverless_catalog_payload", return_value=catalog), \
-                 patch.object(studio, "SERVERLESS_MODEL_PRICING", pricing), \
+                 patch.object(studio, "documented_serverless_pricing", return_value=pricing), \
                  patch.object(studio, "proxy_sync_payload", return_value={"in_sync": True}):
                 result = studio.sync_serverless_model_catalog(force=True, validate_access=False)
                 models = {model["id"]: model for model in studio.load_model_registry(include_disabled=True)}

@@ -65,60 +65,6 @@ REQUEST_COUNTS = {"GET": 0, "POST": 0}
 MODEL_AUTO_ENABLE_MAX_USD = float(STARTUP_CONFIG["models"]["auto_enable_max_usd"])
 SERVERLESS_CATALOG_TTL_SECONDS = int(STARTUP_CONFIG["serverless"]["catalog_ttl_seconds"])
 MODEL_TYPES = {"text", "image", "embedding", "rerank", "audio", "video", "router", "unknown"}
-SERVERLESS_MODEL_PRICING = {
-    "alibaba-qwen3-32b": {"input": 0.25, "output": 0.55},
-    "arcee-trinity-large-thinking": {"input": 0.25, "output": 0.90},
-    "deepseek-3.2": {"input": 0.425, "output": 1.36},
-    "deepseek-4-flash": {"input": 0.112, "output": 0.224},
-    "deepseek-r1-distill-llama-70b": {"input": 0.99, "output": 0.99},
-    "deepseek-v4-pro": {"input": 1.392, "output": 2.784},
-    "gemma-4-31B-it": {"input": 0.18, "output": 0.50},
-    "glm-5": {"input": 0.75, "output": 2.40},
-    "glm-5.1": {"input": 0.975, "output": 4.30},
-    "glm-5.2": {"input": 1.05, "output": 4.40},
-    "kimi-k2.5": {"input": 0.375, "output": 2.025},
-    "kimi-k2.6": {"input": 0.76, "output": 3.20},
-    "llama-4-maverick": {"input": 0.25, "output": 0.87},
-    "llama3.3-70b-instruct": {"input": 0.65, "output": 0.65},
-    "mimo-v2.5": {"input": 0.105, "output": 0.28},
-    "mimo-v2.5-pro": {"input": 0.60, "output": 3.00},
-    "minimax-m2.5": {"input": 0.225, "output": 0.90},
-    "mistral-3-14B": {"input": 0.20, "output": 0.20},
-    "nemotron-3-nano-omni": {"input": 0.50, "output": 0.90},
-    "nemotron-3-ultra-550b": {"input": 0.90, "output": 1.70},
-    "nemotron-nano-12b-v2-vl": {"input": 0.20, "output": 0.60},
-    "nvidia-nemotron-3-super-120b": {"input": 0.21, "output": 0.455},
-    "openai-gpt-4.1": {"input": 2.00, "output": 8.00},
-    "openai-gpt-4o": {"input": 2.50, "output": 10.00},
-    "openai-gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "openai-gpt-5": {"input": 1.25, "output": 10.00},
-    "openai-gpt-5-mini": {"input": 0.25, "output": 2.00},
-    "openai-gpt-5-nano": {"input": 0.05, "output": 0.40},
-    "openai-gpt-5.1-codex-max": {"input": 1.25, "output": 10.00},
-    "openai-gpt-5.2": {"input": 1.75, "output": 14.00},
-    "openai-gpt-5.2-pro": {"input": 21.00, "output": 168.00},
-    "openai-gpt-5.3-codex": {"input": 1.75, "output": 14.00},
-    "openai-gpt-5.4": {"input": 2.50, "output": 15.00},
-    "openai-gpt-5.4-mini": {"input": 0.75, "output": 4.50},
-    "openai-gpt-5.4-nano": {"input": 0.20, "output": 1.25},
-    "openai-gpt-5.4-pro": {"input": 30.00, "output": 180.00},
-    "openai-gpt-5.5": {"input": 5.00, "output": 30.00},
-    "openai-gpt-oss-120b": {"input": 0.10, "output": 0.70},
-    "openai-gpt-oss-20b": {"input": 0.05, "output": 0.45},
-    "openai-o1": {"input": 15.00, "output": 60.00},
-    "openai-o3": {"input": 2.00, "output": 8.00},
-    "openai-o3-mini": {"input": 1.10, "output": 4.40},
-    "qwen3-coder-flash": {"input": 0.45, "output": 1.70},
-    "qwen3.5-397b-a17b": {"input": 0.385, "output": 2.45},
-    "stable-diffusion-3.5-large": {"image": 0.08},
-    "all-mini-lm-l6-v2": {"input": 0.009},
-    "bge-m3": {"input": 0.02},
-    "bge-reranker-v2-m3": {"input": 0.01},
-    "e5-large-v2": {"input": 0.02},
-    "gte-large-en-v1.5": {"input": 0.09},
-    "multi-qa-mpnet-base-dot-v1": {"input": 0.009},
-    "qwen3-embedding-0.6b": {"input": 0.04},
-}
 DEDICATED_STEPS = [
     "Checking DigitalOcean permissions",
     "Matching model to GPU profile",
@@ -270,6 +216,15 @@ def model_metadata_map():
     return model_registry_service().metadata_map(model_options(include_disabled=True))
 
 
+def documented_serverless_pricing():
+    pricing = {}
+    for model in load_model_registry(include_disabled=True):
+        model_pricing = model.get("pricing")
+        if model.get("serverless") and model.get("id") and isinstance(model_pricing, dict) and model_pricing:
+            pricing[model["id"]] = dict(model_pricing)
+    return pricing
+
+
 def serverless_catalog_service(
     read_model_access_token_func=None,
     fetch_serverless_catalog_func=None,
@@ -289,7 +244,7 @@ def serverless_catalog_service(
         serverless_model_type=serverless_model_type,
         display_name_from_model_id=display_name_from_model_id,
         model_types=MODEL_TYPES,
-        documented_pricing=lambda: SERVERLESS_MODEL_PRICING,
+        documented_pricing=documented_serverless_pricing,
         load_model_registry=load_model_registry,
         save_model_registry=save_model_registry,
         refresh_model_globals=refresh_model_globals,
