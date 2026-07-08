@@ -101,6 +101,20 @@ Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON c
 
 Dedicated Inference live state is runtime data. The default state file is under the console app cache, and `config/dedicated-inference.example.json` is the publishable template. Do not commit live Dedicated endpoint metadata, access tokens, CA certificates, or raw DigitalOcean resource payloads.
 
+Release config and runtime state are intentionally separate:
+
+| Area | Release-owned file | Runtime-owned default |
+| --- | --- | --- |
+| Console defaults | `config/console.json` | `MATTS_CONSOLE_CONFIG_FILE` override when needed |
+| Default model bootstrap | `config/default-models.json` | Active registry below |
+| Active model registry | `config/models.json` | Operator-edited source of truth; schema_version `1` |
+| Dedicated Inference | `config/dedicated-inference.example.json` | `$HOME/.cache/matts-value-set/studio/dedicated-inference.json` |
+| Serverless catalog cache | none | `$HOME/.cache/matts-value-set/studio/serverless-model-catalog.json` |
+| Wallpaper cache | none | `$HOME/.cache/matts-value-set/wallpapers/` |
+| Weather defaults/cache | none | Browser/runtime fallback state only |
+| Usage, budget, and traces | none | `$HOME/.cache/matts-value-set/usage.jsonl`, budgets, and trace files |
+| tmux sessions | none | `$HOME/.cache/matts-value-set/studio/tmux-sessions.json` |
+
 The web console exposes unauthenticated operational endpoints for local smoke checks and monitoring:
 
 ```text

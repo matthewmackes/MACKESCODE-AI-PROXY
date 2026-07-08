@@ -641,16 +641,18 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-018
 **Title:** Separate release config, runtime state, and secrets
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 2 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Current tracked config and local runtime state need stricter separation before release.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; config/state separation must preserve model-registry source-of-truth semantics while moving live cloud/runtime state out of release config.
 - 2026-07-08: Started release-state cleanup by moving Dedicated Inference live state to the console runtime app cache, adding a publishable Dedicated example config, ignoring the legacy tracked state path, and adding a legacy-state migration helper with unit coverage.
+- 2026-07-08: Completed schema/version handling for model registry and Dedicated config, exposed registry/config status to the GUI/proxy, documented release/runtime ownership, added security guidance, and passed `scripts/release-check.sh` with 160 tests.
 
 **Description:** Establish clean boundaries between shipped defaults, operator configuration, runtime state, cache files, generated secrets, and live cloud resource metadata. The repository should contain examples and schemas, not local mutable state from a running deployment.
 
@@ -672,13 +674,13 @@ The interface refactoring work consolidates previously separate components into 
 - `SECURITY.md`
 
 **Completion Criteria:**
-- [ ] Live DigitalOcean resource metadata is not tracked in release config
-- [ ] Example config files are safe to publish
-- [ ] Runtime state paths are documented
-- [ ] Model registry, wallpaper cache, weather defaults, traces, usage logs, tmux registry, and Dedicated lifecycle state have explicit release-config vs runtime-state ownership
-- [ ] Existing local installs migrate without data loss
-- [ ] Config validation fails with human-readable errors
-- [ ] Tests cover missing, old, and malformed config
+- [x] Live DigitalOcean resource metadata is not tracked in release config
+- [x] Example config files are safe to publish
+- [x] Runtime state paths are documented
+- [x] Model registry, wallpaper cache, weather defaults, traces, usage logs, tmux registry, and Dedicated lifecycle state have explicit release-config vs runtime-state ownership
+- [x] Existing local installs migrate without data loss
+- [x] Config validation fails with human-readable errors
+- [x] Tests cover missing, old, and malformed config
 
 **Dependencies:** INT-004 (Configuration system)
 **Blocks:** Release packaging and broader team use
@@ -1367,16 +1369,15 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-018:** Separate release config, runtime state, and secrets
-2. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-3. **Then INT-020:** Trace-first observability
-4. **Then INT-022:** Gateway reliability and cost controls
-5. **Then INT-021:** Evaluation and model comparison workflows
-6. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-7. **Then INT-019:** Documentation reconciliation
-8. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+2. **Then INT-020:** Trace-first observability
+3. **Then INT-022:** Gateway reliability and cost controls
+4. **Then INT-021:** Evaluation and model comparison workflows
+5. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+6. **Then INT-019:** Documentation reconciliation
+7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-025.
+Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-018, INT-025.
 
 ---
 
@@ -1414,14 +1415,13 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-018:** Separate release config, runtime state, and secrets
-2. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-3. **Then INT-020:** Trace-first observability
-4. **Then INT-022:** Gateway reliability and cost controls
-5. **Then INT-021:** Evaluation and model comparison workflows
-6. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-7. **Then INT-019:** Documentation reconciliation
-8. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+2. **Then INT-020:** Trace-first observability
+3. **Then INT-022:** Gateway reliability and cost controls
+4. **Then INT-021:** Evaluation and model comparison workflows
+5. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+6. **Then INT-019:** Documentation reconciliation
+7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
 ## Dependencies & Blockers
 

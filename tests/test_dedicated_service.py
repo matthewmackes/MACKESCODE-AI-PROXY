@@ -8,6 +8,7 @@ from src.console.services.dedicated import DedicatedInferenceService
 
 
 DEFAULT_CONFIG = {
+    "schema_version": 1,
     "state": "not_configured",
     "name": "test-dedicated",
     "version": "1",
@@ -106,6 +107,8 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertEqual(payload["idle_seconds"], 300)
         self.assertEqual(payload["estimated_cost_usd"], 2.0)
         self.assertEqual(payload["budget_percent"], 20.0)
+        self.assertEqual(saved["schema_version"], 1)
+        self.assertTrue(payload["config_status"]["valid"])
 
     def test_load_config_migrates_legacy_config_when_runtime_file_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -118,6 +121,21 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
             self.assertEqual(cfg["state"], "active")
             self.assertEqual(cfg["model_id"], "legacy-model")
             self.assertTrue((Path(tmp) / "dedicated.json").exists())
+            migrated = json.loads((Path(tmp) / "dedicated.json").read_text(encoding="utf-8"))
+            self.assertEqual(migrated["schema_version"], 1)
+
+    def test_config_status_reports_malformed_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dedicated.json"
+            path.write_text(json.dumps({"schema_version": 99, "state": "active"}), encoding="utf-8")
+            service, _ = self.service(tmp)
+
+            status = service.config_status()
+            cfg = service.load_config()
+
+            self.assertFalse(status["valid"])
+            self.assertIn("schema_version 99 is not supported", status["issues"][0])
+            self.assertEqual(cfg["state"], "not_configured")
 
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):
         with tempfile.TemporaryDirectory() as tmp:

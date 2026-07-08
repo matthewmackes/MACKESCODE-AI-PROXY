@@ -12,6 +12,7 @@ class DedicatedInferenceService:
     """Owns Dedicated Inference state, registry integration, and chat routing."""
 
     active_states = {"new", "creating", "provisioning", "active", "idle_warning", "draining", "cooldown", "tearing_down"}
+    schema_version = 1
 
     def __init__(
         self,
@@ -51,24 +52,61 @@ class DedicatedInferenceService:
         self.default_text_model = default_text_model
         self.clock = clock or time.time
 
+    def validate_config_document(self, data):
+        if not isinstance(data, dict):
+            raise ValueError("Dedicated Inference config must be a JSON object.")
+        raw_version = data.get("schema_version", self.schema_version)
+        try:
+            schema_version = int(raw_version)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Dedicated Inference config schema_version must be an integer.") from exc
+        if schema_version != self.schema_version:
+            raise ValueError("Dedicated Inference config schema_version %s is not supported; expected %s." % (schema_version, self.schema_version))
+        issues = []
+        if "schema_version" not in data:
+            issues.append("Dedicated Inference config is missing schema_version; assuming schema_version 1.")
+        if "state" in data and not isinstance(data.get("state"), str):
+            raise ValueError("Dedicated Inference config state must be a string.")
+        for key in ("scale", "idle_warning_seconds", "idle_teardown_seconds"):
+            if key in data:
+                try:
+                    int(data.get(key))
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Dedicated Inference config %s must be an integer." % key) from exc
+        for key in ("price_per_hour", "daily_budget_usd", "warning_threshold", "cooldown_threshold"):
+            if key in data:
+                try:
+                    float(data.get(key))
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Dedicated Inference config %s must be numeric." % key) from exc
+        return issues
+
     def read_config_file(self, path):
+        result = {"exists": path.exists(), "valid": True, "issues": [], "data": {}}
         if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    return data
-            except (OSError, ValueError):
-                pass
-        return {}
+                    result["issues"] = self.validate_config_document(data)
+                    result["data"] = data
+                else:
+                    result.update({"valid": False, "issues": ["Dedicated Inference config must be a JSON object."]})
+            except (OSError, ValueError) as exc:
+                result.update({"valid": False, "issues": [str(exc)]})
+        return result
+
+    def config_status(self):
+        result = self.read_config_file(self.config_file())
+        return {key: value for key, value in result.items() if key != "data"}
 
     def load_config(self):
         cfg = dict(self.default_config)
         path = self.config_file()
-        data = self.read_config_file(path)
+        data = self.read_config_file(path)["data"]
         if not data and self.legacy_config_file:
             legacy_path = self.legacy_config_file()
             if legacy_path != path:
-                data = self.read_config_file(legacy_path)
+                data = self.read_config_file(legacy_path)["data"]
                 if data:
                     self.save_config(data)
         if data:
@@ -78,6 +116,7 @@ class DedicatedInferenceService:
     def save_config(self, cfg):
         merged = dict(self.default_config)
         merged.update(cfg or {})
+        merged["schema_version"] = self.schema_version
         path = self.config_file()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -182,6 +221,7 @@ class DedicatedInferenceService:
             "status_age_seconds": max(0, int(now - float(cfg.get("last_status_at") or cfg.get("created_at") or now))),
             "token_configured": bool(self.digitalocean_token()),
             "config_file": str(self.config_file()),
+            "config_status": self.config_status(),
             "events_file": str(self.events_file()),
             "steps": self.steps,
         })

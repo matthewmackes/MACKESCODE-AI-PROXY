@@ -29,6 +29,8 @@ DEFAULT_BRAND_PROFILES = [
 class ModelRegistryService:
     """Owns model registry policy, persistence, and enriched selector metadata."""
 
+    schema_version = 1
+
     def __init__(self, default_registry, model_types, auto_enable_max_usd, brand_profiles=None):
         self.default_registry = list(default_registry)
         self.model_types = set(model_types)
@@ -84,25 +86,64 @@ class ModelRegistryService:
                 normalized[key] = item[key]
         return normalized
 
-    def load(self, path, include_disabled=True):
-        models = None
+    def document_from_models(self, models):
+        return {"schema_version": self.schema_version, "models": models}
+
+    def models_from_document(self, data):
+        issues = []
+        if isinstance(data, list):
+            return data, self.schema_version, ["Model registry uses legacy list format; assuming schema_version 1."]
+        if not isinstance(data, dict):
+            raise ValueError("Model registry must be a JSON object with a models list.")
+        raw_version = data.get("schema_version", self.schema_version)
+        try:
+            schema_version = int(raw_version)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Model registry schema_version must be an integer.") from exc
+        if schema_version != self.schema_version:
+            raise ValueError("Model registry schema_version %s is not supported; expected %s." % (schema_version, self.schema_version))
+        if "schema_version" not in data:
+            issues.append("Model registry is missing schema_version; assuming schema_version 1.")
+        models = data.get("models")
+        if not isinstance(models, list):
+            raise ValueError("Model registry models must be a list.")
+        return models, schema_version, issues
+
+    def load_with_status(self, path, include_disabled=True):
+        status = {
+            "config_file": str(path),
+            "exists": path.exists(),
+            "schema_version": self.schema_version,
+            "valid": True,
+            "source": "defaults",
+            "issues": [],
+        }
+        models = self.default_registry
         if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                models = data.get("models") if isinstance(data, dict) else data
-            except (OSError, ValueError):
-                models = None
-        if not isinstance(models, list):
-            models = self.default_registry
+                models, schema_version, issues = self.models_from_document(data)
+                status.update({"source": "file", "schema_version": schema_version, "issues": issues})
+            except (OSError, ValueError) as exc:
+                status.update({"valid": False, "source": "defaults_after_error", "issues": [str(exc)]})
         normalized = [item for item in (self.normalize(model) for model in models) if item]
         if not normalized:
+            status["valid"] = False
+            status["issues"].append("Model registry did not contain any valid model entries; using bundled defaults.")
             normalized = [self.normalize(model) for model in self.default_registry]
-        return normalized if include_disabled else [model for model in normalized if self.route_enabled(model)]
+        rows = normalized if include_disabled else [model for model in normalized if self.route_enabled(model)]
+        status["models"] = rows
+        status["total_models"] = len(normalized)
+        status["route_enabled_models"] = len([model for model in normalized if self.route_enabled(model)])
+        return status
+
+    def load(self, path, include_disabled=True):
+        return self.load_with_status(path, include_disabled=include_disabled)["models"]
 
     def save(self, path, models):
         normalized = [item for item in (self.normalize(model) for model in models) if item]
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"models": normalized}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(json.dumps(self.document_from_models(normalized), indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return normalized
 
     def serverless_model_type(self, model_id):

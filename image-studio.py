@@ -91,6 +91,7 @@ DEDICATED_STEPS = [
     "Routing new traffic to Dedicated",
 ]
 DEFAULT_DEDICATED_CONFIG = {
+    "schema_version": 1,
     "state": "not_configured",
     "name": "matts-dedicated-inference",
     "version": "1",
@@ -173,6 +174,10 @@ def _normalized_model(item):
 
 def load_model_registry(include_disabled=True):
     return model_registry_service().load(model_config_file(), include_disabled=include_disabled)
+
+
+def model_registry_status(include_disabled=True):
+    return model_registry_service().load_with_status(model_config_file(), include_disabled=include_disabled)
 
 
 def save_model_registry(models):
@@ -910,9 +915,11 @@ def digitalocean_report(data):
 
 def models_payload(refresh_catalog=True):
     catalog_sync = sync_serverless_model_catalog(force=False) if refresh_catalog else None
+    registry_status = model_registry_status(include_disabled=True)
     return {
         "config_file": str(model_config_file()),
-        "models": load_model_registry(include_disabled=True),
+        "models": registry_status["models"],
+        "registry_status": {key: value for key, value in registry_status.items() if key != "models"},
         "active_text_models": TEXT_MODELS,
         "selectable_text_models": selectable_text_models(),
         "text_model_options": model_options("text", include_disabled=True),
@@ -939,7 +946,7 @@ def save_models_payload(data):
     saved = save_model_registry(normalized)
     refresh_model_globals()
     sync = proxy_sync_payload(force=True)
-    return HTTPStatus.OK, {"models": saved, "active_text_models": TEXT_MODELS, "selectable_text_models": selectable_text_models(), "text_model_options": model_options("text", include_disabled=True), "image_model_options": model_options("image", include_disabled=True), "model_metadata": model_metadata_map(), "active_image_models": IMAGE_MODELS, "config_file": str(model_config_file()), "proxy_sync": sync, "auto_enable_threshold_usd": MODEL_AUTO_ENABLE_MAX_USD}
+    return HTTPStatus.OK, {"models": saved, "registry_status": {key: value for key, value in model_registry_status(include_disabled=True).items() if key != "models"}, "active_text_models": TEXT_MODELS, "selectable_text_models": selectable_text_models(), "text_model_options": model_options("text", include_disabled=True), "image_model_options": model_options("image", include_disabled=True), "model_metadata": model_metadata_map(), "active_image_models": IMAGE_MODELS, "config_file": str(model_config_file()), "proxy_sync": sync, "auto_enable_threshold_usd": MODEL_AUTO_ENABLE_MAX_USD}
 
 
 def save_budget(data):

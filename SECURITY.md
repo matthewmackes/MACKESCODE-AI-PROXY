@@ -19,10 +19,14 @@ The token file is created with `0600` permissions.
 Treat these as sensitive:
 
 - Matts Value Set access keys
+- DigitalOcean API tokens and account metadata
+- Dedicated Inference public/private endpoint FQDNs, access tokens, CA certificates, VPC UUIDs, inference IDs, and raw DigitalOcean payloads
 - token files
 - usage logs containing prompts or output
+- trace files containing routing, prompt, model, cost, or latency detail
 - generated images
 - project source code sent through Claude Code
+- runtime model registry edits when they reveal private account access policy
 
 ## Defaults
 
@@ -34,6 +38,11 @@ Treat these as sensitive:
 - Token file: `$HOME/.mcnf-do-model-access-token`
 - Usage file: `$HOME/.cache/matts-value-set/usage.jsonl`
 - Budget file: `$HOME/.cache/matts-value-set/budgets.json`
+- Dedicated Inference state file: `$HOME/.cache/matts-value-set/studio/dedicated-inference.json`
+- Dedicated Inference publishable template: `config/dedicated-inference.example.json`
+- Active model registry schema: `schema_version` `1`
+
+The repository should contain schemas, defaults, and examples. Runtime state belongs under `$HOME/.cache/matts-value-set/` or an explicit operator-provided path. Do not commit live cloud resource metadata, endpoint credentials, generated auth tokens, traces, usage logs, wallpaper cache files, or tmux session registries.
 
 For protected project trees, run the launcher as the user that can read the project:
 

@@ -22,6 +22,7 @@ proxy = load_proxy_module()
 
 def write_registry(path, model_id):
     path.write_text(json.dumps({
+        "schema_version": 1,
         "models": [{
             "id": model_id,
             "type": "text",
@@ -39,6 +40,7 @@ def write_registry(path, model_id):
 
 def write_mixed_registry(path):
     path.write_text(json.dumps({
+        "schema_version": 1,
         "models": [
             {
                 "id": "routeable-model",
@@ -137,6 +139,18 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertIn("No such file", state["last_error"])
         self.assertEqual(server.models, ["fallback-model"])
         self.assertEqual(server.model_aliases["fallback"], "fallback-model")
+
+    def test_unsupported_registry_schema_reports_load_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            path.write_text(json.dumps({"schema_version": 99, "models": []}), encoding="utf-8")
+            server = server_for(path)
+            proxy._refresh_model_registry(server, force=True)
+            state = proxy._model_config_state(server)
+
+        self.assertFalse(state["loaded"])
+        self.assertIn("schema_version 99 is not supported", state["last_error"])
+        self.assertEqual(server.models, ["fallback-model"])
 
     def test_models_payload_filters_available_unavailable_and_all_registry_records(self):
         with tempfile.TemporaryDirectory() as tmp:

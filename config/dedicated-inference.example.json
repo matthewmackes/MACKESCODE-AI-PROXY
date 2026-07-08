@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "state": "not_configured",
   "name": "matts-dedicated-inference",
   "version": 1,

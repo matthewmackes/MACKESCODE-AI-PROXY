@@ -60,11 +60,23 @@ def _model_route_enabled(model):
 
 
 def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs):
+    error = ""
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        rows = data.get("models") if isinstance(data, dict) else data
-    except (OSError, ValueError):
+        if isinstance(data, dict):
+            raw_version = data.get("schema_version", 1)
+            try:
+                schema_version = int(raw_version)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Model registry schema_version must be an integer.") from exc
+            if schema_version != 1:
+                raise ValueError("Model registry schema_version %s is not supported; expected 1." % schema_version)
+            rows = data.get("models")
+        else:
+            rows = data
+    except (OSError, ValueError) as exc:
+        error = str(exc)
         rows = None
     if not isinstance(rows, list):
         rows = []
@@ -73,7 +85,7 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
     active = [model for model in records if _model_route_enabled(model)]
     if not active:
         fallback_records = [{"id": model_id, "type": "text", "enabled": True, "access_status": "fallback"} for model_id in fallback_models]
-        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False, fallback_records
+        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False, fallback_records, error
 
     text = [str(model["id"]) for model in active if model.get("type", "text") == "text"]
     image = [str(model["id"]) for model in active if model.get("type") == "image"]
@@ -88,7 +100,7 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
         pricing = model.get("pricing") if isinstance(model.get("pricing"), dict) else {}
         if pricing:
             costs[model_id] = {key: float(value or 0) for key, value in pricing.items() if key in ("input", "output", "image")}
-    return text + image, aliases, costs, True, records
+    return text + image, aliases, costs, True, records, ""
 
 
 def _model_config_fingerprint(path):
@@ -130,7 +142,7 @@ def _refresh_model_registry(server, force=False):
     previous = getattr(server, "model_config_fingerprint", None)
     if not force and _same_model_config_fingerprint(fingerprint, previous):
         return
-    models, aliases, costs, loaded, records = _load_model_registry(
+    models, aliases, costs, loaded, records, error = _load_model_registry(
         server.model_config_file,
         server.fallback_models,
         server.fallback_model_aliases,
@@ -143,7 +155,7 @@ def _refresh_model_registry(server, force=False):
     server.model_config_loaded = loaded
     server.model_config_fingerprint = fingerprint
     server.model_config_last_loaded_at = time.time()
-    server.model_config_last_error = "" if loaded else (fingerprint.get("error") or "No active route-enabled models loaded from registry.")
+    server.model_config_last_error = "" if loaded else (error or fingerprint.get("error") or "No active route-enabled models loaded from registry.")
     if server.default_model not in server.models and server.models:
         text_models = [model for model in server.models if "image" not in model.lower() and "stable-diffusion" not in model.lower()]
         server.default_model = text_models[0] if text_models else server.models[0]

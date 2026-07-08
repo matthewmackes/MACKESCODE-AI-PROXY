@@ -94,10 +94,32 @@ class ModelRegistryTests(unittest.TestCase):
                 saved = studio.save_model_registry(models)
                 all_models = studio.load_model_registry(include_disabled=True)
                 active = studio.load_model_registry(include_disabled=False)
+                raw = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertEqual([model["id"] for model in saved], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in all_models], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in active], ["allowed-text", "image-ok"])
+        self.assertEqual(raw["schema_version"], 1)
+
+    def test_registry_status_reports_legacy_and_malformed_configs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            path.write_text(json.dumps([{"id": "legacy-text", "type": "text", "enabled": True}]), encoding="utf-8")
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                legacy = studio.model_registry_status(include_disabled=True)
+
+            self.assertTrue(legacy["valid"])
+            self.assertEqual(legacy["models"][0]["id"], "legacy-text")
+            self.assertIn("legacy list format", legacy["issues"][0])
+
+            path.write_text(json.dumps({"schema_version": 99, "models": []}), encoding="utf-8")
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                malformed = studio.model_registry_status(include_disabled=True)
+
+            self.assertFalse(malformed["valid"])
+            self.assertEqual(malformed["source"], "defaults_after_error")
+            self.assertIn("schema_version 99 is not supported", malformed["issues"][0])
+            self.assertTrue(malformed["models"])
 
     def test_admin_save_models_payload_persists_edits_and_syncs_proxy(self):
         with tempfile.TemporaryDirectory() as tmp:
