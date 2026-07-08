@@ -20,6 +20,7 @@ DEFAULT_CONSOLE_CONFIG = {
     "paths": {
         "template_dir": "templates",
         "studio_dir": ".cache/matts-value-set/studio",
+        "default_model_registry_file": "config/default-models.json",
         "model_config_file": "config/models.json",
         "dedicated_config_file": "config/dedicated-inference.json",
         "serverless_catalog_cache_file": "serverless-model-catalog.json",

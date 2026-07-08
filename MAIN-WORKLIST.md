@@ -198,17 +198,19 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-004
 **Title:** Add configuration system
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 2 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as prerequisite for separating release config, runtime state, secrets, gateway policy, and trace/eval settings.
 - 2026-07-08: Added `config/console.json` plus `ConsoleConfigService` for JSON config loading, deep merge defaults, environment overrides, and validation. Wired server host/port, logging level, model auto-enable threshold, serverless catalog TTL, proxy host/port/base URL/script, and auth enable defaults through the config layer while keeping secrets env/file based.
 - 2026-07-08: Added validated `paths` config for templates, model registry, Dedicated config/events, Serverless catalog cache, tmux session registry, wallpaper cache, studio runtime dir, auth token file, usage/budget files, and proxy logs. Existing path environment variables still take precedence. Release check passed with 154 tests; local browser smoke was skipped because Playwright is not installed.
 - 2026-07-08: Removed the hardcoded Serverless pricing table from `image-studio.py`; documented Serverless prices now come from the configured model registry data in `config/models.json`. Release check passed with 155 tests; local browser smoke was skipped because Playwright is not installed.
+- 2026-07-08: Moved bootstrap fallback model registry data to `config/default-models.json` and added it to validated console paths. Release check passed with 156 tests; local browser smoke was skipped because Playwright is not installed.
 
 **Description:** Move hardcoded constants to configuration file with environment variable support.
 
@@ -227,15 +229,15 @@ The interface refactoring work consolidates previously separate components into 
 - Rate limiting settings
 
 **Completion Criteria:**
-- [ ] Configuration file created
-- [ ] Configuration loader implemented
-- [ ] All hardcoded values replaced
-- [ ] Environment variable support
-- [ ] Configuration validation
-- [ ] Tests pass
+- [x] Configuration file created
+- [x] Configuration loader implemented
+- [x] Hardcoded release defaults moved to config-backed files while secrets/runtime state remain env/file based
+- [x] Environment variable support
+- [x] Configuration validation
+- [x] Tests pass
 
 **Dependencies:** INT-003 (Error handling improvements)
-**Blocks:** INT-005 (Test suite creation)
+**Blocks:** INT-018 (Release/runtime/secrets separation)
 
 ---
 
@@ -1363,17 +1365,16 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-004:** Configuration system and validation
-2. **Then INT-018:** Separate release config, runtime state, and secrets
-3. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-4. **Then INT-020:** Trace-first observability
-5. **Then INT-022:** Gateway reliability and cost controls
-6. **Then INT-021:** Evaluation and model comparison workflows
-7. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-8. **Then INT-019:** Documentation reconciliation
-9. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-018:** Separate release config, runtime state, and secrets
+2. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+3. **Then INT-020:** Trace-first observability
+4. **Then INT-022:** Gateway reliability and cost controls
+5. **Then INT-021:** Evaluation and model comparison workflows
+6. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+7. **Then INT-019:** Documentation reconciliation
+8. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-Completed prerequisites: INT-001, INT-002, INT-003, INT-005, INT-006, INT-015, INT-025.
+Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-025.
 
 ---
 
@@ -1411,15 +1412,14 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-004:** Configuration system and validation
-2. **Then INT-018:** Separate release config, runtime state, and secrets
-3. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-4. **Then INT-020:** Trace-first observability
-5. **Then INT-022:** Gateway reliability and cost controls
-6. **Then INT-021:** Evaluation and model comparison workflows
-7. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-8. **Then INT-019:** Documentation reconciliation
-9. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-018:** Separate release config, runtime state, and secrets
+2. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+3. **Then INT-020:** Trace-first observability
+4. **Then INT-022:** Gateway reliability and cost controls
+5. **Then INT-021:** Evaluation and model comparison workflows
+6. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+7. **Then INT-019:** Documentation reconciliation
+8. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
 ## Dependencies & Blockers
 

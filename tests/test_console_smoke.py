@@ -20,6 +20,10 @@ studio = load_studio_module()
 
 
 class TemplateSmokeTests(unittest.TestCase):
+    def test_default_model_registry_loads_from_configured_file(self):
+        self.assertTrue(studio.DEFAULT_MODEL_REGISTRY)
+        self.assertTrue(any(model["id"] == "deepseek-3.2" for model in studio.DEFAULT_MODEL_REGISTRY))
+
     def test_main_template_loads_from_template_directory(self):
         html = studio.load_template("main.html")
         self.assertIn("<header>", html)

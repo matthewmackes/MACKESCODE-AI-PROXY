@@ -51,14 +51,28 @@ from src.console.utils.errors import error_payload
 EMBEDDED_ACCESS_KEY = ""
 PROJECT_DIR = Path(__file__).resolve().parent
 STARTUP_CONFIG = ConsoleConfigService(file_path=PROJECT_DIR / "image-studio.py").load()
-DEFAULT_MODEL_REGISTRY = [
-    {"id": "deepseek-3.2", "display_name": "DeepSeek 3.2", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek"], "pricing": {"input": 0.50, "output": 1.50}, "context_window": 128000},
-    {"id": "deepseek-v4-pro", "display_name": "DeepSeek V4 Pro", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek-v4"], "pricing": {"input": 1.00, "output": 3.00}, "context_window": 128000},
-    {"id": "glm-5", "display_name": "GLM 5", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["glm"], "pricing": {"input": 1.00, "output": 3.00}, "context_window": 128000},
-    {"id": "mistral-3-14B", "display_name": "Mistral 3 14B", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["mistral"], "pricing": {"input": 0.50, "output": 1.50}, "context_window": 32768},
-    {"id": "openai-gpt-5.3-codex", "display_name": "GPT 5.3 Codex", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["codex"], "pricing": {"input": 2.00, "output": 6.00}, "context_window": 128000},
-    {"id": "stable-diffusion-3.5-large", "display_name": "Stable Diffusion 3.5 Large", "type": "image", "provider": "DigitalOcean", "enabled": True, "aliases": ["sd35"], "pricing": {"image": 0.08}, "context_window": 0},
-]
+
+
+def configured_path(key, default, env_name=None, base_dir=None):
+    raw = os.environ.get(env_name, "") if env_name else ""
+    if not raw:
+        raw = STARTUP_CONFIG.get("paths", {}).get(key, default)
+    path = Path(str(raw))
+    if not path.is_absolute():
+        path = Path(base_dir or PROJECT_DIR) / path
+    return path
+
+
+def load_default_model_registry():
+    path = configured_path("default_model_registry_file", "config/default-models.json", None, PROJECT_DIR)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    models = data.get("models") if isinstance(data, dict) else data
+    if not isinstance(models, list):
+        raise ValueError("default model registry must contain a models list")
+    return models
+
+
+DEFAULT_MODEL_REGISTRY = load_default_model_registry()
 APP_VERSION = "1.0.0"
 SERVER_STARTED_AT = time.time()
 REQUEST_COUNTS = {"GET": 0, "POST": 0}
@@ -111,16 +125,6 @@ DEFAULT_DEDICATED_CONFIG = {
     "last_error": "",
     "raw": {},
 }
-
-
-def configured_path(key, default, env_name=None, base_dir=None):
-    raw = os.environ.get(env_name, "") if env_name else ""
-    if not raw:
-        raw = STARTUP_CONFIG.get("paths", {}).get(key, default)
-    path = Path(str(raw))
-    if not path.is_absolute():
-        path = Path(base_dir or PROJECT_DIR) / path
-    return path
 
 
 def model_config_file():
