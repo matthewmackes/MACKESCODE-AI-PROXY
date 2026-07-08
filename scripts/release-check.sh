@@ -21,6 +21,7 @@ python3 -m py_compile \
   src/console/services/dedicated.py \
   src/console/services/digitalocean.py \
   src/console/services/health.py \
+  src/console/services/image_generation.py \
   src/console/services/model_registry.py \
   src/console/services/persistence.py \
   src/console/services/session.py \
@@ -31,6 +32,7 @@ python3 -m py_compile \
   tests/test_dedicated_service.py \
   tests/test_digitalocean_service.py \
   tests/test_health_service.py \
+  tests/test_image_generation_service.py \
   tests/test_model_registry.py \
   tests/test_model_registry_service.py \
   tests/test_persistence_service.py \

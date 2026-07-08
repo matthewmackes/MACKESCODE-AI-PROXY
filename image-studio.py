@@ -33,6 +33,7 @@ from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.health import ConsoleHealthService
 from src.console.services.dedicated import DedicatedInferenceService
 from src.console.services.digitalocean import DigitalOceanHealthService
+from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
@@ -1181,27 +1182,25 @@ def append_history(record):
     return persistence_service().append_history(record)
 
 
+def image_generation_service():
+    return ImageGenerationService(
+        styles=STYLES,
+        sizes=SIZES,
+        image_models=lambda: IMAGE_MODELS,
+        image_cost_usd=lambda: IMAGE_COST_USD,
+        default_image_model=default_image_model,
+        start_proxy_if_needed=start_proxy_if_needed,
+        request_json=request_json,
+        proxy_url=proxy_url,
+        save_image_item=save_image_item,
+        append_history=append_history,
+        clock=time.time,
+        uuid_factory=uuid.uuid4,
+    )
+
+
 def build_prompt(data):
-    prompt = (data.get("prompt") or "").strip()
-    builder = data.get("builder") if isinstance(data.get("builder"), dict) else {}
-    parts = []
-    for key in ("subject", "environment", "lighting", "camera", "mood", "materials", "palette"):
-        value = (builder.get(key) or "").strip()
-        if value:
-            parts.append(value)
-    if parts:
-        prompt = ", ".join([prompt] + parts) if prompt else ", ".join(parts)
-    style = data.get("style") or "none"
-    if STYLES.get(style):
-        prompt = prompt + ", " + STYLES[style] if prompt else STYLES[style]
-    negative = (data.get("negative_prompt") or "").strip()
-    if negative:
-        prompt += ". Avoid: " + negative
-    source_prompt = (data.get("source_prompt") or "").strip()
-    iteration = (data.get("iteration") or "").strip()
-    if source_prompt and iteration:
-        prompt = "%s. Revise with: %s" % (source_prompt, iteration)
-    return prompt.strip()
+    return image_generation_service().build_prompt(data)
 
 
 def save_image_item(item, image_id):
@@ -1209,43 +1208,7 @@ def save_image_item(item, image_id):
 
 
 def generate_images(data):
-    start_proxy_if_needed()
-    model = data.get("model") or default_image_model()
-    if model not in IMAGE_MODELS:
-        return HTTPStatus.BAD_REQUEST, {"error": "unknown image model"}
-    prompt = build_prompt(data)
-    if not prompt:
-        return HTTPStatus.BAD_REQUEST, {"error": "prompt is required"}
-    try:
-        count = max(1, min(4, int(data.get("count") or 1)))
-    except (TypeError, ValueError):
-        count = 1
-    size = data.get("size") if data.get("size") in SIZES else "1024x1024"
-    payload = {"model": model, "prompt": prompt, "size": size, "n": count}
-    if str(data.get("seed") or "").strip():
-        payload["seed"] = str(data["seed"]).strip()
-    status, response = request_json(proxy_url("/v1/images/generations"), payload)
-    if status >= 400:
-        return status, response
-    records = []
-    for item in response.get("data") or []:
-        image_id = uuid.uuid4().hex
-        path = save_image_item(item, image_id)
-        record = {
-            "id": image_id,
-            "created_at": time.time(),
-            "model": model,
-            "prompt": prompt,
-            "negative_prompt": data.get("negative_prompt") or "",
-            "style": data.get("style") or "none",
-            "size": size,
-            "seed": data.get("seed") or "",
-            "cost_usd": IMAGE_COST_USD.get(model, 0.0),
-            "filename": path.name,
-        }
-        append_history(record)
-        records.append(record)
-    return HTTPStatus.OK, {"images": records}
+    return image_generation_service().generate(data)
 
 
 def serverless_chat_completion(data, model, allow_unregistered=False):

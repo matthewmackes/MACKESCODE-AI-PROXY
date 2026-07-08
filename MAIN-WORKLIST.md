@@ -104,6 +104,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted Dedicated Inference config persistence, lifecycle event logging, status/resource parsing, registry registration, build/teardown/policy orchestration, and Dedicated chat fallback into `src.console.services.DedicatedInferenceService`.
 - 2026-07-08: Extracted local image-history persistence, generated image storage, saved chat documents, token estimates, and local chat cost calculations into `src.console.services.LocalPersistenceService`.
 - 2026-07-08: Extracted DigitalOcean platform status, account masking, balance/prepay status, health snapshot caching, and malformed status-payload tolerance into `src.console.services.DigitalOceanHealthService`.
+- 2026-07-08: Extracted image prompt construction, request validation, proxy image-generation payload shaping, and generated-image history record creation into `src.console.services.ImageGenerationService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
