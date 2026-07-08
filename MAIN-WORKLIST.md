@@ -380,6 +380,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added global registry sync alert banner, registry-specific chat error card, message-level registry sync details, and selected-model blocking that only stops sends when the chosen model is not loaded by the proxy.
 - 2026-07-08: Added visible route badges for model changes/sync warnings while preserving compact routing facts under each message's Show Detail panel; template smoke tests assert the detail/badge wiring remains present.
 - 2026-07-08: Added `/v1/models?available=true|false|all` proxy filtering backed by preserved registry records, including unavailable/disabled model metadata without making those models routeable.
+- 2026-07-08: Added deterministic tests for the DigitalOcean Serverless `/v1/models` catalog request and cache fallback behavior when a refresh fails.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -420,11 +421,11 @@ The interface refactoring work consolidates previously separate components into 
 12. Add compact routing facts to request Show Detail surfaces
 
 **Completion Criteria:**
-- [ ] Digital Ocean API integration working
+- [x] Digital Ocean API integration working
 - [x] Model filtering via endpoint parameter
 - [ ] Admin interface for model selection
 - [ ] Cost rate auto-detection
-- [ ] Caching and fallback working
+- [x] Caching and fallback working
 - [ ] Hardcoded models replaced
 - [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
 - [x] Tokens and endpoint credentials are excluded from checked-in model registry data

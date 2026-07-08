@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,20 @@ def load_studio_module():
 
 
 studio = load_studio_module()
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
 
 
 class ModelRegistryTests(unittest.TestCase):
@@ -179,6 +194,50 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertIn("Training origin: United States", options["openai-cheap-new"]["label"])
         self.assertIn("$0.4 output / 1M tokens", options["openai-cheap-new"]["cost_label"])
         self.assertNotIn("openai-cheap-new", active_ids)
+
+    def test_fetch_serverless_catalog_uses_digitalocean_models_api(self):
+        captured = {}
+
+        def fake_urlopen(req, timeout=0):
+            captured["url"] = req.full_url
+            captured["method"] = req.get_method()
+            captured["authorization"] = req.get_header("Authorization")
+            captured["user_agent"] = req.get_header("User-agent")
+            captured["timeout"] = timeout
+            return FakeResponse({"data": [{"id": "model-a"}]})
+
+        with patch.object(studio, "read_model_access_token", return_value="token-123"), \
+             patch.object(studio, "urlopen", side_effect=fake_urlopen):
+            payload = studio.fetch_serverless_catalog()
+
+        self.assertEqual(payload["data"][0]["id"], "model-a")
+        self.assertEqual(captured["url"], "https://inference.do-ai.run/v1/models")
+        self.assertEqual(captured["method"], "GET")
+        self.assertEqual(captured["authorization"], "Bearer token-123")
+        self.assertEqual(captured["user_agent"], "matts-console/1.0")
+        self.assertEqual(captured["timeout"], 30)
+
+    def test_serverless_catalog_payload_uses_fresh_cache_and_falls_back_after_fetch_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "serverless-model-catalog.json"
+            fresh_cache = {"ok": True, "fetched_at": studio.time.time(), "source": "cache", "payload": {"data": [{"id": "cached"}]}, "error": ""}
+            path.write_text(json.dumps(fresh_cache), encoding="utf-8")
+            with patch.dict(studio.os.environ, {"MATTS_SERVERLESS_CATALOG_CACHE_FILE": str(path)}), \
+                 patch.object(studio, "fetch_serverless_catalog") as fetch:
+                cached = studio.serverless_catalog_payload(force=False)
+                fetch.assert_not_called()
+
+            stale_cache = {"ok": True, "fetched_at": 1, "source": "old-cache", "payload": {"data": [{"id": "stale"}]}, "error": ""}
+            path.write_text(json.dumps(stale_cache), encoding="utf-8")
+            with patch.dict(studio.os.environ, {"MATTS_SERVERLESS_CATALOG_CACHE_FILE": str(path)}), \
+                 patch.object(studio, "fetch_serverless_catalog", side_effect=RuntimeError("network down")):
+                fallback = studio.serverless_catalog_payload(force=True)
+
+        self.assertEqual(cached["payload"]["data"][0]["id"], "cached")
+        self.assertFalse(fallback["ok"])
+        self.assertEqual(fallback["source"], "cache_after_fetch_error")
+        self.assertEqual(fallback["payload"]["data"][0]["id"], "stale")
+        self.assertIn("network down", fallback["error"])
 
     def test_proxy_sync_requires_loaded_matching_registry_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
