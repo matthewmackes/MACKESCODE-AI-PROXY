@@ -217,6 +217,7 @@ The interface refactoring work consolidates previously separate components into 
 **Progress Notes:**
 - 2026-07-08: Platform review expanded this from handler tests into a release-gating suite covering routing, cost math, model registry sync, Dedicated state transitions, chat persistence, auth, proxy translation, and browser UI smoke tests.
 - 2026-07-08: Created initial standard-library `unittest` smoke suite under `tests/` covering template loading/rendering, console health status, degraded status, and Prometheus metrics formatting. Documented `python3 -m unittest discover -s tests -v` in README.
+- 2026-07-08: Added model-registry tests covering default-enable threshold behavior, route gating for serverless access audits, registry save/load filtering, disabled managed Dedicated selector visibility, and enriched model labels/status.
 
 **Description:** Create unit and integration tests for the console interface.
 
@@ -241,7 +242,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Completion Criteria:**
 - [x] Test directory structure created
-- [ ] Core tests implemented
+- [x] Core tests implemented
 - [x] Test runner configured
 - [ ] Coverage reports working
 - [ ] CI integration ready
@@ -371,6 +372,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-07: Updated `claude-DO.sh` to load model IDs, aliases, text/image test sets, validation, and proxy `--models` from the shared registry.
 - 2026-07-07: Added Console > Inference split for Serverless Inference and Dedicated Inference, with Serverless remaining the fallback/control baseline.
 - 2026-07-08: Requirements survey clarified `config/models.json` as the private-operator source of truth for model availability, metadata, access probe results, and enabled policy. Proxy sync should use both explicit Console sync and file modification polling, with visible stale/sync-failed states.
+- 2026-07-08: Added unittest coverage for model route gating, registry persistence/filtering, managed Dedicated selector visibility, and enriched model labels/status.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -417,7 +419,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Cost rate auto-detection
 - [ ] Caching and fallback working
 - [ ] Hardcoded models replaced
-- [ ] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
+- [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
 - [ ] Tokens and endpoint credentials are excluded from checked-in model registry data
 - [ ] New catalog models are added automatically with generated metadata and default enabled policy
 - [ ] Removed catalog models are retained as unavailable and hidden from normal selectors
