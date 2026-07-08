@@ -2,8 +2,8 @@
 
 **Purpose:** Central tracking document for all development work in the Matts Value Set Claude Code Proxy project. All AI assistants should document planned work here before execution and update status during/after completion.
 
-**Created:** 2026-07-07  
-**Last Updated:** 2026-07-08  
+**Created:** 2026-07-07
+**Last Updated:** 2026-07-08
 
 ## Work Tracking System
 
@@ -42,13 +42,13 @@ The interface refactoring work consolidates previously separate components into 
 ## Active Tasks
 
 ### Task ID: INT-001
-**Title:** Clean up HTML template separation  
-**Status:** ✅ `COMPLETED`  
-**Priority:** P1  
-**Assigned To:** Codex  
-**Start Time:** 2026-07-07  
-**Estimated Duration:** 2 hours  
-**Completion Time:** 2026-07-07  
+**Title:** Clean up HTML template separation
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-07
+**Estimated Duration:** 2 hours
+**Completion Time:** 2026-07-07
 
 **Progress Notes:**
 - 2026-07-07: Extracted embedded login, terminal, and main console HTML into `templates/`.
@@ -61,7 +61,7 @@ The interface refactoring work consolidates previously separate components into 
 **Files to Modify:**
 - `image-studio.py` - Remove HTML strings
 - Create `templates/main.html` - Main interface template
-- Create `templates/terminal.html` - Terminal interface template  
+- Create `templates/terminal.html` - Terminal interface template
 - Create `templates/login.html` - Login page template
 - Create `templates/` directory structure
 
@@ -85,15 +85,15 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-002
-**Title:** Refactor HTTP handler class  
-**Status:** 📋 `TODO`  
-**Priority:** P1  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 3 hours  
+**Title:** Refactor HTTP handler class
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-08: Product/platform review reaffirmed this as the top release-readiness task. `image-studio.py` is still a large monolith and should be split into explicit console, routing, lifecycle, persistence, and UI service boundaries before major new features.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
@@ -103,6 +103,10 @@ The interface refactoring work consolidates previously separate components into 
 - `WebSocketHandler` - Terminal WebSocket connections
 - `StaticHandler` - Static file serving
 - `TemplateHandler` - HTML template rendering
+- `DedicatedInferenceService` - DigitalOcean Dedicated lifecycle operations
+- `ModelRegistryService` - global model source of truth, access status, pricing, and metadata
+- `SessionService` - tmux lifecycle, display names, history, and activity attribution
+- `UsageService` - cost, token, request, trace, and reporting persistence
 
 **Files to Create/Modify:**
 - Create `src/console/handlers/` directory
@@ -114,6 +118,8 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Handler classes created
 - [ ] All endpoints migrated
 - [ ] Backward compatibility maintained
+- [ ] Dedicated, model registry, tmux session, and usage logic extracted from `image-studio.py`
+- [ ] Console routes remain thin orchestration layers
 - [ ] Tests pass
 - [ ] Performance comparable or better
 
@@ -123,15 +129,15 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-003
-**Title:** Improve error handling  
-**Status:** 📋 `TODO`  
-**Priority:** P1  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 1.5 hours  
+**Title:** Improve error handling
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 1.5 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-08: Product/platform review reaffirmed standardized errors as a prerequisite for trace-first observability, evals, release diagnostics, and user-friendly lifecycle feedback.
 
 **Description:** Standardize error responses across all endpoints and add comprehensive error logging.
 
@@ -161,15 +167,15 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-004
-**Title:** Add configuration system  
-**Status:** 📋 `TODO`  
-**Priority:** P1  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 2 hours  
+**Title:** Add configuration system
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-08: Product/platform review reaffirmed this as prerequisite for separating release config, runtime state, secrets, gateway policy, and trace/eval settings.
 
 **Description:** Move hardcoded constants to configuration file with environment variable support.
 
@@ -201,15 +207,15 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-005
-**Title:** Create comprehensive test suite  
-**Status:** 📋 `TODO`  
-**Priority:** P1  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 3 hours  
+**Title:** Create comprehensive test suite
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-08: Platform review expanded this from handler tests into a release-gating suite covering routing, cost math, model registry sync, Dedicated state transitions, chat persistence, auth, proxy translation, and browser UI smoke tests.
 
 **Description:** Create unit and integration tests for the console interface.
 
@@ -227,6 +233,10 @@ The interface refactoring work consolidates previously separate components into 
 - API endpoints tested
 - WebSocket connections tested
 - Error scenarios covered
+- Routing provenance and fallback behavior tested
+- Cost, token, and budget calculations tested
+- Dedicated lifecycle state transitions tested with fixtures
+- Browser smoke tests for Code, Create, Console, and terminal workflows
 
 **Completion Criteria:**
 - [ ] Test directory structure created
@@ -234,6 +244,8 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Test runner configured
 - [ ] Coverage reports working
 - [ ] CI integration ready
+- [ ] Release check command documented and repeatable
+- [ ] Browser smoke tests can run headlessly
 
 **Dependencies:** INT-004 (Configuration system)
 **Blocks:** None
@@ -241,13 +253,13 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-006
-**Title:** Add health check endpoints  
-**Status:** 📝 `NEEDS_REVIEW`  
-**Priority:** P1  
-**Assigned To:** Codex  
-**Start Time:** 2026-07-07  
-**Estimated Duration:** 1 hour  
-**Completion Time:** 2026-07-07  
+**Title:** Add health check endpoints
+**Status:** 📝 `NEEDS_REVIEW`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-07
+**Estimated Duration:** 1 hour
+**Completion Time:** 2026-07-07
 
 **Progress Notes:**
 - 2026-07-07: Added `/health`, `/ready`, `/version`, and `/metrics` endpoints to `image-studio.py`.
@@ -257,7 +269,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Endpoints to Add:**
 - `/health` - Basic service health
-- `/ready` - Readiness for traffic  
+- `/ready` - Readiness for traffic
 - `/metrics` - Prometheus metrics
 - `/version` - Service version info
 
@@ -278,12 +290,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-014
-**Title:** Redesign Image and Text interfaces with Bing-like layout  
-**Status:** 🔄 `IN_PROGRESS`  
-**Priority:** P1  
-**Assigned To:** Codex  
-**Start Time:** 2026-07-07  
-**Estimated Duration:** 3 hours  
+**Title:** Redesign Image and Text interfaces with Bing-like layout
+**Status:** 🔄 `IN_PROGRESS`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-07
+**Estimated Duration:** 3 hours
 
 **Progress Notes:**
 - 2026-07-07: Added exhaustive GLM-5 build artifact: `BING-UPDATE-SPEC.md`.
@@ -324,12 +336,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-015
-**Title:** Add Digital Ocean Serverless Inference model catalog  
-**Status:** 🔄 `IN_PROGRESS`  
-**Priority:** P1  
-**Assigned To:** Codex  
-**Start Time:** 2026-07-07  
-**Estimated Duration:** 3 hours  
+**Title:** Add Digital Ocean Serverless Inference model catalog
+**Status:** 🔄 `IN_PROGRESS`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-07
+**Estimated Duration:** 3 hours
 
 **Progress Notes:**
 - 2026-07-07: Added `config/models.json` as the persistent global model registry with enabled state, aliases, type, display name, provider, pricing, and context metadata.
@@ -379,13 +391,13 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-016
-**Title:** Add DigitalOcean Dedicated Inference lifecycle manager  
-**Status:** 👀 `NEEDS_REVIEW`  
-**Priority:** P1  
-**Assigned To:** Codex  
-**Start Time:** 2026-07-07  
-**Completion Time:** 2026-07-07  
-**Estimated Duration:** 1 pass  
+**Title:** Add DigitalOcean Dedicated Inference lifecycle manager
+**Status:** 👀 `NEEDS_REVIEW`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-07
+**Completion Time:** 2026-07-07
+**Estimated Duration:** 1 pass
 
 **Progress Notes:**
 - 2026-07-07: Added persistent Dedicated Inference config and event log files.
@@ -450,12 +462,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-017
-**Title:** Add detailed Hero Card descriptions for each model  
-**Status:** 📋 `TODO`  
-**Priority:** P1  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 2.5 hours  
+**Title:** Add detailed Hero Card descriptions for each model
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2.5 hours
 
 **Progress Notes:**
 - *None yet*
@@ -501,15 +513,297 @@ The interface refactoring work consolidates previously separate components into 
 
 ---
 
+### Task ID: INT-018
+**Title:** Separate release config, runtime state, and secrets
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. Current tracked config and local runtime state need stricter separation before release.
+
+**Description:** Establish clean boundaries between shipped defaults, operator configuration, runtime state, cache files, generated secrets, and live cloud resource metadata. The repository should contain examples and schemas, not local mutable state from a running deployment.
+
+**Key Improvements:**
+1. Move live Dedicated Inference state out of tracked `config/dedicated-inference.json`.
+2. Provide `config/dedicated-inference.example.json` with safe placeholders.
+3. Add schema/version fields for model registry and Dedicated config.
+4. Add migration/load helpers for old local config files.
+5. Ensure tokens, endpoint credentials, event logs, and generated state stay in app/cache directories.
+6. Document which files are release config vs runtime state.
+
+**Files to Create/Modify:**
+- `config/dedicated-inference.example.json`
+- `config/models.schema.json` or equivalent validation helper
+- `image-studio.py`
+- `do-anthropic-proxy.py`
+- `.gitignore`
+- `README.md`
+- `SECURITY.md`
+
+**Completion Criteria:**
+- [ ] Live DigitalOcean resource metadata is not tracked in release config
+- [ ] Example config files are safe to publish
+- [ ] Runtime state paths are documented
+- [ ] Existing local installs migrate without data loss
+- [ ] Config validation fails with human-readable errors
+- [ ] Tests cover missing, old, and malformed config
+
+**Dependencies:** INT-004 (Configuration system)
+**Blocks:** Release packaging and broader team use
+
+---
+
+### Task ID: INT-019
+**Title:** Reconcile release documentation with current platform behavior
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 1 hour
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. README and SECURITY still describe older key behavior and should be brought back in sync with the cleaned launcher and current Console.
+
+**Description:** Update the release documentation so setup, security, model registry behavior, Dedicated Inference lifecycle, cost reporting, and operational commands match the current code.
+
+**Files to Modify:**
+- `README.md`
+- `SECURITY.md`
+- `CHANGELOG.md`
+- `install/README.md`
+- `CLAUDE.md`
+
+**Completion Criteria:**
+- [ ] No stale embedded-key documentation remains
+- [ ] Model registry and `--list-models` behavior documented accurately
+- [ ] Serverless and Dedicated Inference workflows documented
+- [ ] Cost, billing, and DigitalOcean token scopes documented
+- [ ] Release cleanup and runtime-state boundaries documented
+- [ ] Quickstart verified on a clean checkout
+
+**Dependencies:** INT-018 (Config/state separation) recommended
+**Blocks:** Public release readiness
+
+---
+
+### Task ID: INT-020
+**Title:** Add trace-first LLM observability
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. Industry-leading LLM platforms expose request traces before evals and dashboards; the current usage log is useful but not trace-grade.
+
+**Description:** Create a first-class trace model for every LLM, image, Dedicated, proxy, and Claude Code routing action. Traces should make it possible to debug model choice, provider failures, retries, token/cost math, tool calls, latency, and user-visible output.
+
+**Trace Fields:**
+1. Request ID and parent trace ID
+2. Session/chat/tmux identifiers
+3. Requested model, routed model, provider, endpoint mode
+4. Prompt/message summary and privacy-safe content controls
+5. Latency, status, retry/fallback path, and upstream request ID where available
+6. Token usage, cost, budget attribution, and cache/fallback result
+7. Error category, human message, raw diagnostic pointer
+
+**Files to Create/Modify:**
+- `src/observability/traces.py` or equivalent module
+- Trace JSONL or SQLite persistence
+- `do-anthropic-proxy.py`
+- `image-studio.py`
+- `templates/main.html`
+
+**Completion Criteria:**
+- [ ] Every chat/proxy/Dedicated request emits a trace record
+- [ ] Console exposes trace search/filter by model, session, status, and cost
+- [ ] Message-level Show Detail links to trace ID
+- [ ] Trace data redaction policy exists
+- [ ] Tests cover trace emission for success, fallback, and failure
+
+**Dependencies:** INT-002 (Handler refactoring), INT-005 (Test suite)
+**Blocks:** INT-021 (Evaluation and model comparison workflows)
+
+---
+
+### Task ID: INT-021
+**Title:** Add evaluation and model comparison workflows
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 4 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. The platform needs eval datasets, regression checks, and side-by-side model comparison to be industry competitive.
+
+**Description:** Build an evaluation layer for testing prompts, models, routing policies, and Dedicated vs Serverless behavior before changes become defaults.
+
+**Key Features:**
+1. Eval datasets stored locally with versioned examples.
+2. Side-by-side model comparisons with cost, latency, and answer-quality notes.
+3. Regression runs before model registry or prompt changes.
+4. Human rating and lightweight LLM-as-judge support.
+5. Evaluation history and result export.
+6. Release gate summary for changed routing/model policies.
+
+**Files to Create/Modify:**
+- `evals/` directory
+- Eval runner module
+- Console Evals tab or AgentBoard Evals expansion
+- `config/models.json`
+- `templates/main.html`
+
+**Completion Criteria:**
+- [ ] Eval dataset format defined
+- [ ] Eval runner supports selected models and prompts
+- [ ] Console can run and compare evals
+- [ ] Results include cost, latency, failures, and selected answer
+- [ ] Registry changes can be checked against a baseline
+- [ ] Documentation explains how to add evals
+
+**Dependencies:** INT-020 (Trace-first observability)
+**Blocks:** Enterprise model governance
+
+---
+
+### Task ID: INT-022
+**Title:** Add AI gateway reliability and cost controls
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. Industry gateways include failover, rate limits, caching, circuit breakers, quota controls, and provider policy routing.
+
+**Description:** Expand the proxy from a model adapter into a policy-driven AI gateway with configurable reliability, cost, and abuse-protection behavior.
+
+**Key Features:**
+1. Provider/model failover policies with explicit priority and constraints.
+2. Circuit breakers for repeated 4xx/5xx/provider failures.
+3. Response/request caching for deterministic or development workloads.
+4. Per-model, per-session, and global rate limits.
+5. Budget-aware routing and cooldown behavior.
+6. Retry policies with trace-visible reason codes.
+
+**Files to Create/Modify:**
+- `do-anthropic-proxy.py`
+- Gateway policy config
+- `image-studio.py`
+- `templates/main.html`
+- Tests for gateway behavior
+
+**Completion Criteria:**
+- [ ] Gateway policy schema exists
+- [ ] Failover and circuit breaker behavior implemented
+- [ ] Rate limits and quotas emit useful client errors
+- [ ] Cache can be enabled/disabled per route
+- [ ] Console shows active gateway policy and recent decisions
+- [ ] Tests cover fallback, circuit break, cache hit, and rate-limit cases
+
+**Dependencies:** INT-004 (Configuration system), INT-020 (Trace-first observability)
+**Blocks:** High-volume/team usage
+
+---
+
+### Task ID: INT-023
+**Title:** Add enterprise identity, RBAC, and audit governance
+**Status:** 📋 `TODO`
+**Priority:** P2
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 4 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review. Token auth is acceptable for private single-operator use, but team or enterprise use needs identity and authorization boundaries.
+
+**Description:** Replace single shared console-token semantics with user/session identity, scoped permissions, and audit logging suitable for a trusted team deployment.
+
+**Key Features:**
+1. User identity model with session management.
+2. Role-based permissions for Code, Create, Console, model admin, billing, Dedicated build/teardown, and tmux kill/send actions.
+3. Optional OIDC/SSO integration plan.
+4. Scoped service tokens for automation.
+5. Audit log for sensitive actions.
+6. Secret/token rotation workflow.
+
+**Files to Create/Modify:**
+- Auth/session module
+- Audit log persistence
+- `image-studio.py`
+- `templates/login.html`
+- `templates/main.html`
+- `SECURITY.md`
+
+**Completion Criteria:**
+- [ ] RBAC roles and permissions defined
+- [ ] Sensitive actions are authorization checked
+- [ ] Audit log records model/admin/tmux/Dedicated actions
+- [ ] Token/session rotation is documented
+- [ ] Login UX supports user sessions
+- [ ] Security tests cover denied actions
+
+**Dependencies:** INT-010 (Improve authentication), INT-020 (Trace-first observability)
+**Blocks:** Multi-user deployment
+
+---
+
+### Task ID: INT-024
+**Title:** Add release packaging, upgrade, and rollback discipline
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
+
+**Progress Notes:**
+- 2026-07-08: Added from product/platform review as inferred item 9. Industry-ready products need repeatable releases, install validation, migrations, and rollback.
+
+**Description:** Make the platform releaseable from a clean checkout and upgradeable on an existing host without losing runtime state or leaving cloud resources orphaned.
+
+**Key Features:**
+1. Versioned release checklist.
+2. Install/upgrade/migration scripts for config and runtime state.
+3. Backup/restore procedure for registry, chats, usage logs, tmux registry, and Dedicated state.
+4. Rollback instructions.
+5. Service health validation after upgrade.
+6. Release notes template with breaking-change, migration, and verification sections.
+
+**Files to Create/Modify:**
+- `RELEASE.md`
+- `CHANGELOG.md`
+- `install/`
+- Migration helpers
+- Health-check script
+
+**Completion Criteria:**
+- [ ] Clean checkout setup documented and tested
+- [ ] Upgrade path preserves runtime state
+- [ ] Rollback path documented
+- [ ] Release checklist exists
+- [ ] Health validation command exists
+- [ ] Changelog includes migration notes
+
+**Dependencies:** INT-018 (Config/state separation), INT-019 (Documentation reconciliation), INT-005 (Test suite)
+**Blocks:** External release
+
+---
+
 ## P2 Tasks - Enhancements
 
 ### Task ID: INT-007
-**Title:** Improve WebSocket terminal  
-**Status:** 📋 `TODO`  
-**Priority:** P2  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 2 hours  
+**Title:** Improve WebSocket terminal
+**Status:** 📋 `TODO`
+**Priority:** P2
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2 hours
 
 **Progress Notes:**
 - *None yet*
@@ -541,12 +835,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-008
-**Title:** Add API versioning  
-**Status:** 📋 `TODO`  
-**Priority:** P2  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 1.5 hours  
+**Title:** Add API versioning
+**Status:** 📋 `TODO`
+**Priority:** P2
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 1.5 hours
 
 **Progress Notes:**
 - *None yet*
@@ -577,12 +871,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-009
-**Title:** Add rate limiting  
-**Status:** 📋 `TODO`  
-**Priority:** P2  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 2 hours  
+**Title:** Add rate limiting
+**Status:** 📋 `TODO`
+**Priority:** P2
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2 hours
 
 **Progress Notes:**
 - *None yet*
@@ -613,12 +907,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-010
-**Title:** Improve authentication  
-**Status:** 📋 `TODO`  
-**Priority:** P2  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 2.5 hours  
+**Title:** Improve authentication
+**Status:** 📋 `TODO`
+**Priority:** P2
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2.5 hours
 
 **Progress Notes:**
 - *None yet*
@@ -651,12 +945,12 @@ The interface refactoring work consolidates previously separate components into 
 ## P3 Tasks - Future Enhancements
 
 ### Task ID: INT-011
-**Title:** Add plugin system  
-**Status:** 📋 `TODO`  
-**Priority:** P3  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 4 hours  
+**Title:** Add plugin system
+**Status:** 📋 `TODO`
+**Priority:** P3
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 4 hours
 
 **Progress Notes:**
 - *None yet*
@@ -688,12 +982,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-012
-**Title:** Add theming system  
-**Status:** 📋 `TODO`  
-**Priority:** P3  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 3 hours  
+**Title:** Add theming system
+**Status:** 📋 `TODO`
+**Priority:** P3
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 3 hours
 
 **Progress Notes:**
 - *None yet*
@@ -725,12 +1019,12 @@ The interface refactoring work consolidates previously separate components into 
 ---
 
 ### Task ID: INT-013
-**Title:** Add analytics dashboard  
-**Status:** 📋 `TODO`  
-**Priority:** P3  
-**Assigned To:** *Unassigned*  
-**Start Time:** *Not started*  
-**Estimated Duration:** 4 hours  
+**Title:** Add analytics dashboard
+**Status:** 📋 `TODO`
+**Priority:** P3
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 4 hours
 
 **Progress Notes:**
 - *None yet*
@@ -784,12 +1078,12 @@ The interface refactoring work consolidates previously separate components into 
 ### Work Format Example:
 ```
 ### Task ID: INT-001
-**Title:** Clean up HTML template separation  
-**Status:** 🔄 `IN_PROGRESS`  
-**Priority:** P1  
-**Assigned To:** Claude (general-purpose agent)  
-**Start Time:** 2026-07-07 15:30  
-**Estimated Duration:** 2 hours  
+**Title:** Clean up HTML template separation
+**Status:** 🔄 `IN_PROGRESS`
+**Priority:** P1
+**Assigned To:** Claude (general-purpose agent)
+**Start Time:** 2026-07-07 15:30
+**Estimated Duration:** 2 hours
 
 **Description:** Move large HTML strings from image-studio.py to separate template files...
 
