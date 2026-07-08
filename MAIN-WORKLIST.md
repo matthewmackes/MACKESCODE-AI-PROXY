@@ -378,6 +378,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added proxy-side model registry fingerprint tracking, request-time mtime reloads, explicit `/v1/claude-do/reload`, Console sync display for loaded/stale/error registry state, and regression tests for proxy/GUI sync drift.
 - 2026-07-08: Added regression coverage proving new Serverless catalog models are inserted with generated display/brand/cost metadata and default enabled policy while still requiring access audit before route activation.
 - 2026-07-08: Added global registry sync alert banner, registry-specific chat error card, message-level registry sync details, and selected-model blocking that only stops sends when the chosen model is not loaded by the proxy.
+- 2026-07-08: Added visible route badges for model changes/sync warnings while preserving compact routing facts under each message's Show Detail panel; template smoke tests assert the detail/badge wiring remains present.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -430,8 +431,8 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Removed catalog models are retained as unavailable and hidden from normal selectors
 - [x] Proxy reloads model registry changes by both explicit sync and file modification polling
 - [x] Registry sync failures trigger a global alert and block sends only for newly selected stale models
-- [ ] Show Detail exposes compact routing facts for every routed request
-- [ ] Model mismatch/fallback shows a visible badge while full details remain collapsed by default
+- [x] Show Detail exposes compact routing facts for every routed request
+- [x] Model mismatch/fallback shows a visible badge while full details remain collapsed by default
 - [ ] Tests for all new functionality
 
 **Dependencies:** INT-004 (Configuration system) - for model visibility settings

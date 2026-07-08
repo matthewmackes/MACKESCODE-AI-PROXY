@@ -24,6 +24,9 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("<header>", html)
         self.assertIn('id="create"', html)
         self.assertIn('id="console"', html)
+        self.assertIn("function routeBadge", html)
+        self.assertIn("registry_sync:routing.registry_sync", html)
+        self.assertIn("route-badge", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(
