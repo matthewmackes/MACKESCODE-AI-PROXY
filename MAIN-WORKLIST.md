@@ -541,6 +541,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added a background Dedicated policy worker, reusable idle policy state, one-shot idle warning events with teardown countdown data, automatic idle teardown after the configured threshold, and successful-request idle warning reset. `scripts/release-check.sh` passed with 165 tests.
 - 2026-07-08: Added `/api/dedicated/keep-alive` with allowed extensions of 5, 10, 30, and 60 minutes; active unused extensions suppress idle teardown until expiry, then immediately trigger teardown if no successful Dedicated work occurred. `scripts/release-check.sh` passed with 168 tests.
 - 2026-07-08: Added unhealthy-server governance: repeated failed status/model checks start a teardown countdown, recovery clears the counter, new Dedicated requests fail fast with fallback guidance while unhealthy, and background enforcement tears down after the countdown expires. `scripts/release-check.sh` passed with 171 tests.
+- 2026-07-08: Added lifecycle diagnostics retention: the Dedicated policy worker archives event records older than 30 days into gzip JSONL files in the app cache while retaining recent diagnostics. `scripts/release-check.sh` passed with 172 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -581,7 +582,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
 - [x] Unhealthy-server countdown tears down after repeated failed health/model checks
 - [ ] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
-- [ ] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
+- [x] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
 - [ ] Disabled Dedicated models expose guarded "Build again" in selectors
 - [x] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
 

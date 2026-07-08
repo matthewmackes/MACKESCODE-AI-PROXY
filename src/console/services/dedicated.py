@@ -1,5 +1,6 @@
 """DigitalOcean Dedicated Inference lifecycle orchestration."""
 import datetime
+import gzip
 import json
 import time
 from http import HTTPStatus
@@ -142,6 +143,43 @@ class DedicatedInferenceService:
         rows = self.tail_jsonl(self.events_file(), limit=limit)
         rows.sort(key=lambda item: item.get("ts", 0), reverse=True)
         return rows
+
+    def archive_old_events(self, retention_days=30):
+        path = self.events_file()
+        if not path.exists():
+            return {"archived": 0, "archive_file": "", "retained": 0}
+        cutoff = self.clock() - (max(1, int(retention_days)) * 86400)
+        old_lines = []
+        recent_lines = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return {"archived": 0, "archive_file": "", "retained": 0}
+        for line in lines:
+            try:
+                row = json.loads(line)
+                ts = float(row.get("ts") or 0)
+            except (TypeError, ValueError):
+                recent_lines.append(line)
+                continue
+            if ts and ts < cutoff:
+                old_lines.append(line)
+            else:
+                recent_lines.append(line)
+        if not old_lines:
+            return {"archived": 0, "archive_file": "", "retained": len(recent_lines)}
+        archive_file = path.with_name("%s-%d.jsonl.gz" % (path.stem + "-archive", int(self.clock())))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(archive_file, "wt", encoding="utf-8") as f:
+            f.write("\n".join(old_lines) + "\n")
+        path.write_text(("\n".join(recent_lines) + "\n") if recent_lines else "", encoding="utf-8")
+        self.append_event("archive", "Archived old Dedicated lifecycle diagnostics", "info", {
+            "archive_file": str(archive_file),
+            "archived": len(old_lines),
+            "retained": len(recent_lines),
+            "retention_days": retention_days,
+        })
+        return {"archived": len(old_lines), "archive_file": str(archive_file), "retained": len(recent_lines)}
 
     def elapsed_seconds(self, cfg, now=None):
         now = now or self.clock()
@@ -298,6 +336,7 @@ class DedicatedInferenceService:
         return cfg
 
     def enforce_policy(self):
+        self.archive_old_events()
         cfg = self.load_config()
         idle_policy = self.idle_policy_state(cfg)
         unhealthy_policy = self.unhealthy_policy_state(cfg)

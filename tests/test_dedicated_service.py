@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import unittest
@@ -351,6 +352,25 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertEqual(result["action"], "teardown")
         self.assertEqual(result["reason"], "keep_alive_extension_expired")
         self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
+
+    def test_archive_old_events_compresses_lifecycle_diagnostics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dedicated-events.jsonl"
+            old = {"ts": 1000, "state": "deleted", "message": "old"}
+            recent = {"ts": 199999, "state": "active", "message": "recent"}
+            path.write_text(json.dumps(old) + "\n" + json.dumps(recent) + "\n", encoding="utf-8")
+            service, _ = self.service(tmp, now=200000)
+
+            result = service.archive_old_events(retention_days=1)
+            remaining = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            with gzip.open(result["archive_file"], "rt", encoding="utf-8") as f:
+                archived = [json.loads(line) for line in f.read().splitlines()]
+
+        self.assertEqual(result["archived"], 1)
+        self.assertTrue(result["archive_file"].endswith(".jsonl.gz"))
+        self.assertEqual(remaining[0]["message"], "recent")
+        self.assertEqual(remaining[1]["state"], "archive")
+        self.assertEqual(archived, [old])
 
     def test_repeated_status_failures_start_unhealthy_countdown(self):
         def do_request(path, token, payload=None, timeout=60, method="GET"):
