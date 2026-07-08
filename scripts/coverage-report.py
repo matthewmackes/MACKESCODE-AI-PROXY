@@ -17,6 +17,7 @@ DEFAULT_FILES = [
     "do-anthropic-proxy.py",
     "matts-console.py",
     "src/console/handlers/template_handler.py",
+    "src/console/services/health.py",
 ]
 
 

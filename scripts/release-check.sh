@@ -16,7 +16,9 @@ python3 -m py_compile \
   do-anthropic-proxy.py \
   matts-console.py \
   src/console/handlers/template_handler.py \
+  src/console/services/health.py \
   tests/test_console_smoke.py \
+  tests/test_health_service.py \
   tests/test_model_registry.py \
   tests/test_proxy_registry_reload.py \
   tests/test_template_handler.py \

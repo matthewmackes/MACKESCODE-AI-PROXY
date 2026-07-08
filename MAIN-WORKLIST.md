@@ -95,6 +95,7 @@ The interface refactoring work consolidates previously separate components into 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as the top release-readiness task. `image-studio.py` is still a large monolith and should be split into explicit console, routing, lifecycle, persistence, and UI service boundaries before major new features.
 - 2026-07-08: Started service-boundary extraction by adding `src.console.handlers.TemplateHandler` and keeping `image-studio.py` template functions as compatibility wrappers.
+- 2026-07-08: Extracted console health/readiness/metrics composition into `src.console.services.ConsoleHealthService` with compatibility wrappers for existing endpoints.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

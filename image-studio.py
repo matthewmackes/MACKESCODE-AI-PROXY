@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen, urlretrieve
 
 from src.console.handlers.template_handler import TemplateHandler
+from src.console.services.health import ConsoleHealthService
 
 
 EMBEDDED_ACCESS_KEY = ""
@@ -891,50 +892,28 @@ def port_open(host, port):
         sock.close()
 
 
+def health_service():
+    return ConsoleHealthService(
+        service="matts-unified-console",
+        version=APP_VERSION,
+        started_at=SERVER_STARTED_AT,
+        proxy_host=proxy_host,
+        proxy_port=proxy_port,
+        port_open=port_open,
+        launcher_health=launcher_health,
+        auth_enabled=auth_enabled,
+        tmux_sessions=tmux_sessions,
+        request_counts=REQUEST_COUNTS,
+        clock=time.time,
+    )
+
+
 def console_status():
-    proxy_ready = port_open(proxy_host(), proxy_port())
-    launcher = launcher_health()
-    uptime_seconds = max(0, int(time.time() - SERVER_STARTED_AT))
-    return {
-        "service": "matts-unified-console",
-        "version": APP_VERSION,
-        "status": "ok" if proxy_ready and launcher.get("ok") else "degraded",
-        "uptime_seconds": uptime_seconds,
-        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "proxy": {
-            "host": proxy_host(),
-            "port": proxy_port(),
-            "listening": proxy_ready,
-        },
-        "launcher": launcher,
-        "auth_enabled": auth_enabled(),
-    }
+    return health_service().status()
 
 
 def console_metrics_text():
-    status = console_status()
-    lines = [
-        "# HELP matts_console_up Console process health.",
-        "# TYPE matts_console_up gauge",
-        "matts_console_up 1",
-        "# HELP matts_console_ready Console readiness for traffic.",
-        "# TYPE matts_console_ready gauge",
-        "matts_console_ready %d" % (1 if status["status"] == "ok" else 0),
-        "# HELP matts_console_uptime_seconds Console process uptime in seconds.",
-        "# TYPE matts_console_uptime_seconds gauge",
-        "matts_console_uptime_seconds %d" % status["uptime_seconds"],
-        "# HELP matts_console_proxy_listening Local proxy socket readiness.",
-        "# TYPE matts_console_proxy_listening gauge",
-        "matts_console_proxy_listening %d" % (1 if status["proxy"]["listening"] else 0),
-        "# HELP matts_console_tmux_sessions Active matts tmux sessions detected.",
-        "# TYPE matts_console_tmux_sessions gauge",
-        "matts_console_tmux_sessions %d" % len(tmux_sessions()),
-        "# HELP matts_console_requests_total Requests handled by method.",
-        "# TYPE matts_console_requests_total counter",
-    ]
-    for method, count in sorted(REQUEST_COUNTS.items()):
-        lines.append('matts_console_requests_total{method="%s"} %d' % (method, count))
-    return "\n".join(lines) + "\n"
+    return health_service().metrics_text(status=console_status())
 
 
 def local_addresses():
