@@ -36,6 +36,7 @@ from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
 from src.console.services.usage import UsageService
+from src.console.services.wallpaper import WallpaperService
 
 
 EMBEDDED_ACCESS_KEY = ""
@@ -1051,58 +1052,20 @@ def public_json_url(url, timeout=12):
         return 502, {"error": str(exc.reason)}
 
 
+def wallpaper_service():
+    return WallpaperService(
+        cache_dir=wallpaper_cache_dir,
+        public_json_url=public_json_url,
+        randbelow=secrets.randbelow,
+    )
+
+
 def wallpaper_payload(randomize=False):
-    idx = secrets.randbelow(8) if randomize else 0
-    status, payload = public_json_url("https://www.bing.com/HPImageArchive.aspx?format=js&idx=%d&n=1&mkt=en-US" % idx, timeout=12)
-    fallback = {
-        "ok": False,
-        "source": "fallback",
-        "url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=80",
-        "title": "Scenic workspace",
-        "copyright": "Fallback scenic background",
-        "caption": "Scenic workspace",
-        "idx": idx,
-        "errors": [],
-    }
-    if status >= 400 or not isinstance(payload, dict):
-        fallback["errors"].append({"status": status, "response": payload})
-        return fallback
-    images = payload.get("images") if isinstance(payload.get("images"), list) else []
-    item = images[0] if images and isinstance(images[0], dict) else {}
-    path = str(item.get("url") or "")
-    if not path:
-        fallback["errors"].append("Bing wallpaper response did not include an image URL.")
-        return fallback
-    full_url = path if path.startswith("http") else "https://www.bing.com" + path
-    image_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(item.get("hsh") or item.get("startdate") or hashlib.sha1(full_url.encode("utf-8")).hexdigest()))[:80]
-    return {
-        "ok": True,
-        "source": "bing_hpimagearchive",
-        "url": "/api/wallpaper/image?id=%s&remote=%s" % (quote(image_id), quote(full_url, safe="")),
-        "remote_url": full_url,
-        "title": item.get("title") or "Daily scenic wallpaper",
-        "copyright": item.get("copyright") or "",
-        "copyrightlink": item.get("copyrightlink") or "",
-        "caption": item.get("copyright") or item.get("title") or "Daily scenic wallpaper",
-        "startdate": item.get("startdate") or "",
-        "idx": idx,
-        "errors": [],
-    }
+    return wallpaper_service().payload(randomize=randomize)
 
 
 def wallpaper_image_response(remote_url, image_id):
-    if not remote_url.startswith("https://www.bing.com/"):
-        return HTTPStatus.BAD_REQUEST, b"", "text/plain"
-    cache_dir = wallpaper_cache_dir()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(urlparse(remote_url).path).suffix or ".jpg"
-    safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", image_id or hashlib.sha1(remote_url.encode("utf-8")).hexdigest())[:80]
-    path = cache_dir / (safe_id + suffix)
-    if not path.exists():
-        req = Request(remote_url, headers={"user-agent": "matts-console/1.0"}, method="GET")
-        with urlopen(req, timeout=30) as resp:
-            path.write_bytes(resp.read())
-    return HTTPStatus.OK, path.read_bytes(), "image/jpeg"
+    return wallpaper_service().image_response(remote_url, image_id)
 
 
 def digitalocean_platform_status():

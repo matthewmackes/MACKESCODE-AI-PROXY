@@ -326,6 +326,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added Create chat pending model cards with model identity, routing stage, elapsed timer, routing-change notice, model-colored reply ripple, word-by-word answer reveal, click-to-skip reveal, and clean chat-history saves that persist final answer text only.
 - 2026-07-08: Disabled the Create atmospheric effect layer on mobile/coarse-pointer devices and reduced wallpaper transition work there for better small-device performance.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Create work should follow the ledger entries for greeting, weather, wallpaper attribution, comparison, and mobile/desktop verification.
+- 2026-07-08: Extracted Bing wallpaper metadata, fallback payload, and cached same-origin wallpaper image proxy behavior into `src.console.services.WallpaperService` with focused regression tests.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 

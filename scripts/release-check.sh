@@ -24,6 +24,7 @@ python3 -m py_compile \
   src/console/services/persistence.py \
   src/console/services/session.py \
   src/console/services/usage.py \
+  src/console/services/wallpaper.py \
   tests/test_auth_handler.py \
   tests/test_console_smoke.py \
   tests/test_dedicated_service.py \
@@ -36,6 +37,7 @@ python3 -m py_compile \
   tests/test_static_handler.py \
   tests/test_template_handler.py \
   tests/test_usage_service.py \
+  tests/test_wallpaper_service.py \
   scripts/coverage-report.py \
   scripts/browser-smoke.py
 
