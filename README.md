@@ -100,6 +100,12 @@ The web console exposes unauthenticated operational endpoints for local smoke ch
 /metrics  Prometheus text metrics
 ```
 
+Run the local unit/smoke test suite with the standard library runner:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 DigitalOcean reporting uses the public DigitalOcean API. To enable account billing data, set:
 
 ```bash

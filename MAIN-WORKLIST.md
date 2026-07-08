@@ -216,6 +216,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Platform review expanded this from handler tests into a release-gating suite covering routing, cost math, model registry sync, Dedicated state transitions, chat persistence, auth, proxy translation, and browser UI smoke tests.
+- 2026-07-08: Created initial standard-library `unittest` smoke suite under `tests/` covering template loading/rendering, console health status, degraded status, and Prometheus metrics formatting. Documented `python3 -m unittest discover -s tests -v` in README.
 
 **Description:** Create unit and integration tests for the console interface.
 
@@ -239,9 +240,9 @@ The interface refactoring work consolidates previously separate components into 
 - Browser smoke tests for Code, Create, Console, and terminal workflows
 
 **Completion Criteria:**
-- [ ] Test directory structure created
+- [x] Test directory structure created
 - [ ] Core tests implemented
-- [ ] Test runner configured
+- [x] Test runner configured
 - [ ] Coverage reports working
 - [ ] CI integration ready
 - [ ] Release check command documented and repeatable
