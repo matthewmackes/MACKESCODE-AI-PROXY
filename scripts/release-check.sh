@@ -28,6 +28,7 @@ python3 -m py_compile \
   src/console/services/model_registry.py \
   src/console/services/persistence.py \
   src/console/services/proxy_process.py \
+  src/console/services/runtime_config.py \
   src/console/services/serverless_catalog.py \
   src/console/services/session.py \
   src/console/services/terminal.py \
@@ -49,6 +50,7 @@ python3 -m py_compile \
   tests/test_persistence_service.py \
   tests/test_proxy_process_service.py \
   tests/test_proxy_registry_reload.py \
+  tests/test_runtime_config_service.py \
   tests/test_serverless_catalog_service.py \
   tests/test_session_service.py \
   tests/test_static_handler.py \

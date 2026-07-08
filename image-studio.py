@@ -35,6 +35,7 @@ from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.proxy_process import ProxyProcessService
+from src.console.services.runtime_config import RuntimeConfigService
 from src.console.services.serverless_catalog import ServerlessCatalogService
 from src.console.services.session import SessionService
 from src.console.services.terminal import TerminalSessionService
@@ -396,118 +397,90 @@ PERMISSION_RE = re.compile(
 )
 
 
+def runtime_config_service():
+    return RuntimeConfigService(
+        env=os.environ,
+        file_path=__file__,
+        embedded_access_key=EMBEDDED_ACCESS_KEY,
+        token_urlsafe=secrets.token_urlsafe,
+        check_output_func=subprocess.check_output,
+    )
+
+
 def home_dir():
-    return Path(os.environ.get("HOME") or "/root")
+    return runtime_config_service().home_dir()
 
 
 def script_dir():
-    return Path(__file__).resolve().parent
+    return runtime_config_service().script_dir()
 
 
 def app_dir():
-    path = Path(os.environ.get("MATTS_STUDIO_DIR", home_dir() / ".cache/matts-value-set/studio"))
-    path.mkdir(parents=True, exist_ok=True)
-    (path / "images").mkdir(exist_ok=True)
-    return path
+    return runtime_config_service().app_dir()
 
 
 def auth_token_file():
-    return Path(os.environ.get("MATTS_CONSOLE_AUTH_FILE", app_dir() / "console-auth-token"))
+    return runtime_config_service().auth_token_file()
 
 
 def auth_token():
-    env_token = os.environ.get("MATTS_CONSOLE_AUTH_TOKEN")
-    if env_token:
-        return env_token.strip()
-    path = auth_token_file()
-    if path.exists():
-        return path.read_text(encoding="utf-8").strip()
-    token = secrets.token_urlsafe(32)
-    path.write_text(token + "\n", encoding="utf-8")
-    path.chmod(0o600)
-    return token
+    return runtime_config_service().auth_token()
 
 
 def auth_enabled():
-    return os.environ.get("MATTS_CONSOLE_DISABLE_AUTH") != "1"
+    return runtime_config_service().auth_enabled()
 
 
 def token_file():
-    return Path(os.environ.get("MATTS_VALUE_SET_TOKEN_FILE", home_dir() / ".mcnf-do-model-access-token"))
+    return runtime_config_service().token_file()
 
 
 def access_key():
-    if os.environ.get("MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE") == "1" and os.environ.get("MATTS_VALUE_SET_ACCESS_KEY"):
-        return os.environ["MATTS_VALUE_SET_ACCESS_KEY"]
-    try:
-        existing = token_file().read_text(encoding="utf-8").strip()
-        if existing:
-            return existing
-    except OSError:
-        pass
-    return EMBEDDED_ACCESS_KEY
+    return runtime_config_service().access_key()
 
 
 def write_token():
-    path = token_file()
-    key = access_key()
-    if not key:
-        raise SystemExit("Set MATTS_VALUE_SET_ACCESS_KEY or write a model access key to %s" % path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(key + "\n", encoding="utf-8")
-    path.chmod(0o600)
+    return runtime_config_service().write_token()
 
 
 def proxy_host():
-    return os.environ.get("MATTS_VALUE_SET_PROXY_HOST", "127.0.0.1")
+    return runtime_config_service().proxy_host()
 
 
 def proxy_port():
-    return int(os.environ.get("MATTS_VALUE_SET_PROXY_PORT", "18081"))
+    return runtime_config_service().proxy_port()
 
 
 def proxy_url(path):
-    return "http://%s:%d%s" % (proxy_host(), proxy_port(), path)
+    return runtime_config_service().proxy_url(path)
 
 
 def cost_file():
-    return Path(os.environ.get("MATTS_VALUE_SET_COST_FILE", home_dir() / ".cache/matts-value-set/usage.jsonl"))
+    return runtime_config_service().cost_file()
 
 
 def budget_file():
-    return Path(os.environ.get("MATTS_VALUE_SET_BUDGET_FILE", home_dir() / ".cache/matts-value-set/budgets.json"))
+    return runtime_config_service().budget_file()
 
 
 def log_file():
-    return Path(os.environ.get("MATTS_VALUE_SET_LOG_FILE", "/tmp/matts-value-set-proxy.jsonl"))
+    return runtime_config_service().log_file()
 
 
 def digitalocean_token_file():
-    return Path(os.environ.get("DIGITALOCEAN_TOKEN_FILE", home_dir() / ".config/digitalocean/token"))
+    return runtime_config_service().digitalocean_token_file()
 
 
 def digitalocean_token_paths():
-    paths = [digitalocean_token_file(), home_dir() / ".mcnf-do-token", script_dir() / ".mcnf-do-token"]
-    root_token = Path("/root/.mcnf-do-token")
-    if root_token not in paths:
-        paths.append(root_token)
-    return paths
+    return runtime_config_service().digitalocean_token_paths()
 
 
 def digitalocean_token():
-    token = os.environ.get("DIGITALOCEAN_TOKEN", "").strip()
-    if token:
-        return token
-    for path in digitalocean_token_paths():
-        if path.exists():
-            token = path.read_text(encoding="utf-8").strip()
-            if token:
-                return token
-    return ""
+    return runtime_config_service().digitalocean_token()
 
 
 def digitalocean_account_urn():
-    return os.environ.get("DIGITALOCEAN_ACCOUNT_URN", "").strip()
+    return runtime_config_service().digitalocean_account_urn()
 
 
 def port_open(host, port):
@@ -547,15 +520,7 @@ def console_metrics_text():
 
 
 def local_addresses():
-    addresses = []
-    try:
-        output = subprocess.check_output(["hostname", "-I"], text=True, timeout=2)
-        for item in output.split():
-            if item and ":" not in item and not item.startswith("127."):
-                addresses.append(item)
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return addresses
+    return runtime_config_service().local_addresses()
 
 
 def proxy_capabilities_raw():
