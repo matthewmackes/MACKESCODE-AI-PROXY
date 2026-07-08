@@ -115,6 +115,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted Serverless catalog caching, model-access token discovery, access probes, access audit, catalog-to-registry merge, removed-model handling, and Serverless model metadata preservation into `src.console.services.ServerlessCatalogService`.
 - 2026-07-08: Extracted runtime path resolution, console/model token persistence, proxy endpoint settings, DigitalOcean token lookup, and local address discovery into `src.console.services.RuntimeConfigService`.
 - 2026-07-08: Extracted the tmux browser-terminal WebSocket bridge, PTY attachment, resize handling, frame forwarding, and cleanup into `src.console.handlers.TmuxWebSocketHandler`.
+- 2026-07-08: Extracted JSON API GET/POST route dispatch for chat, image generation, models, Serverless catalog sync, Dedicated lifecycle, reporting, tmux, terminal, status, and cost endpoints into `src.console.handlers.ConsoleApiHandler`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

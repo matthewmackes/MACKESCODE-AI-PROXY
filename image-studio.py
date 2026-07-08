@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import urlopen
 
+from src.console.handlers.api_handler import ConsoleApiHandler
 from src.console.handlers.auth_handler import AuthHandler
 from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
@@ -1287,6 +1288,60 @@ def tmux_websocket_handler(authorized):
     )
 
 
+def api_handler():
+    return ConsoleApiHandler(
+        read_history=read_history,
+        list_chats=list_chats,
+        load_chat=load_chat,
+        tmux_session_items=tmux_session_items,
+        agentboard_payload=agentboard_payload,
+        models_payload=models_payload,
+        sync_serverless_model_catalog=sync_serverless_model_catalog,
+        proxy_sync_payload=proxy_sync_payload,
+        active_model_access_key_info=active_model_access_key_info,
+        cost_summary_payload=cost_summary_payload,
+        wallpaper_payload=wallpaper_payload,
+        dedicated_status_payload=dedicated_status_payload,
+        dedicated_events=dedicated_events,
+        dedicated_discovery=dedicated_discovery,
+        proxy_get=proxy_get,
+        port_open=port_open,
+        proxy_host=proxy_host,
+        proxy_port=proxy_port,
+        token_file=token_file,
+        tail_jsonl=tail_jsonl,
+        log_file=log_file,
+        tmux_sessions=tmux_sessions,
+        launcher_health=launcher_health,
+        generate_images=generate_images,
+        chat_completion=chat_completion,
+        save_chat=save_chat,
+        delete_chat=delete_chat,
+        delete_history_item=delete_history_item,
+        save_models_payload=save_models_payload,
+        audit_model_access_key=audit_model_access_key,
+        dedicated_preflight=dedicated_preflight,
+        append_dedicated_event=append_dedicated_event,
+        dedicated_build=dedicated_build,
+        dedicated_teardown=dedicated_teardown,
+        dedicated_policy=dedicated_policy,
+        save_budget=save_budget,
+        digitalocean_report=digitalocean_report,
+        text_models=lambda: TEXT_MODELS,
+        default_image_model=default_image_model,
+        tmux_start=tmux_start,
+        tmux_capture=tmux_capture,
+        tmux_send_text=tmux_send_text,
+        tmux_send_key=tmux_send_key,
+        tmux_stop=tmux_stop,
+        tmux_rename_session=tmux_rename_session,
+        terminal_start=terminal_start,
+        terminal_read=terminal_read,
+        terminal_write=terminal_write,
+        terminal_stop=terminal_stop,
+    )
+
+
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -1375,41 +1430,12 @@ class StudioHandler(BaseHTTPRequestHandler):
         if path == "/terminal":
             self.send_html(load_template("terminal.html"))
             return
-        if path == "/api/history":
-            return self.send_json(200, read_history())
-        if path == "/api/chat/history":
-            return self.send_json(200, list_chats())
-        if path == "/api/chat/load":
-            parsed = urlparse(self.path)
-            chat_id = (parse_qs(parsed.query).get("id") or [""])[0]
-            if not chat_id:
-                return self.send_json(400, {"error": "id query parameter is required"})
-            doc = load_chat(chat_id)
-            if doc is None:
-                return self.send_json(404, {"error": "chat not found"})
-            return self.send_json(200, doc)
-        if path == "/api/tmux/sessions":
-            items = tmux_session_items()
-            return self.send_json(200, {"sessions": [item["name"] for item in items if item.get("live")], "items": items})
-        if path == "/api/agentboard":
-            return self.send_json(200, agentboard_payload())
-        if path == "/api/models":
-            return self.send_json(200, models_payload())
-        if path == "/api/models/serverless-catalog":
-            result = sync_serverless_model_catalog(force=True, validate_access=True)
-            payload = models_payload(refresh_catalog=False)
-            payload["serverless_catalog"] = result
-            payload["proxy_sync"] = proxy_sync_payload(force=True)
-            return self.send_json(200 if result.get("ok") else 502, payload)
-        if path == "/api/model-access-key":
-            return self.send_json(200, {"key": active_model_access_key_info()})
-        if path == "/api/proxy/status":
-            return self.send_json(200, proxy_sync_payload(force=False))
-        if path == "/api/cost-summary":
-            return self.send_json(200, cost_summary_payload())
-        if path == "/api/wallpaper":
-            query = parse_qs(urlparse(self.path).query)
-            return self.send_json(200, wallpaper_payload(randomize=(query.get("random") or ["0"])[0] == "1"))
+        if path.startswith("/api/") and path != "/api/wallpaper/image":
+            handled, status, payload = api_handler().get(path, parse_qs(urlparse(self.path).query))
+            if handled:
+                return self.send_json(status, payload)
+            self.send_error(404)
+            return
         if path == "/api/wallpaper/image":
             query = parse_qs(urlparse(self.path).query)
             remote = (query.get("remote") or [""])[0]
@@ -1425,35 +1451,6 @@ class StudioHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
-        if path == "/api/dedicated/status":
-            return self.send_json(200, dedicated_status_payload(poll=True))
-        if path == "/api/dedicated/events":
-            return self.send_json(200, {"events": dedicated_events()})
-        if path == "/api/dedicated/sizes":
-            status, payload = dedicated_discovery("/v2/dedicated-inferences/sizes")
-            return self.send_json(status, payload)
-        if path == "/api/dedicated/gpu-model-config":
-            status, payload = dedicated_discovery("/v2/dedicated-inferences/gpu-model-config")
-            return self.send_json(status, payload)
-        if path == "/api/status":
-            proxy_sync = proxy_sync_payload(force=False)
-            models_status, models = proxy_get("/v1/models")
-            costs_status, costs = proxy_get("/v1/claude-do/costs")
-            budget_status, budget = proxy_get("/v1/claude-do/budget")
-            return self.send_json(200, {
-                "proxy_listening": port_open(proxy_host(), proxy_port()),
-                "proxy": "http://%s:%d" % (proxy_host(), proxy_port()),
-                "proxy_sync": proxy_sync,
-                "token_file": str(token_file()),
-                "models": models if models_status < 400 else {"error": models},
-                "costs": costs if costs_status < 400 else {"error": costs},
-                "budget": budget if budget_status < 400 else {"error": budget},
-                "logs": tail_jsonl(log_file()),
-                "tmux_sessions": tmux_sessions(),
-                "launcher": launcher_health(),
-                "model_registry": models_payload(),
-                "dedicated_inference": dedicated_status_payload(poll=False),
-            })
         if path.startswith("/images/"):
             response = static_images_handler().file_response(path, default_content_type="image/png")
             if response is None:
@@ -1474,92 +1471,8 @@ class StudioHandler(BaseHTTPRequestHandler):
         if not self.authorized():
             return self.send_unauthorized()
         data = self.read_json()
-        if path == "/api/generate":
-            status, payload = generate_images(data)
-            return self.send_json(status, payload)
-        if path == "/api/chat":
-            status, payload = chat_completion(data)
-            return self.send_json(status, payload)
-        if path == "/api/chat/save":
-            doc = save_chat(data)
-            return self.send_json(200, doc)
-        if path == "/api/chat/delete":
-            deleted = delete_chat(data.get("id"))
-            return self.send_json(200, {"deleted": deleted})
-        if path == "/api/delete":
-            return self.send_json(200, {"deleted": delete_history_item(data.get("id"))})
-        if path == "/api/models":
-            status, payload = save_models_payload(data)
-            return self.send_json(status, payload)
-        if path == "/api/proxy/sync":
-            return self.send_json(200, proxy_sync_payload(force=True))
-        if path == "/api/model-access-audit":
-            return self.send_json(200, audit_model_access_key())
-        if path == "/api/dedicated/preflight":
-            preflight = dedicated_preflight(data)
-            payload = dedicated_status_payload(poll=False)
-            payload["preflight"] = preflight
-            payload["dedicated"] = preflight.get("config") or payload.get("dedicated")
-            if preflight.get("errors"):
-                append_dedicated_event("preflight", "Dedicated preflight needs attention", "warning", {"errors": preflight.get("errors"), "warnings": preflight.get("warnings")})
-            else:
-                append_dedicated_event("preflight", "Dedicated preflight passed", "success", {"warnings": preflight.get("warnings")})
-            payload["events"] = dedicated_events()
-            return self.send_json(200, payload)
-        if path == "/api/dedicated/build":
-            status, payload = dedicated_build(data)
-            return self.send_json(status, payload)
-        if path == "/api/dedicated/teardown":
-            status, payload = dedicated_teardown(data)
-            return self.send_json(status, payload)
-        if path == "/api/dedicated/resume":
-            status, payload = dedicated_build(data)
-            return self.send_json(status, payload)
-        if path == "/api/dedicated/policy":
-            status, payload = dedicated_policy(data)
-            return self.send_json(status, payload)
-        if path == "/api/budget":
-            return self.send_json(200, {"budgets": save_budget(data)})
-        if path == "/api/reporting":
-            return self.send_json(200, digitalocean_report(data))
-        if path == "/api/test-models":
-            results = []
-            for model in TEXT_MODELS:
-                status, payload = chat_completion({"model": model, "messages": [{"role": "user", "content": "Reply only ok"}], "max_tokens": 8})
-                results.append({"model": model, "status": int(status), "ok": int(status) < 400, "response": payload})
-            image_model = default_image_model()
-            status, payload = generate_images({"model": image_model, "prompt": "small smoke test tile with the word OK", "size": "512x512", "count": 1, "style": "technical"})
-            results.append({"model": image_model, "status": int(status), "ok": int(status) < 400, "response": payload})
-            return self.send_json(200, {"results": results})
-        if path == "/api/tmux/start":
-            status, payload = tmux_start(data)
-            return self.send_json(status, payload)
-        if path == "/api/tmux/capture":
-            status, payload = tmux_capture(data.get("name"))
-            return self.send_json(status, payload)
-        if path == "/api/tmux/send":
-            status, payload = tmux_send_text(data.get("name"), data.get("text") or "", bool(data.get("enter")))
-            return self.send_json(status, payload)
-        if path == "/api/tmux/key":
-            status, payload = tmux_send_key(data.get("name"), data.get("key"))
-            return self.send_json(status, payload)
-        if path == "/api/tmux/stop":
-            status, payload = tmux_stop(data.get("name"))
-            return self.send_json(status, payload)
-        if path == "/api/tmux/rename":
-            status, payload = tmux_rename_session(data.get("old_name"), data.get("new_name"), data.get("display_name"))
-            return self.send_json(status, payload)
-        if path == "/api/terminal/start":
-            status, payload = terminal_start(data)
-            return self.send_json(status, payload)
-        if path == "/api/terminal/read":
-            status, payload = terminal_read(data.get("id"))
-            return self.send_json(status, payload)
-        if path == "/api/terminal/write":
-            status, payload = terminal_write(data.get("id"), data.get("text") or "")
-            return self.send_json(status, payload)
-        if path == "/api/terminal/stop":
-            status, payload = terminal_stop(data.get("id"))
+        handled, status, payload = api_handler().post(path, data)
+        if handled:
             return self.send_json(status, payload)
         self.send_error(404)
 

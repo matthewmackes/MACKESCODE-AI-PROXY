@@ -15,6 +15,7 @@ python3 -m py_compile \
   image-studio.py \
   do-anthropic-proxy.py \
   matts-console.py \
+  src/console/handlers/api_handler.py \
   src/console/handlers/auth_handler.py \
   src/console/handlers/static_handler.py \
   src/console/handlers/template_handler.py \
@@ -37,6 +38,7 @@ python3 -m py_compile \
   src/console/services/usage.py \
   src/console/services/wallpaper.py \
   src/console/services/websocket.py \
+  tests/test_api_handler.py \
   tests/test_auth_handler.py \
   tests/test_agentboard_service.py \
   tests/test_chat_service.py \

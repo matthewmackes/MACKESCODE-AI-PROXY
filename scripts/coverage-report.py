@@ -16,6 +16,7 @@ DEFAULT_FILES = [
     "image-studio.py",
     "do-anthropic-proxy.py",
     "matts-console.py",
+    "src/console/handlers/api_handler.py",
     "src/console/handlers/auth_handler.py",
     "src/console/handlers/static_handler.py",
     "src/console/handlers/template_handler.py",
