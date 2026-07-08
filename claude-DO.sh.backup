@@ -7,9 +7,11 @@ home_dir="${HOME:-/root}"
 proxy_script="${MATTS_VALUE_SET_PROXY_SCRIPT:-$script_dir/do-anthropic-proxy.py}"
 token_file="${MATTS_VALUE_SET_TOKEN_FILE:-$home_dir/.mcnf-do-model-access-token}"
 embedded_access_key=""
-access_key="$embedded_access_key"
+access_key=""
 if [[ "${MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE:-0}" == "1" && -n "${MATTS_VALUE_SET_ACCESS_KEY:-}" ]]; then
   access_key="$MATTS_VALUE_SET_ACCESS_KEY"
+elif [[ ! -s "$token_file" ]]; then
+  access_key="$embedded_access_key"
 fi
 base_url="${MATTS_VALUE_SET_BASE_URL:-https://inference.do-ai.run}"
 proxy_host="${MATTS_VALUE_SET_PROXY_HOST:-127.0.0.1}"
@@ -20,9 +22,63 @@ log_file="${MATTS_VALUE_SET_LOG_FILE:-/tmp/matts-value-set-proxy.jsonl}"
 tmux_session="${MATTS_VALUE_SET_TMUX_SESSION:-matts-value-set-proxy}"
 
 model="${MATTS_VALUE_SET_MODEL:-deepseek-3.2}"
+model_config_file="${MATTS_MODEL_CONFIG_FILE:-$script_dir/config/models.json}"
 models='["deepseek-3.2","deepseek-v4-pro","glm-5","mistral-3-14B","openai-gpt-5.3-codex","stable-diffusion-3.5-large"]'
 text_models=("deepseek-3.2" "deepseek-v4-pro" "glm-5" "mistral-3-14B" "openai-gpt-5.3-codex")
 image_models=("stable-diffusion-3.5-large")
+declare -A model_aliases=(
+  [deepseek]="deepseek-3.2"
+  [deepseek-v4]="deepseek-v4-pro"
+  [glm]="glm-5"
+  [mistral]="mistral-3-14B"
+  [codex]="openai-gpt-5.3-codex"
+  [sd35]="stable-diffusion-3.5-large"
+)
+load_model_registry() {
+  local output
+  output="$(python3 - "$model_config_file" <<'REGISTRYPY'
+import json, shlex, sys
+fallback = [
+ {"id":"deepseek-3.2","type":"text","enabled":True,"aliases":["deepseek"]},
+ {"id":"deepseek-v4-pro","type":"text","enabled":True,"aliases":["deepseek-v4"]},
+ {"id":"glm-5","type":"text","enabled":True,"aliases":["glm"]},
+ {"id":"mistral-3-14B","type":"text","enabled":True,"aliases":["mistral"]},
+ {"id":"openai-gpt-5.3-codex","type":"text","enabled":True,"aliases":["codex"]},
+ {"id":"stable-diffusion-3.5-large","type":"image","enabled":True,"aliases":["sd35"]},
+]
+try:
+    data=json.load(open(sys.argv[1], encoding='utf-8'))
+    rows=data.get('models', data) if isinstance(data, dict) else data
+except Exception:
+    rows=fallback
+def route_enabled(m):
+    if not isinstance(m, dict) or not m.get('enabled', True) or not m.get('id'):
+        return False
+    if m.get('serverless') and m.get('type', 'text') == 'text':
+        return m.get('access_status') == 'ok'
+    return True
+active=[m for m in rows if route_enabled(m)]
+if not active:
+    active=fallback
+text=[m['id'] for m in active if m.get('type','text') == 'text']
+image=[m['id'] for m in active if m.get('type') == 'image']
+all_ids=text+image
+aliases=[]
+for m in active:
+    for alias in m.get('aliases') or []:
+        if alias:
+            aliases.append((str(alias), str(m['id'])))
+print('models='+shlex.quote(json.dumps(all_ids)))
+print('text_models=('+ ' '.join(shlex.quote(x) for x in text) +')')
+print('image_models=('+ ' '.join(shlex.quote(x) for x in image) +')')
+print('model_aliases=()')
+for alias, target in aliases:
+    print('model_aliases['+shlex.quote(alias)+']='+shlex.quote(target))
+REGISTRYPY
+  )"
+  eval "$output"
+}
+load_model_registry
 
 doctor=0
 list_models=0
@@ -40,29 +96,20 @@ usage() {
 usage: claude-DO.sh [--model MODEL] [--doctor] [--list-models] [--costs] [--budget] [--status]
                     [--restart] [--test-models] [--project-dir DIR] [-- CLAUDE_ARGS...]
 
-Current models:
-  deepseek-3.2
-  deepseek-v4-pro
-  glm-5
-  mistral-3-14B
-  openai-gpt-5.3-codex
-  stable-diffusion-3.5-large
-
-Aliases:
-  deepseek, deepseek-v4, glm, mistral, codex, sd35
+Current models are loaded from config/models.json.
+Run --list-models to inspect the active global registry.
 EOF
 }
 
 resolve_model() {
-  case "$1" in
-    deepseek) printf 'deepseek-3.2\n' ;;
-    deepseek-v4) printf 'deepseek-v4-pro\n' ;;
-    glm) printf 'glm-5\n' ;;
-    mistral) printf 'mistral-3-14B\n' ;;
-    codex) printf 'openai-gpt-5.3-codex\n' ;;
-    sd35) printf 'stable-diffusion-3.5-large\n' ;;
-    *) printf '%s\n' "$1" ;;
-  esac
+  local key="${1:-}"
+  if [[ -n "${model_aliases[$key]:-}" ]]; then
+    printf '%s
+' "${model_aliases[$key]}"
+  else
+    printf '%s
+' "$key"
+  fi
 }
 
 is_known_model() {
@@ -154,6 +201,20 @@ if [[ "$project_dir_explicit" == "1" ]]; then
   cd "$project_dir"
 fi
 
+if [[ "$list_models" == "1" ]]; then
+  python3 - "$models" <<'PY'
+import json
+import sys
+
+models = json.loads(sys.argv[1])
+print(json.dumps({
+    "object": "list",
+    "data": [{"id": model, "object": "model"} for model in models],
+}, indent=2))
+PY
+  exit 0
+fi
+
 umask 077
 mkdir -p "$(dirname -- "$token_file")" "$(dirname -- "$cost_file")" "$(dirname -- "$budget_file")"
 if [[ -n "$access_key" ]]; then
@@ -179,20 +240,22 @@ PY
 }
 
 proxy_matches_config() {
-  python3 - "$base_url" "http://${proxy_host}:${proxy_port}/v1/claude-do/capabilities" <<'PY'
+  python3 - "$base_url" "$models" "http://${proxy_host}:${proxy_port}/v1/claude-do/capabilities" <<'PY'
 import json
 import sys
 import urllib.request
 
 expected = sys.argv[1].rstrip("/")
+expected_models = json.loads(sys.argv[2])
 try:
-    with urllib.request.urlopen(sys.argv[2], timeout=1) as resp:
+    with urllib.request.urlopen(sys.argv[3], timeout=1) as resp:
         data = json.load(resp)
 except Exception:
     sys.exit(1)
 
 actual = str(data.get("base_url", "")).rstrip("/")
-sys.exit(0 if data.get("provider") == "matts-value-set" and actual == expected else 1)
+actual_models = data.get("models") or []
+sys.exit(0 if data.get("provider") == "matts-value-set" and actual == expected and actual_models == expected_models else 1)
 PY
 }
 
@@ -228,6 +291,7 @@ start_proxy() {
       --port "$proxy_port"
       --token-file "$token_file"
       --base-url "$base_url"
+      --model-config-file "$model_config_file"
       --models "$models"
       --cost-file "$cost_file"
       --budget-file "$budget_file"
@@ -325,11 +389,6 @@ PY
 }
 
 start_proxy
-
-if [[ "$list_models" == "1" ]]; then
-  curl -fsS "http://${proxy_host}:${proxy_port}/v1/models" | pretty_json
-  exit 0
-fi
 
 if [[ "$show_costs" == "1" ]]; then
   curl -fsS "http://${proxy_host}:${proxy_port}/v1/claude-do/costs" | pretty_json

@@ -201,6 +201,20 @@ if [[ "$project_dir_explicit" == "1" ]]; then
   cd "$project_dir"
 fi
 
+if [[ "$list_models" == "1" ]]; then
+  python3 - "$models" <<'PY'
+import json
+import sys
+
+models = json.loads(sys.argv[1])
+print(json.dumps({
+    "object": "list",
+    "data": [{"id": model, "object": "model"} for model in models],
+}, indent=2))
+PY
+  exit 0
+fi
+
 umask 077
 mkdir -p "$(dirname -- "$token_file")" "$(dirname -- "$cost_file")" "$(dirname -- "$budget_file")"
 if [[ -n "$access_key" ]]; then
@@ -375,11 +389,6 @@ PY
 }
 
 start_proxy
-
-if [[ "$list_models" == "1" ]]; then
-  curl -fsS "http://${proxy_host}:${proxy_port}/v1/models" | pretty_json
-  exit 0
-fi
 
 if [[ "$show_costs" == "1" ]]; then
   curl -fsS "http://${proxy_host}:${proxy_port}/v1/claude-do/costs" | pretty_json

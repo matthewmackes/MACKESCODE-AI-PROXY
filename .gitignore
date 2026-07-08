@@ -1,11 +1,13 @@
 __pycache__/
 *.py[cod]
 *.log
+.claude/
 .mcnf-do-model-access-token
 .mcnf-do-token
 .env
 .env.*
 *.pem
 *.key
+*.backup.local
 tmux-sessions.json
 dedicated-events.jsonl
