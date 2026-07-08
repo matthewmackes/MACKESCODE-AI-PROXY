@@ -28,6 +28,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen, urlretrieve
 
+from src.console.handlers.auth_handler import AuthHandler
 from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.services.health import ConsoleHealthService
@@ -3181,6 +3182,10 @@ def static_images_handler():
     return StaticHandler(app_dir() / "images")
 
 
+def auth_handler():
+    return AuthHandler(auth_enabled=auth_enabled, auth_token=auth_token)
+
+
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -3210,20 +3215,10 @@ class StudioHandler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
     def request_token(self):
-        parsed = urlparse(self.path)
-        query_token = (parse_qs(parsed.query).get("token") or [""])[0]
-        if query_token:
-            return query_token
-        header_token = self.headers.get("x-matts-console-token", "").strip()
-        if header_token:
-            return header_token
-        auth = self.headers.get("authorization", "").strip()
-        if auth.lower().startswith("bearer "):
-            return auth[7:].strip()
-        return ""
+        return auth_handler().request_token(self.path, self.headers)
 
     def authorized(self):
-        return not auth_enabled() or secrets.compare_digest(self.request_token(), auth_token())
+        return auth_handler().authorized(self.path, self.headers)
 
     def send_html(self, html):
         data = html.encode("utf-8")

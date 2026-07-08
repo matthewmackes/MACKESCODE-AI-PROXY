@@ -97,6 +97,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Started service-boundary extraction by adding `src.console.handlers.TemplateHandler` and keeping `image-studio.py` template functions as compatibility wrappers.
 - 2026-07-08: Extracted console health/readiness/metrics composition into `src.console.services.ConsoleHealthService` with compatibility wrappers for existing endpoints.
 - 2026-07-08: Added `src.console.handlers.StaticHandler` for safe static image response lookup while preserving the existing `/images/*` route behavior.
+- 2026-07-08: Added `src.console.handlers.AuthHandler` for request-token parsing and authorization checks while keeping login/response behavior in `StudioHandler`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
