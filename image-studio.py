@@ -28,6 +28,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen, urlretrieve
 
+from src.console.handlers.template_handler import TemplateHandler
+
 
 EMBEDDED_ACCESS_KEY = ""
 DEFAULT_MODEL_REGISTRY = [
@@ -3176,18 +3178,23 @@ def template_dir():
     return script_dir() / "templates"
 
 
+_TEMPLATE_HANDLER = None
+
+
+def template_handler():
+    global _TEMPLATE_HANDLER
+    path = template_dir()
+    if _TEMPLATE_HANDLER is None or _TEMPLATE_HANDLER.template_dir != path:
+        _TEMPLATE_HANDLER = TemplateHandler(path)
+    return _TEMPLATE_HANDLER
+
+
 def load_template(name):
-    path = template_dir() / name
-    return path.read_text(encoding="utf-8")
+    return template_handler().load(name)
 
 
 def render_template(name, replacements=None):
-    html = load_template(name)
-    for key, value in (replacements or {}).items():
-        if not isinstance(value, str):
-            value = json.dumps(value)
-        html = html.replace("__%s__" % key, value)
-    return html
+    return template_handler().render(name, replacements)
 
 
 

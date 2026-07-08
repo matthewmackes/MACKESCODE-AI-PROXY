@@ -86,14 +86,15 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-002
 **Title:** Refactor HTTP handler class
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 3 hours
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as the top release-readiness task. `image-studio.py` is still a large monolith and should be split into explicit console, routing, lifecycle, persistence, and UI service boundaries before major new features.
+- 2026-07-08: Started service-boundary extraction by adding `src.console.handlers.TemplateHandler` and keeping `image-studio.py` template functions as compatibility wrappers.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
