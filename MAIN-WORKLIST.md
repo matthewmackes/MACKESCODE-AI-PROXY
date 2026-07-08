@@ -379,6 +379,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added regression coverage proving new Serverless catalog models are inserted with generated display/brand/cost metadata and default enabled policy while still requiring access audit before route activation.
 - 2026-07-08: Added global registry sync alert banner, registry-specific chat error card, message-level registry sync details, and selected-model blocking that only stops sends when the chosen model is not loaded by the proxy.
 - 2026-07-08: Added visible route badges for model changes/sync warnings while preserving compact routing facts under each message's Show Detail panel; template smoke tests assert the detail/badge wiring remains present.
+- 2026-07-08: Added `/v1/models?available=true|false|all` proxy filtering backed by preserved registry records, including unavailable/disabled model metadata without making those models routeable.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -420,7 +421,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Completion Criteria:**
 - [ ] Digital Ocean API integration working
-- [ ] Model filtering via endpoint parameter
+- [x] Model filtering via endpoint parameter
 - [ ] Admin interface for model selection
 - [ ] Cost rate auto-detection
 - [ ] Caching and fallback working

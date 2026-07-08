@@ -37,6 +37,40 @@ def write_registry(path, model_id):
     return now
 
 
+def write_mixed_registry(path):
+    path.write_text(json.dumps({
+        "models": [
+            {
+                "id": "routeable-model",
+                "display_name": "Routeable Model",
+                "type": "text",
+                "enabled": True,
+                "serverless": True,
+                "access_status": "ok",
+                "aliases": ["primary"],
+                "pricing": {"input": 0.11, "output": 0.22},
+            },
+            {
+                "id": "forbidden-model",
+                "display_name": "Forbidden Model",
+                "type": "text",
+                "enabled": True,
+                "serverless": True,
+                "access_status": "forbidden",
+                "pricing": {"input": 0.11, "output": 0.22},
+            },
+            {
+                "id": "disabled-image",
+                "display_name": "Disabled Image",
+                "type": "image",
+                "enabled": False,
+                "pricing": {"image": 0.08},
+            },
+        ]
+    }), encoding="utf-8")
+    path.touch()
+
+
 def server_for(path):
     return SimpleNamespace(
         model_config_file=str(path),
@@ -46,6 +80,7 @@ def server_for(path):
         models=["fallback-model"],
         model_aliases={"fallback": "fallback-model"},
         costs={"fallback-model": {"input": 1.0, "output": 2.0}},
+        model_registry_records=[],
         default_model="fallback-model",
         model_config_loaded=False,
         model_config_fingerprint=None,
@@ -102,6 +137,42 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertIn("No such file", state["last_error"])
         self.assertEqual(server.models, ["fallback-model"])
         self.assertEqual(server.model_aliases["fallback"], "fallback-model")
+
+    def test_models_payload_filters_available_unavailable_and_all_registry_records(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            write_mixed_registry(path)
+            server = server_for(path)
+            proxy._refresh_model_registry(server, force=True)
+
+        available = proxy._models_payload(
+            server.models,
+            aliases=server.model_aliases,
+            records=server.model_registry_records,
+            routeable=server.models,
+            availability_filter="available",
+        )
+        unavailable = proxy._models_payload(
+            server.models,
+            aliases=server.model_aliases,
+            records=server.model_registry_records,
+            routeable=server.models,
+            availability_filter="unavailable",
+        )
+        all_models = proxy._models_payload(
+            server.models,
+            aliases=server.model_aliases,
+            records=server.model_registry_records,
+            routeable=server.models,
+            availability_filter="all",
+        )
+
+        self.assertEqual([item["id"] for item in available["data"]], ["routeable-model", "primary"])
+        self.assertTrue(available["data"][0]["available"])
+        self.assertEqual({item["id"] for item in unavailable["data"]}, {"forbidden-model", "disabled-image"})
+        self.assertTrue(all(not item["available"] for item in unavailable["data"]))
+        self.assertEqual({item["id"] for item in all_models["data"]}, {"routeable-model", "forbidden-model", "disabled-image", "primary"})
+        self.assertEqual(unavailable["available_filter"], "unavailable")
 
 
 if __name__ == "__main__":

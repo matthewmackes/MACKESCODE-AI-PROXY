@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -69,9 +69,11 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
     if not isinstance(rows, list):
         rows = []
 
-    active = [model for model in rows if _model_route_enabled(model)]
+    records = [model for model in rows if isinstance(model, dict) and model.get("id")]
+    active = [model for model in records if _model_route_enabled(model)]
     if not active:
-        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False
+        fallback_records = [{"id": model_id, "type": "text", "enabled": True, "access_status": "fallback"} for model_id in fallback_models]
+        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False, fallback_records
 
     text = [str(model["id"]) for model in active if model.get("type", "text") == "text"]
     image = [str(model["id"]) for model in active if model.get("type") == "image"]
@@ -86,7 +88,7 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
         pricing = model.get("pricing") if isinstance(model.get("pricing"), dict) else {}
         if pricing:
             costs[model_id] = {key: float(value or 0) for key, value in pricing.items() if key in ("input", "output", "image")}
-    return text + image, aliases, costs, True
+    return text + image, aliases, costs, True, records
 
 
 def _model_config_fingerprint(path):
@@ -128,7 +130,7 @@ def _refresh_model_registry(server, force=False):
     previous = getattr(server, "model_config_fingerprint", None)
     if not force and _same_model_config_fingerprint(fingerprint, previous):
         return
-    models, aliases, costs, loaded = _load_model_registry(
+    models, aliases, costs, loaded, records = _load_model_registry(
         server.model_config_file,
         server.fallback_models,
         server.fallback_model_aliases,
@@ -137,6 +139,7 @@ def _refresh_model_registry(server, force=False):
     server.models = models
     server.model_aliases = aliases
     server.costs = costs
+    server.model_registry_records = records
     server.model_config_loaded = loaded
     server.model_config_fingerprint = fingerprint
     server.model_config_last_loaded_at = time.time()
@@ -895,25 +898,55 @@ def _model_display_name(model_id):
     return model_id.replace("-", " ").replace("_", " ").title()
 
 
-def _models_payload(models, aliases=None):
-    out = [{
-        "id": model_id,
-        "type": "model",
-        "display_name": _model_display_name(model_id),
-    } for model_id in models]
+def _models_payload(models, aliases=None, records=None, routeable=None, availability_filter="available"):
+    routeable = set(routeable or models)
+    out = []
+    if records is not None:
+        for record in records:
+            model_id = str(record.get("id") or "").strip()
+            if not model_id:
+                continue
+            available = model_id in routeable
+            if availability_filter == "available" and not available:
+                continue
+            if availability_filter == "unavailable" and available:
+                continue
+            out.append({
+                "id": model_id,
+                "type": "model",
+                "display_name": str(record.get("display_name") or _model_display_name(model_id)),
+                "available": available,
+                "model_type": record.get("type") or "text",
+                "provider": record.get("provider") or "DigitalOcean",
+                "access_status": record.get("access_status") or ("ok" if available else "not_checked"),
+                "enabled": record.get("enabled") is not False,
+            })
+    else:
+        out = [{
+            "id": model_id,
+            "type": "model",
+            "display_name": _model_display_name(model_id),
+            "available": True,
+        } for model_id in models]
     seen = {item["id"] for item in out}
-    for alias, target in sorted((aliases or {}).items()):
-        if target in seen and alias not in seen:
+    if availability_filter != "unavailable":
+        for alias, target in sorted((aliases or {}).items()):
+            if target not in seen or alias in seen:
+                continue
             out.append({
                 "id": alias,
                 "type": "model",
                 "display_name": "%s -> %s" % (_model_display_name(alias), target),
+                "available": True,
+                "alias_of": target,
             })
+            seen.add(alias)
     return {
         "data": out,
         "has_more": False,
-        "first_id": out[0]["id"],
-        "last_id": out[-1]["id"],
+        "first_id": out[0]["id"] if out else None,
+        "last_id": out[-1]["id"] if out else None,
+        "available_filter": availability_filter,
     }
 
 
@@ -952,9 +985,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._refresh_models()
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/v1/models":
-            return self._json(200, _models_payload(self.server.models, aliases=self.server.model_aliases))
+            available = (parse_qs(parsed.query).get("available") or ["true"])[0].lower()
+            availability_filter = "all" if available in {"all", "*"} else ("unavailable" if available in {"false", "0", "no"} else "available")
+            return self._json(200, _models_payload(
+                self.server.models,
+                aliases=self.server.model_aliases,
+                records=getattr(self.server, "model_registry_records", None),
+                routeable=self.server.models,
+                availability_filter=availability_filter,
+            ))
         if path == "/v1/claude-do/costs":
             return self._json(200, {
                 "provider": self.server.provider,
@@ -1266,6 +1308,7 @@ def main():
     server.fallback_costs.update(_load_json_env(args.costs, {}))
     server.model_aliases = dict(server.fallback_model_aliases)
     server.models = list(server.fallback_models)
+    server.model_registry_records = [{"id": model_id, "type": "text", "enabled": True, "access_status": "fallback"} for model_id in server.models]
     server.costs = dict(server.fallback_costs)
     server.model_config_file = args.model_config_file
     server.model_config_loaded = False
