@@ -1372,7 +1372,12 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def read_json(self):
         length = int(self.headers.get("content-length", "0"))
-        return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
+        if not length:
+            return {}
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except ValueError as exc:
+            raise ValueError("invalid JSON request body") from exc
 
     def request_token(self):
         return auth_handler().request_token(self.path, self.headers)
@@ -1473,7 +1478,10 @@ class StudioHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not self.authorized():
             return self.send_unauthorized()
-        data = self.read_json()
+        try:
+            data = self.read_json()
+        except ValueError as exc:
+            return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}))
         handled, status, payload = api_handler().post(path, data)
         if handled:
             return self.send_json(status, payload)

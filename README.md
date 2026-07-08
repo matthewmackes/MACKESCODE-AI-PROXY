@@ -100,6 +100,14 @@ The web console exposes unauthenticated operational endpoints for local smoke ch
 /metrics  Prometheus text metrics
 ```
 
+Console JSON API failures use a standard error shape:
+
+```json
+{"error":"message","message":"message","code":"machine_code","category":"client","status":400}
+```
+
+The `error` field remains a plain string for older clients. New UI and diagnostics should prefer `code`, `category`, `status`, and optional `details`. JSON error responses are also logged as sanitized structured warning records with request method, path, status, code, category, message, and detail keys only.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import time
 import unittest
 from pathlib import Path
@@ -88,6 +89,16 @@ class HealthSmokeTests(unittest.TestCase):
         self.assertIn("matts_console_tmux_sessions 1", metrics)
         self.assertIn('matts_console_requests_total{method="GET"} 3', metrics)
         self.assertIn('matts_console_requests_total{method="POST"} 1', metrics)
+
+
+class RequestParsingTests(unittest.TestCase):
+    def test_read_json_reports_malformed_body(self):
+        handler = object.__new__(studio.StudioHandler)
+        handler.headers = {"content-length": "1"}
+        handler.rfile = io.BytesIO(b"{")
+
+        with self.assertRaisesRegex(ValueError, "invalid JSON request body"):
+            handler.read_json()
 
 
 if __name__ == "__main__":

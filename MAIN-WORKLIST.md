@@ -154,11 +154,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-003
 **Title:** Improve error handling
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 1.5 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed standardized errors as a prerequisite for trace-first observability, evals, release diagnostics, and user-friendly lifecycle feedback.
@@ -166,6 +167,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Applied the standard error helper to handler-originated API validation/not-found/auth/wallpaper failures and added unit coverage. Release check passed with 143 tests; local browser smoke was skipped because Playwright is not installed.
 - 2026-07-08: Added API-boundary error normalization for service-originated failures across chat, image generation, Dedicated lifecycle/discovery, model registry save, tmux, and terminal endpoints. Release check passed with 145 tests; local browser smoke was skipped because Playwright is not installed.
 - 2026-07-08: Added sanitized structured error logging for JSON error responses, including method/path/status/code/category/message and detail keys without detail values. Release check passed with 147 tests; local browser smoke was skipped because Playwright is not installed.
+- 2026-07-08: Added malformed JSON request handling and README documentation for the standard error shape and sanitized warning records. Release check passed with 148 tests; local browser smoke was skipped because Playwright is not installed.
 
 **Description:** Standardize error responses across all endpoints and add comprehensive error logging.
 
@@ -183,11 +185,11 @@ The interface refactoring work consolidates previously separate components into 
 5. User-friendly error messages
 
 **Completion Criteria:**
-- [ ] Error utility functions created
-- [ ] All endpoints use standardized errors
-- [ ] Error logging implemented
-- [ ] Tests for error scenarios
-- [ ] Documentation updated
+- [x] Error utility functions created
+- [x] All JSON API endpoints use standardized errors
+- [x] Error logging implemented
+- [x] Tests for error scenarios
+- [x] Documentation updated
 
 **Dependencies:** INT-002 (Handler refactoring)
 **Blocks:** INT-004 (Configuration system)
@@ -1358,18 +1360,17 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-003:** Standardized error handling
-2. **Then INT-004:** Configuration system and validation
-3. **Then INT-018:** Separate release config, runtime state, and secrets
-4. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-5. **Then INT-020:** Trace-first observability
-6. **Then INT-022:** Gateway reliability and cost controls
-7. **Then INT-021:** Evaluation and model comparison workflows
-8. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-9. **Then INT-019:** Documentation reconciliation
-10. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-004:** Configuration system and validation
+2. **Then INT-018:** Separate release config, runtime state, and secrets
+3. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+4. **Then INT-020:** Trace-first observability
+5. **Then INT-022:** Gateway reliability and cost controls
+6. **Then INT-021:** Evaluation and model comparison workflows
+7. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+8. **Then INT-019:** Documentation reconciliation
+9. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-Completed prerequisites: INT-001, INT-002, INT-005, INT-006, INT-015, INT-025.
+Completed prerequisites: INT-001, INT-002, INT-003, INT-005, INT-006, INT-015, INT-025.
 
 ---
 
@@ -1407,16 +1408,15 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-003:** Standardized error handling
-2. **Then INT-004:** Configuration system and validation
-3. **Then INT-018:** Separate release config, runtime state, and secrets
-4. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-5. **Then INT-020:** Trace-first observability
-6. **Then INT-022:** Gateway reliability and cost controls
-7. **Then INT-021:** Evaluation and model comparison workflows
-8. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-9. **Then INT-019:** Documentation reconciliation
-10. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-004:** Configuration system and validation
+2. **Then INT-018:** Separate release config, runtime state, and secrets
+3. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+4. **Then INT-020:** Trace-first observability
+5. **Then INT-022:** Gateway reliability and cost controls
+6. **Then INT-021:** Evaluation and model comparison workflows
+7. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+8. **Then INT-019:** Documentation reconciliation
+9. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
 ## Dependencies & Blockers
 
