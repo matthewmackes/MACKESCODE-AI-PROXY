@@ -108,6 +108,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted Serverless chat validation, stale-registry blocking/warning routing metadata, Dedicated chat dispatch, proxy chat payload shaping, and proxy GET helper behavior into `src.console.services.ChatRoutingService`.
 - 2026-07-08: Extracted AgentBoard tmux target sanitization, pane capture aggregation, terminal status inference, local usage/log counts, and leaderboard payload composition into `src.console.services.AgentBoardService`.
 - 2026-07-08: Extracted WebSocket accept-key generation, frame parsing/sending, exact reads, ping/close handling, and PTY resize ioctl behavior into `src.console.services.WebSocketProtocolService`.
+- 2026-07-08: Extracted Claude launcher self-heal, tmux command argument construction, start/attach/reset behavior, capture/send-key/send-text/stop, and live tmux session listing into `src.console.services.TmuxControlService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
@@ -965,6 +966,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added at user request after the follow-up one-at-a-time worklist survey answers. These decisions should be folded into the requirements ledger and owning tasks before further UI polish, model-routing, or release-cleanup work depends on them.
+- 2026-07-08: User requested "add to worklist" after the latest answer sequence. Preserve this as an active reconciliation task: only promote follow-up answers into implementation criteria when the underlying question and product decision can be reconstructed from project context; otherwise list them as open confirmations.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
@@ -986,6 +988,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Any ambiguous answer is listed as an open confirmation instead of being guessed
 - [ ] Priority order is updated if the follow-up survey changes sequencing
 - [ ] Duplicate or stale worklist entries are consolidated
+- [ ] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
 
 **Dependencies:** INT-025 (initial survey reconciliation)
 **Blocks:** Fully draining the worklist without losing newly clarified requirements

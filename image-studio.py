@@ -10,7 +10,6 @@ import pty
 import re
 import secrets
 import select
-import shlex
 import signal
 import socket
 import subprocess
@@ -37,6 +36,7 @@ from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
+from src.console.services.tmux_control import TmuxControlService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
 from src.console.services.websocket import WebSocketProtocolService
@@ -1514,229 +1514,68 @@ def tmux_rename_session(old_name, new_name, display_name=None):
     return session_service().rename_session(old_name, new_name, display_name=display_name)
 
 
+def tmux_control_service():
+    return TmuxControlService(
+        script_dir=script_dir,
+        text_models=lambda: TEXT_MODELS,
+        default_text_model=default_text_model,
+        tmux_cmd=tmux_cmd,
+        tmux_exists=tmux_exists,
+        tmux_target=tmux_target,
+        tmux_capture_target=tmux_capture_target,
+        unique_tmux_session_name=unique_tmux_session_name,
+        tmux_session_name=tmux_session_name,
+        tmux_registry_upsert=tmux_registry_upsert,
+        tmux_session_items=tmux_session_items,
+        live_session_names=lambda: session_service().live_session_names(),
+        clock=time.time,
+        sleep=time.sleep,
+        geteuid=os.geteuid if hasattr(os, "geteuid") else None,
+    )
+
+
 def launcher_health():
-    launcher = script_dir() / "claude-DO.sh"
-    backup = script_dir() / "claude-DO.sh.backup"
-    required = ("start_proxy()", "exec claude")
-
-    def valid(text):
-        return all(item in text for item in required)
-
-    try:
-        text = launcher.read_text()
-    except OSError as exc:
-        text = ""
-        read_error = str(exc)
-    else:
-        read_error = ""
-    if valid(text):
-        return {"ok": True, "healed": False, "path": str(launcher)}
-    try:
-        backup_text = backup.read_text()
-    except OSError as exc:
-        return {"ok": False, "healed": False, "path": str(launcher), "error": read_error or str(exc)}
-    if not valid(backup_text):
-        return {"ok": False, "healed": False, "path": str(launcher), "error": "launcher and backup are incomplete"}
-    try:
-        launcher.write_text(backup_text)
-        launcher.chmod(0o755)
-    except OSError as exc:
-        return {"ok": False, "healed": False, "path": str(launcher), "error": str(exc)}
-    return {"ok": True, "healed": True, "path": str(launcher)}
+    return tmux_control_service().launcher_health()
 
 
 def tmux_screen(name, lines="-80"):
-    code, out, err = tmux_cmd(["capture-pane", "-p", "-e", "-J", "-S", lines, "-t", name], check=False)
-    return code, out, err
+    return tmux_control_service().screen(name, lines)
 
 
 def tmux_has_completed_claude(name):
-    code, out, _ = tmux_screen(name)
-    if code != 0:
-        return False, ""
-    markers = ("[Claude Code exited with status", "Session remains open for inspection")
-    return all(marker in out for marker in markers), out
+    return tmux_control_service().has_completed_claude(name)
 
 
 def split_lines(value):
-    return [line.strip() for line in str(value or "").splitlines() if line.strip()]
+    return tmux_control_service().split_lines(value)
 
 
 def claude_launch_args(data):
-    args = []
-    permission_mode = data.get("permission_mode")
-    if permission_mode == "bypassPermissions" and hasattr(os, "geteuid") and os.geteuid() == 0:
-        permission_mode = "acceptEdits"
-    if permission_mode in {"acceptEdits", "bypassPermissions", "plan", "manual", "dontAsk", "auto"}:
-        args += ["--permission-mode", permission_mode]
-    setting_sources = data.get("setting_sources")
-    if setting_sources:
-        args += ["--setting-sources", str(setting_sources)]
-    if data.get("safe_mode"):
-        args.append("--safe-mode")
-    if data.get("bare"):
-        args.append("--bare")
-    for directory in split_lines(data.get("add_dirs")):
-        args += ["--add-dir", directory]
-    allowed = str(data.get("allowed_tools") or "").strip()
-    if allowed:
-        args += ["--allowedTools", allowed]
-    disallowed = str(data.get("disallowed_tools") or "").strip()
-    if disallowed:
-        args += ["--disallowedTools", disallowed]
-    session_name = str(data.get("claude_session_name") or "").strip()
-    if session_name:
-        args += ["--name", session_name]
-    run_mode = data.get("run_mode") or "interactive"
-    prompt = str(data.get("print_prompt") or "").strip()
-    budget = str(data.get("max_budget_usd") or "").strip()
-    if run_mode in {"print", "json", "stream-json"}:
-        args.append("--print")
-        if budget:
-            args += ["--max-budget-usd", budget]
-        if run_mode == "json":
-            args += ["--output-format", "json"]
-        elif run_mode == "stream-json":
-            args += ["--output-format", "stream-json"]
-        else:
-            output_format = data.get("output_format")
-            if output_format in {"text", "json", "stream-json"}:
-                args += ["--output-format", output_format]
-        if data.get("no_session_persistence"):
-            args.append("--no-session-persistence")
-        if prompt:
-            args.append(prompt)
-    elif run_mode == "background":
-        args.append("--bg")
-        if prompt:
-            args.append(prompt)
-    elif run_mode == "continue":
-        args.append("--continue")
-    elif run_mode == "resume":
-        resume_value = str(data.get("resume") or "").strip()
-        args.append("--resume")
-        if resume_value:
-            args.append(resume_value)
-    args += shlex.split(str(data.get("extra_args") or ""))
-    return args
+    return tmux_control_service().claude_launch_args(data)
 
 
 def tmux_start(data):
-    health = launcher_health()
-    if not health.get("ok"):
-        return HTTPStatus.BAD_REQUEST, {"error": "Claude launcher is not runnable", "launcher": health}
-    model = data.get("model") if data.get("model") in TEXT_MODELS else default_text_model()
-    project_dir = data.get("project_dir") or str(script_dir())
-    if not Path(project_dir).is_dir():
-        return HTTPStatus.BAD_REQUEST, {"error": "project directory does not exist"}
-    display_name = str(data.get("display_name") or data.get("name") or "matts-claude").strip() or "matts-claude"
-    requested_name = data.get("name") or display_name
-    name = unique_tmux_session_name(requested_name) if data.get("new_session") else tmux_session_name(requested_name)
-    run_mode = data.get("run_mode") or "interactive"
-    reset_dead_session = False
-    if tmux_exists(name):
-        completed, screen = tmux_has_completed_claude(name)
-        if completed and run_mode == "interactive":
-            tmux_stop(name)
-            reset_dead_session = True
-        else:
-            payload_data = dict(data)
-            payload_data["display_name"] = display_name
-            tmux_registry_upsert(name, data=payload_data, live=True)
-            return HTTPStatus.OK, {"name": name, "attached": True, "launcher": health, "sessions": tmux_session_items()}
-    command = [str(script_dir() / "claude-DO.sh"), "--model", model] + claude_launch_args(data)
-    shell_command = (
-        "printf 'Starting Claude Code session: %s\\n'; "
-        "%s; "
-        "code=$?; "
-        "printf '\\n[Claude Code exited with status %%s]\\n' \"$code\"; "
-        "printf 'Session remains open for inspection. Press Ctrl-D or kill the session from the console.\\n'; "
-        "exec ${SHELL:-/bin/bash}"
-    ) % (shlex.quote(name), shlex.join(command))
-    code, _, err = tmux_cmd([
-        "new-session",
-        "-d",
-        "-s",
-        name,
-        "-x",
-        str(int(data.get("cols") or 120)),
-        "-y",
-        str(int(data.get("rows") or 40)),
-        "-c",
-        project_dir,
-        shell_command,
-    ], check=False)
-    if code != 0:
-        return HTTPStatus.BAD_REQUEST, {"error": err or "tmux failed to start"}
-    for _ in range(10):
-        if tmux_exists(name):
-            if run_mode == "interactive":
-                time.sleep(0.3)
-                completed, screen = tmux_has_completed_claude(name)
-                if completed:
-                    tmux_stop(name)
-                    return HTTPStatus.BAD_REQUEST, {
-                        "error": "Claude exited immediately after tmux start",
-                        "name": name,
-                        "launcher": health,
-                        "screen": screen[-4000:],
-                    }
-            payload_data = dict(data)
-            payload_data["display_name"] = display_name
-            tmux_registry_upsert(name, data=payload_data, live=True)
-            return HTTPStatus.OK, {"name": name, "display_name": display_name, "attached": False, "launcher": health, "reset": reset_dead_session, "sessions": tmux_session_items()}
-        time.sleep(0.1)
-    code, out, err = tmux_cmd(["list-sessions", "-F", "#{session_name}"], check=False)
-    return HTTPStatus.BAD_REQUEST, {"error": "tmux session did not become addressable", "name": name, "sessions": out.splitlines(), "detail": err}
+    return tmux_control_service().start(data)
 
 
 def tmux_capture(name):
-    name = tmux_target(name)
-    code, out, err = tmux_capture_target(name, "-200")
-    if code != 0:
-        return HTTPStatus.NOT_FOUND, {"error": err or "tmux session not found", "name": name}
-    return HTTPStatus.OK, {"name": name, "screen": out}
+    return tmux_control_service().capture(name)
 
 
 def tmux_send_text(name, text, enter=False):
-    name = tmux_target(name)
-    buffer_name = name + "-paste"
-    code, _, err = tmux_cmd(["set-buffer", "-b", buffer_name, text or ""], check=False)
-    if code != 0:
-        return HTTPStatus.BAD_REQUEST, {"error": err or "tmux set-buffer failed"}
-    code, _, err = tmux_cmd(["paste-buffer", "-t", name, "-b", buffer_name], check=False)
-    if code != 0:
-        return HTTPStatus.BAD_REQUEST, {"error": err or "tmux paste failed"}
-    if enter:
-        tmux_cmd(["send-keys", "-t", name, "Enter"], check=False)
-    return HTTPStatus.OK, {"ok": True}
+    return tmux_control_service().send_text(name, text, enter)
 
 
 def tmux_send_key(name, key):
-    name = tmux_target(name)
-    allowed = {
-        "Enter", "Escape", "Up", "Down", "Left", "Right", "Tab", "BTab",
-        "C-c", "C-d", "C-u", "C-l", "PageUp", "PageDown", "Home", "End",
-    }
-    if key not in allowed:
-        return HTTPStatus.BAD_REQUEST, {"error": "key is not allowed"}
-    code, _, err = tmux_cmd(["send-keys", "-t", name, key], check=False)
-    if code != 0:
-        return HTTPStatus.BAD_REQUEST, {"error": err or "tmux send-keys failed"}
-    return HTTPStatus.OK, {"ok": True}
+    return tmux_control_service().send_key(name, key)
 
 
 def tmux_stop(name):
-    name = tmux_target(name)
-    code, _, err = tmux_cmd(["kill-session", "-t", name], check=False)
-    if code not in (0, 1):
-        return HTTPStatus.BAD_REQUEST, {"error": err or "tmux kill-session failed"}
-    tmux_registry_upsert(name, live=False, stopped=True)
-    return HTTPStatus.OK, {"ok": True}
+    return tmux_control_service().stop(name)
 
 
 def tmux_sessions():
-    return session_service().live_session_names()
+    return tmux_control_service().sessions()
 
 
 def agentboard_service():

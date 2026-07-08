@@ -27,6 +27,7 @@ python3 -m py_compile \
   src/console/services/model_registry.py \
   src/console/services/persistence.py \
   src/console/services/session.py \
+  src/console/services/tmux_control.py \
   src/console/services/usage.py \
   src/console/services/wallpaper.py \
   src/console/services/websocket.py \
@@ -45,6 +46,7 @@ python3 -m py_compile \
   tests/test_session_service.py \
   tests/test_static_handler.py \
   tests/test_template_handler.py \
+  tests/test_tmux_control_service.py \
   tests/test_usage_service.py \
   tests/test_wallpaper_service.py \
   tests/test_websocket_service.py \

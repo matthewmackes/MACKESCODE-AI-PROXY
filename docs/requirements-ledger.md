@@ -98,6 +98,7 @@ These items were requested through survey flow, but the specific answer content 
 | Item | Why it needs confirmation | Suggested owner |
 | --- | --- | --- |
 | Exact 100-question answer mapping by question number. | Chat compaction preserved many selected options but not all original question prompts. | `INT-025` follow-up note only; do not block implementation. |
+| Latest follow-up answer-only sequence ending with "add to worklist". | The answer choices are preserved in chat context, but most associated prompts are not available in local project files; requirements should only be promoted when the actual product decision can be reconstructed. | `INT-026` |
 | Preferred weather provider and whether browser geolocation may be stored as a default. | Requirements say geolocation first and graceful fallback, but provider/privacy preference is not durable. | `INT-014`, `INT-018` |
 | Exact default Code wizard profile ordering and permission defaults beyond the current local implementation. | Preserved answers confirm wizard behavior, but not all profile policy details. | `INT-007`, `INT-023` |
 | Final public release name/versioning policy. | GitHub repository name is known; semantic version and release cadence are not. | `INT-024` |
