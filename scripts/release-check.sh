@@ -7,6 +7,9 @@ cd "$ROOT_DIR"
 echo "==> Python unit and smoke tests"
 python3 -m unittest discover -s tests -v
 
+echo "==> Coverage report"
+python3 scripts/coverage-report.py --fail-under 1
+
 echo "==> Python syntax checks"
 python3 -m py_compile \
   image-studio.py \

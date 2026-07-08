@@ -114,6 +114,14 @@ scripts/release-check.sh
 
 It runs the unit/smoke suite, Python syntax checks, and template JavaScript syntax checks when `node` is available.
 
+Generate the dependency-free line-hit coverage report directly with:
+
+```bash
+scripts/coverage-report.py
+```
+
+Coverage artifacts are written under `build/coverage/`.
+
 DigitalOcean reporting uses the public DigitalOcean API. To enable account billing data, set:
 
 ```bash
