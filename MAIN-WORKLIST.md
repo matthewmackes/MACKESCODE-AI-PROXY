@@ -86,11 +86,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-002
 **Title:** Refactor HTTP handler class
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 3 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as the top release-readiness task. `image-studio.py` is still a large monolith and should be split into explicit console, routing, lifecycle, persistence, and UI service boundaries before major new features.
@@ -116,6 +117,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted runtime path resolution, console/model token persistence, proxy endpoint settings, DigitalOcean token lookup, and local address discovery into `src.console.services.RuntimeConfigService`.
 - 2026-07-08: Extracted the tmux browser-terminal WebSocket bridge, PTY attachment, resize handling, frame forwarding, and cleanup into `src.console.handlers.TmuxWebSocketHandler`.
 - 2026-07-08: Extracted JSON API GET/POST route dispatch for chat, image generation, models, Serverless catalog sync, Dedicated lifecycle, reporting, tmux, terminal, status, and cost endpoints into `src.console.handlers.ConsoleApiHandler`.
+- 2026-07-08: Completed handler-boundary audit. `StudioHandler` now owns HTTP serialization, auth gating, binary wallpaper/static-image responses, and template page glue while delegating JSON API routing, tmux WebSocket attachment, auth, static lookup, template rendering, and business logic to focused handlers/services.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
@@ -137,13 +139,13 @@ The interface refactoring work consolidates previously separate components into 
 - Update server initialization
 
 **Completion Criteria:**
-- [ ] Handler classes created
-- [ ] All endpoints migrated
-- [ ] Backward compatibility maintained
-- [ ] Dedicated, model registry, tmux session, and usage logic extracted from `image-studio.py`
-- [ ] Console routes remain thin orchestration layers
-- [ ] Tests pass
-- [ ] Performance comparable or better
+- [x] Handler classes created
+- [x] All endpoints migrated
+- [x] Backward compatibility maintained
+- [x] Dedicated, model registry, tmux session, and usage logic extracted from `image-studio.py`
+- [x] Console routes remain thin orchestration layers
+- [x] Tests pass
+- [x] Performance comparable or better
 
 **Dependencies:** INT-001 (Template separation)
 **Blocks:** INT-003 (Error handling improvements)
@@ -152,14 +154,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-003
 **Title:** Improve error handling
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 1.5 hours
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed standardized errors as a prerequisite for trace-first observability, evals, release diagnostics, and user-friendly lifecycle feedback.
+- 2026-07-08: Started handler-layer standardization with a reusable console error payload helper that keeps the legacy `error` string while adding machine-readable code, category, status, and details fields for richer UI diagnostics.
+- 2026-07-08: Applied the standard error helper to handler-originated API validation/not-found/auth/wallpaper failures and added unit coverage. Release check passed with 143 tests; local browser smoke was skipped because Playwright is not installed.
 
 **Description:** Standardize error responses across all endpoints and add comprehensive error logging.
 
@@ -1352,19 +1356,18 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-002:** HTTP handler/service-boundary refactoring
-2. **Then INT-003:** Standardized error handling
-3. **Then INT-004:** Configuration system and validation
-4. **Then INT-018:** Separate release config, runtime state, and secrets
-5. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-6. **Then INT-020:** Trace-first observability
-7. **Then INT-022:** Gateway reliability and cost controls
-8. **Then INT-021:** Evaluation and model comparison workflows
-9. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-10. **Then INT-019:** Documentation reconciliation
-11. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-003:** Standardized error handling
+2. **Then INT-004:** Configuration system and validation
+3. **Then INT-018:** Separate release config, runtime state, and secrets
+4. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+5. **Then INT-020:** Trace-first observability
+6. **Then INT-022:** Gateway reliability and cost controls
+7. **Then INT-021:** Evaluation and model comparison workflows
+8. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+9. **Then INT-019:** Documentation reconciliation
+10. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-Completed prerequisites: INT-001, INT-005, INT-006, INT-015, INT-025.
+Completed prerequisites: INT-001, INT-002, INT-005, INT-006, INT-015, INT-025.
 
 ---
 
@@ -1402,17 +1405,16 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-002:** HTTP handler/service-boundary refactoring
-2. **Then INT-003:** Standardized error handling
-3. **Then INT-004:** Configuration system and validation
-4. **Then INT-018:** Separate release config, runtime state, and secrets
-5. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-6. **Then INT-020:** Trace-first observability
-7. **Then INT-022:** Gateway reliability and cost controls
-8. **Then INT-021:** Evaluation and model comparison workflows
-9. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-10. **Then INT-019:** Documentation reconciliation
-11. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-003:** Standardized error handling
+2. **Then INT-004:** Configuration system and validation
+3. **Then INT-018:** Separate release config, runtime state, and secrets
+4. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+5. **Then INT-020:** Trace-first observability
+6. **Then INT-022:** Gateway reliability and cost controls
+7. **Then INT-021:** Evaluation and model comparison workflows
+8. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+9. **Then INT-019:** Documentation reconciliation
+10. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
 ## Dependencies & Blockers
 

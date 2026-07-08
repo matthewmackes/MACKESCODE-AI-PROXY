@@ -69,8 +69,19 @@ class ConsoleApiHandlerTests(unittest.TestCase):
     def test_get_chat_load_validation_and_tmux_sessions(self):
         handler, _ = self.handler()
 
-        self.assertEqual(handler.get("/api/chat/load", {}), (True, 400, {"error": "id query parameter is required"}))
-        self.assertEqual(handler.get("/api/chat/load", {"id": ["missing"]}), (True, 404, {"error": "chat not found"}))
+        handled, status, payload = handler.get("/api/chat/load", {})
+        self.assertTrue(handled)
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "id query parameter is required")
+        self.assertEqual(payload["code"], "missing_chat_id")
+        self.assertEqual(payload["category"], "client")
+
+        handled, status, payload = handler.get("/api/chat/load", {"id": ["missing"]})
+        self.assertTrue(handled)
+        self.assertEqual(status, 404)
+        self.assertEqual(payload["error"], "chat not found")
+        self.assertEqual(payload["code"], "chat_not_found")
+        self.assertEqual(payload["details"], {"id": "missing"})
         self.assertEqual(handler.get("/api/chat/load", {"id": ["ok"]}), (True, 200, {"id": "ok"}))
         handled, status, payload = handler.get("/api/tmux/sessions")
 

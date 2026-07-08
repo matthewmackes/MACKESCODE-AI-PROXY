@@ -1,4 +1,5 @@
 """JSON API route dispatcher for the console HTTP handler."""
+from src.console.utils.errors import error_payload
 
 
 class ConsoleApiHandler:
@@ -10,6 +11,9 @@ class ConsoleApiHandler:
     def call(self, name, *args, **kwargs):
         return self.deps[name](*args, **kwargs)
 
+    def error(self, status, message, code=None, category=None, details=None):
+        return True, int(status), error_payload(message, status, code=code, category=category, details=details)
+
     def get(self, path, query=None):
         query = query or {}
         if path == "/api/history":
@@ -19,10 +23,10 @@ class ConsoleApiHandler:
         if path == "/api/chat/load":
             chat_id = (query.get("id") or [""])[0]
             if not chat_id:
-                return True, 400, {"error": "id query parameter is required"}
+                return self.error(400, "id query parameter is required", code="missing_chat_id")
             doc = self.call("load_chat", chat_id)
             if doc is None:
-                return True, 404, {"error": "chat not found"}
+                return self.error(404, "chat not found", code="chat_not_found", details={"id": chat_id})
             return True, 200, doc
         if path == "/api/tmux/sessions":
             items = self.call("tmux_session_items")

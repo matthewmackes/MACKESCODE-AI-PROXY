@@ -43,6 +43,7 @@ from src.console.services.tmux_control import TmuxControlService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
 from src.console.services.websocket import WebSocketProtocolService
+from src.console.utils.errors import error_payload
 
 
 EMBEDDED_ACCESS_KEY = ""
@@ -1391,7 +1392,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         if self.path == "/" or self.path.startswith("/?"):
             self.send_login()
             return
-        self.send_json(401, {"error": "console auth token required"})
+        self.send_json(401, error_payload("console auth token required", 401, code="console_auth_required"))
 
     def do_websocket_tmux(self):
         return tmux_websocket_handler(self.authorized).handle(self)
@@ -1434,8 +1435,7 @@ class StudioHandler(BaseHTTPRequestHandler):
             handled, status, payload = api_handler().get(path, parse_qs(urlparse(self.path).query))
             if handled:
                 return self.send_json(status, payload)
-            self.send_error(404)
-            return
+            return self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}))
         if path == "/api/wallpaper/image":
             query = parse_qs(urlparse(self.path).query)
             remote = (query.get("remote") or [""])[0]
@@ -1443,7 +1443,7 @@ class StudioHandler(BaseHTTPRequestHandler):
             try:
                 status, data, content_type = wallpaper_image_response(remote, image_id)
             except Exception as exc:
-                return self.send_json(502, {"error": "wallpaper image fetch failed", "message": str(exc)})
+                return self.send_json(502, error_payload("wallpaper image fetch failed", 502, code="wallpaper_image_fetch_failed", details={"reason": str(exc)}))
             self.send_response(int(status))
             self.send_header("content-type", content_type)
             self.send_header("cache-control", "public, max-age=86400")
@@ -1474,7 +1474,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         handled, status, payload = api_handler().post(path, data)
         if handled:
             return self.send_json(status, payload)
-        self.send_error(404)
+        self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}))
 
 
 def main():
