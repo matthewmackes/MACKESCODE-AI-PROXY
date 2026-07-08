@@ -360,10 +360,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-015
 **Title:** Add Digital Ocean Serverless Inference model catalog
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
+**Completion Time:** 2026-07-08
 **Estimated Duration:** 3 hours
 
 **Progress Notes:**
@@ -383,6 +384,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added deterministic tests for the DigitalOcean Serverless `/v1/models` catalog request and cache fallback behavior when a refresh fails.
 - 2026-07-08: Added template and backend tests for the Console LLM Management admin interface, including edit persistence, duplicate ID rejection, text-model safety validation, and proxy sync after save.
 - 2026-07-08: Replaced hardcoded Studio runtime text/image defaults with active-registry default helpers so chat, Dedicated fallback, tmux launch, terminal launch, proxy startup, image generation, and model smoke tests choose current registry models.
+- 2026-07-08: Added catalog-provided pricing auto-detection for common DigitalOcean price/rate shapes ahead of documented fallback pricing, with tests for catalog and existing-registry price sources.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -426,7 +428,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Digital Ocean API integration working
 - [x] Model filtering via endpoint parameter
 - [x] Admin interface for model selection
-- [ ] Cost rate auto-detection
+- [x] Cost rate auto-detection
 - [x] Caching and fallback working
 - [x] Hardcoded models replaced
 - [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
@@ -437,7 +439,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Registry sync failures trigger a global alert and block sends only for newly selected stale models
 - [x] Show Detail exposes compact routing facts for every routed request
 - [x] Model mismatch/fallback shows a visible badge while full details remain collapsed by default
-- [ ] Tests for all new functionality
+- [x] Tests for all new functionality
 
 **Dependencies:** INT-004 (Configuration system) - for model visibility settings
 **Blocks:** None - can work in parallel with other tasks

@@ -269,6 +269,43 @@ def display_name_from_model_id(model_id):
     return " ".join(part.upper() if part.lower() in {"ai", "vl", "tts", "bge", "glm"} else part[:1].upper() + part[1:] for part in text.split())
 
 
+def _catalog_price_value(item, keys):
+    for key in keys:
+        if key in item:
+            try:
+                value = float(item.get(key) or 0)
+                if value > 0:
+                    return value
+            except (TypeError, ValueError):
+                continue
+    return 0.0
+
+
+def catalog_pricing_from_item(item):
+    if not isinstance(item, dict):
+        return {}
+    sources = []
+    for key in ("pricing", "prices", "rates", "cost", "costs"):
+        value = item.get(key)
+        if isinstance(value, dict):
+            sources.append(value)
+    sources.append(item)
+    pricing = {}
+    for source in sources:
+        input_price = _catalog_price_value(source, ("input", "input_usd_per_million", "input_price", "prompt", "prompt_usd_per_million", "prompt_price"))
+        output_price = _catalog_price_value(source, ("output", "output_usd_per_million", "output_price", "completion", "completion_usd_per_million", "completion_price"))
+        image_price = _catalog_price_value(source, ("image", "image_usd", "image_price", "price_per_image"))
+        if input_price:
+            pricing["input"] = input_price
+        if output_price:
+            pricing["output"] = output_price
+        if image_price:
+            pricing["image"] = image_price
+        if pricing:
+            break
+    return pricing
+
+
 BRAND_PROFILES = [
     ("anthropic", {"brand": "Anthropic", "origin": "United States", "logo": "https://cdn.simpleicons.org/anthropic/000000", "family": "Claude"}),
     ("openai", {"brand": "OpenAI", "origin": "United States", "logo": "https://cdn.simpleicons.org/openai/000000", "family": "GPT"}),
@@ -484,9 +521,14 @@ def serverless_catalog_payload(force=False):
 
 def serverless_registry_entry(item, existing=None):
     model_id = str(item.get("id") or "").strip()
-    pricing = dict(SERVERLESS_MODEL_PRICING.get(model_id) or {})
+    pricing = catalog_pricing_from_item(item)
+    pricing_source = "digitalocean_catalog" if pricing else ""
+    if not pricing:
+        pricing = dict(SERVERLESS_MODEL_PRICING.get(model_id) or {})
+        pricing_source = "digitalocean_pricing_docs_2026_07_01" if pricing else ""
     if not pricing and isinstance((existing or {}).get("pricing"), dict):
         pricing = dict(existing["pricing"])
+        pricing_source = (existing or {}).get("pricing_source") or "existing_registry"
     model_type = serverless_model_type(model_id)
     auto_enabled = model_enabled_by_default(pricing)
     if existing:
@@ -506,7 +548,7 @@ def serverless_registry_entry(item, existing=None):
         "owned_by": item.get("owned_by") or (existing or {}).get("owned_by") or "",
         "created": item.get("created") or (existing or {}).get("created") or 0,
         "max_output_tokens": item.get("max_output_tokens") or (existing or {}).get("max_output_tokens") or 0,
-        "pricing_source": "digitalocean_pricing_docs_2026_07_01" if pricing else "unknown",
+        "pricing_source": pricing_source or "unknown",
         "auto_managed": not bool(existing),
         "access_status": (existing or {}).get("access_status") or "not_checked",
         "last_error": (existing or {}).get("last_error") or "",

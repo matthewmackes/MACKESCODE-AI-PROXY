@@ -57,6 +57,16 @@ class ModelRegistryTests(unittest.TestCase):
             self.assertEqual(studio.default_text_model(), "registry-text-a")
             self.assertEqual(studio.default_image_model(), "registry-image-a")
 
+    def test_catalog_pricing_from_item_detects_common_pricing_shapes(self):
+        self.assertEqual(
+            studio.catalog_pricing_from_item({"pricing": {"input_usd_per_million": "0.12", "output_usd_per_million": 0.34}}),
+            {"input": 0.12, "output": 0.34},
+        )
+        self.assertEqual(
+            studio.catalog_pricing_from_item({"rates": {"price_per_image": "0.08"}}),
+            {"image": 0.08},
+        )
+
     def test_registry_round_trip_filters_route_enabled_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
@@ -229,6 +239,21 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertIn("Training origin: United States", options["openai-cheap-new"]["label"])
         self.assertIn("$0.4 output / 1M tokens", options["openai-cheap-new"]["cost_label"])
         self.assertNotIn("openai-cheap-new", active_ids)
+
+    def test_serverless_registry_entry_prefers_catalog_pricing_then_existing_registry(self):
+        catalog_priced = studio.serverless_registry_entry({
+            "id": "openai-gpt-5-nano",
+            "pricing": {"input": 0.01, "output": 0.02},
+        })
+        self.assertEqual(catalog_priced["pricing"], {"input": 0.01, "output": 0.02})
+        self.assertEqual(catalog_priced["pricing_source"], "digitalocean_catalog")
+
+        existing_priced = studio.serverless_registry_entry(
+            {"id": "unknown-catalog-model"},
+            existing={"pricing": {"input": 0.33, "output": 0.44}, "pricing_source": "operator"},
+        )
+        self.assertEqual(existing_priced["pricing"], {"input": 0.33, "output": 0.44})
+        self.assertEqual(existing_priced["pricing_source"], "operator")
 
     def test_fetch_serverless_catalog_uses_digitalocean_models_api(self):
         captured = {}
