@@ -19,6 +19,7 @@ DEFAULT_FILES = [
     "src/console/handlers/auth_handler.py",
     "src/console/handlers/static_handler.py",
     "src/console/handlers/template_handler.py",
+    "src/console/handlers/websocket_handler.py",
     "src/console/services/agentboard.py",
     "src/console/services/chat.py",
     "src/console/services/dedicated.py",

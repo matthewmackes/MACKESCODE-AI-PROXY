@@ -18,6 +18,7 @@ python3 -m py_compile \
   src/console/handlers/auth_handler.py \
   src/console/handlers/static_handler.py \
   src/console/handlers/template_handler.py \
+  src/console/handlers/websocket_handler.py \
   src/console/services/agentboard.py \
   src/console/services/chat.py \
   src/console/services/dedicated.py \
@@ -59,6 +60,7 @@ python3 -m py_compile \
   tests/test_tmux_control_service.py \
   tests/test_usage_service.py \
   tests/test_wallpaper_service.py \
+  tests/test_websocket_handler.py \
   tests/test_websocket_service.py \
   scripts/coverage-report.py \
   scripts/browser-smoke.py

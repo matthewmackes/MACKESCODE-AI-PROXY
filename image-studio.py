@@ -5,11 +5,9 @@ import datetime
 import fcntl
 import json
 import os
-import pty
 import re
 import secrets
 import select
-import signal
 import socket
 import subprocess
 import sys
@@ -25,6 +23,7 @@ from urllib.request import urlopen
 from src.console.handlers.auth_handler import AuthHandler
 from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
+from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
 from src.console.services.chat import ChatRoutingService
 from src.console.services.health import ConsoleHealthService
@@ -1276,6 +1275,18 @@ def auth_handler():
     return AuthHandler(auth_enabled=auth_enabled, auth_token=auth_token)
 
 
+def tmux_websocket_handler(authorized):
+    return TmuxWebSocketHandler(
+        authorized=authorized,
+        tmux_target=tmux_target,
+        tmux_cmd=tmux_cmd,
+        websocket_accept_key=websocket_accept_key,
+        websocket_send=websocket_send,
+        websocket_read_frame=websocket_read_frame,
+        set_pty_size=set_pty_size,
+    )
+
+
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -1328,86 +1339,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.send_json(401, {"error": "console auth token required"})
 
     def do_websocket_tmux(self):
-        if not self.authorized():
-            self.send_response(401)
-            self.end_headers()
-            return
-        parsed = urlparse(self.path)
-        query = parse_qs(parsed.query)
-        name = tmux_target((query.get("name") or ["matts-claude"])[0])
-        cols = int((query.get("cols") or ["120"])[0] or 120)
-        rows = int((query.get("rows") or ["40"])[0] or 40)
-        if tmux_cmd(["has-session", "-t", name], check=False)[0] != 0:
-            self.send_response(404)
-            self.end_headers()
-            return
-        key = self.headers.get("sec-websocket-key", "")
-        if not key:
-            self.send_response(400)
-            self.end_headers()
-            return
-        self.send_response(101, "Switching Protocols")
-        self.send_header("Upgrade", "websocket")
-        self.send_header("Connection", "Upgrade")
-        self.send_header("Sec-WebSocket-Accept", websocket_accept_key(key))
-        self.end_headers()
-        pid, fd = pty.fork()
-        if pid == 0:
-            os.environ.setdefault("TERM", "xterm-256color")
-            os.environ.setdefault("COLORTERM", "truecolor")
-            os.execvp("tmux", ["tmux", "attach-session", "-t", name])
-        set_pty_size(fd, rows, cols)
-        conn = self.connection
-        conn.setblocking(True)
-        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-        try:
-            while True:
-                ready, _, _ = select.select([conn, fd], [], [], 0.05)
-                if fd in ready:
-                    try:
-                        data = os.read(fd, 4096)
-                    except OSError as exc:
-                        print('tmux websocket pty read failed for %s: %r' % (name, exc), flush=True)
-                        break
-                    if not data:
-                        print('tmux websocket pty eof for %s' % name, flush=True)
-                        break
-                    try:
-                        websocket_send(conn, data.decode("utf-8", errors="replace"))
-                    except OSError as exc:
-                        print('tmux websocket send failed for %s: %r' % (name, exc), flush=True)
-                        break
-                if conn in ready:
-                    try:
-                        frame = websocket_read_frame(conn)
-                    except OSError as exc:
-                        print('tmux websocket client read failed for %s: %r' % (name, exc), flush=True)
-                        break
-                    if frame is None:
-                        print('tmux websocket client closed for %s' % name, flush=True)
-                        break
-                    if isinstance(frame, dict):
-                        continue
-                    if frame.startswith("{"):
-                        try:
-                            message = json.loads(frame)
-                            resize = message.get("resize")
-                            if resize:
-                                set_pty_size(fd, int(resize.get("rows") or rows), int(resize.get("cols") or cols))
-                                continue
-                        except ValueError:
-                            pass
-                    os.write(fd, frame.encode("utf-8", errors="replace"))
-        finally:
-            try:
-                os.kill(pid, signal.SIGHUP)
-            except OSError:
-                pass
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+        return tmux_websocket_handler(self.authorized).handle(self)
 
     def do_GET(self):
         REQUEST_COUNTS["GET"] += 1
