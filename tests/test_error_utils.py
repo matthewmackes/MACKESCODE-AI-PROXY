@@ -1,6 +1,6 @@
 import unittest
 
-from src.console.utils.errors import error_category, error_payload, json_error
+from src.console.utils.errors import error_category, error_payload, json_error, normalize_error_payload
 
 
 class ErrorUtilsTests(unittest.TestCase):
@@ -27,6 +27,16 @@ class ErrorUtilsTests(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertEqual(payload["error"], "not here")
         self.assertEqual(payload["code"], "missing")
+
+    def test_normalize_error_payload_preserves_context(self):
+        payload = normalize_error_payload({"error": {"message": "provider denied"}, "request_id": "req"}, 403)
+
+        self.assertEqual(payload["error"], "provider denied")
+        self.assertEqual(payload["message"], "provider denied")
+        self.assertEqual(payload["category"], "permission")
+        self.assertEqual(payload["status"], 403)
+        self.assertEqual(payload["request_id"], "req")
+        self.assertEqual(payload["details"]["upstream_error"], {"message": "provider denied"})
 
 
 if __name__ == "__main__":

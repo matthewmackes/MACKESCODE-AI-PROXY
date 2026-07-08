@@ -164,6 +164,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Product/platform review reaffirmed standardized errors as a prerequisite for trace-first observability, evals, release diagnostics, and user-friendly lifecycle feedback.
 - 2026-07-08: Started handler-layer standardization with a reusable console error payload helper that keeps the legacy `error` string while adding machine-readable code, category, status, and details fields for richer UI diagnostics.
 - 2026-07-08: Applied the standard error helper to handler-originated API validation/not-found/auth/wallpaper failures and added unit coverage. Release check passed with 143 tests; local browser smoke was skipped because Playwright is not installed.
+- 2026-07-08: Added API-boundary error normalization for service-originated failures across chat, image generation, Dedicated lifecycle/discovery, model registry save, tmux, and terminal endpoints. Release check passed with 145 tests; local browser smoke was skipped because Playwright is not installed.
 
 **Description:** Standardize error responses across all endpoints and add comprehensive error logging.
 

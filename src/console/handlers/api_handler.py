@@ -1,5 +1,5 @@
 """JSON API route dispatcher for the console HTTP handler."""
-from src.console.utils.errors import error_payload
+from src.console.utils.errors import error_payload, normalize_error_payload
 
 
 class ConsoleApiHandler:
@@ -13,6 +13,12 @@ class ConsoleApiHandler:
 
     def error(self, status, message, code=None, category=None, details=None):
         return True, int(status), error_payload(message, status, code=code, category=category, details=details)
+
+    def result(self, status, payload, code=None, category=None, default_message="request failed"):
+        status = int(status)
+        if status >= 400:
+            payload = normalize_error_payload(payload, status, code=code, category=category, default_message=default_message)
+        return True, status, payload
 
     def get(self, path, query=None):
         query = query or {}
@@ -55,10 +61,10 @@ class ConsoleApiHandler:
             return True, 200, {"events": self.call("dedicated_events")}
         if path == "/api/dedicated/sizes":
             status, payload = self.call("dedicated_discovery", "/v2/dedicated-inferences/sizes")
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference size discovery failed")
         if path == "/api/dedicated/gpu-model-config":
             status, payload = self.call("dedicated_discovery", "/v2/dedicated-inferences/gpu-model-config")
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference GPU/model discovery failed")
         if path == "/api/status":
             proxy_sync = self.call("proxy_sync_payload", force=False)
             models_status, models = self.call("proxy_get", "/v1/models")
@@ -83,10 +89,10 @@ class ConsoleApiHandler:
     def post(self, path, data):
         if path == "/api/generate":
             status, payload = self.call("generate_images", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="image generation failed")
         if path == "/api/chat":
             status, payload = self.call("chat_completion", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="chat request failed")
         if path == "/api/chat/save":
             return True, 200, self.call("save_chat", data)
         if path == "/api/chat/delete":
@@ -95,7 +101,7 @@ class ConsoleApiHandler:
             return True, 200, {"deleted": self.call("delete_history_item", data.get("id"))}
         if path == "/api/models":
             status, payload = self.call("save_models_payload", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="model registry update failed")
         if path == "/api/proxy/sync":
             return True, 200, self.call("proxy_sync_payload", force=True)
         if path == "/api/model-access-audit":
@@ -113,16 +119,16 @@ class ConsoleApiHandler:
             return True, 200, payload
         if path == "/api/dedicated/build":
             status, payload = self.call("dedicated_build", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference build failed")
         if path == "/api/dedicated/teardown":
             status, payload = self.call("dedicated_teardown", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference teardown failed")
         if path == "/api/dedicated/resume":
             status, payload = self.call("dedicated_build", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference resume failed")
         if path == "/api/dedicated/policy":
             status, payload = self.call("dedicated_policy", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="Dedicated Inference policy update failed")
         if path == "/api/budget":
             return True, 200, {"budgets": self.call("save_budget", data)}
         if path == "/api/reporting":
@@ -138,32 +144,32 @@ class ConsoleApiHandler:
             return True, 200, {"results": results}
         if path == "/api/tmux/start":
             status, payload = self.call("tmux_start", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux session start failed")
         if path == "/api/tmux/capture":
             status, payload = self.call("tmux_capture", data.get("name"))
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux capture failed")
         if path == "/api/tmux/send":
             status, payload = self.call("tmux_send_text", data.get("name"), data.get("text") or "", bool(data.get("enter")))
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux send failed")
         if path == "/api/tmux/key":
             status, payload = self.call("tmux_send_key", data.get("name"), data.get("key"))
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux key send failed")
         if path == "/api/tmux/stop":
             status, payload = self.call("tmux_stop", data.get("name"))
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux stop failed")
         if path == "/api/tmux/rename":
             status, payload = self.call("tmux_rename_session", data.get("old_name"), data.get("new_name"), data.get("display_name"))
-            return True, status, payload
+            return self.result(status, payload, default_message="tmux rename failed")
         if path == "/api/terminal/start":
             status, payload = self.call("terminal_start", data)
-            return True, status, payload
+            return self.result(status, payload, default_message="terminal start failed")
         if path == "/api/terminal/read":
             status, payload = self.call("terminal_read", data.get("id"))
-            return True, status, payload
+            return self.result(status, payload, default_message="terminal read failed")
         if path == "/api/terminal/write":
             status, payload = self.call("terminal_write", data.get("id"), data.get("text") or "")
-            return True, status, payload
+            return self.result(status, payload, default_message="terminal write failed")
         if path == "/api/terminal/stop":
             status, payload = self.call("terminal_stop", data.get("id"))
-            return True, status, payload
+            return self.result(status, payload, default_message="terminal stop failed")
         return False, 404, {}

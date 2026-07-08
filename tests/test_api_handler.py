@@ -127,6 +127,20 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(handler.post("/api/terminal/read", {"id": "term"}), (True, 217, {"id": "term"}))
         self.assertEqual(handler.post("/not-found", {}), (False, 404, {}))
 
+    def test_post_service_errors_are_normalized_at_api_boundary(self):
+        handler, _ = self.handler()
+        handler.deps["chat_completion"] = lambda data: (400, {"error": "message is required", "trace_id": "abc"})
+
+        handled, status, payload = handler.post("/api/chat", {"messages": []})
+
+        self.assertTrue(handled)
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "message is required")
+        self.assertEqual(payload["message"], "message is required")
+        self.assertEqual(payload["category"], "client")
+        self.assertEqual(payload["status"], 400)
+        self.assertEqual(payload["trace_id"], "abc")
+
 
 if __name__ == "__main__":
     unittest.main()
