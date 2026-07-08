@@ -783,6 +783,10 @@ def dedicated_policy(data):
     return dedicated_service().policy(data)
 
 
+def dedicated_keep_alive(data):
+    return dedicated_service().keep_alive(data)
+
+
 def dedicated_discovery(path):
     return dedicated_service().discovery(path)
 
@@ -1332,6 +1336,7 @@ def api_handler():
         dedicated_build=dedicated_build,
         dedicated_teardown=dedicated_teardown,
         dedicated_policy=dedicated_policy,
+        dedicated_keep_alive=dedicated_keep_alive,
         save_budget=save_budget,
         digitalocean_report=digitalocean_report,
         text_models=lambda: TEXT_MODELS,

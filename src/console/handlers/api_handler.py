@@ -129,6 +129,9 @@ class ConsoleApiHandler:
         if path == "/api/dedicated/policy":
             status, payload = self.call("dedicated_policy", data)
             return self.result(status, payload, default_message="Dedicated Inference policy update failed")
+        if path == "/api/dedicated/keep-alive":
+            status, payload = self.call("dedicated_keep_alive", data)
+            return self.result(status, payload, default_message="Dedicated Inference keep-alive failed")
         if path == "/api/budget":
             return True, 200, {"budgets": self.call("save_budget", data)}
         if path == "/api/reporting":

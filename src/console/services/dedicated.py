@@ -241,18 +241,23 @@ class DedicatedInferenceService:
         keep_alive_until = float(cfg.get("keep_alive_until") or 0)
         keep_alive_started_at = float(cfg.get("keep_alive_started_at") or 0)
         last_work_at = float(cfg.get("last_work_at") or 0)
+        extension_active_unused = bool(keep_alive_until and now < keep_alive_until and last_work_at <= keep_alive_started_at)
         extension_expired_unused = bool(keep_alive_until and now >= keep_alive_until and last_work_at <= keep_alive_started_at)
         warning = bool(cfg.get("state") == "active" and warning_seconds and idle >= warning_seconds)
-        teardown_due = bool(cfg.get("state") == "active" and ((teardown_seconds and idle >= teardown_seconds) or extension_expired_unused))
+        teardown_due = bool(cfg.get("state") == "active" and (((teardown_seconds and idle >= teardown_seconds) and not extension_active_unused) or extension_expired_unused))
+        countdown = max(0, teardown_seconds - idle)
+        if extension_active_unused:
+            countdown = max(0, int(keep_alive_until - now))
         return {
             "idle_seconds": idle,
             "warning_seconds": warning_seconds,
             "teardown_seconds": teardown_seconds,
             "warning": warning,
             "teardown_due": teardown_due,
-            "teardown_countdown_seconds": max(0, teardown_seconds - idle) if cfg.get("state") == "active" else 0,
+            "teardown_countdown_seconds": countdown if cfg.get("state") == "active" else 0,
             "keep_alive_until": keep_alive_until,
             "keep_alive_started_at": keep_alive_started_at,
+            "extension_active_unused": extension_active_unused,
             "extension_expired_unused": extension_expired_unused,
         }
 
@@ -284,6 +289,31 @@ class DedicatedInferenceService:
                 })
                 return {"action": "warning", "reason": "idle_warning", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
         return {"action": "none", "reason": "within_policy", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+
+    def keep_alive(self, data):
+        data = data or {}
+        cfg = self.load_config()
+        allowed = {300, 600, 1800, 3600}
+        try:
+            seconds = int(data.get("seconds") or data.get("duration_seconds") or 0)
+        except (TypeError, ValueError):
+            seconds = 0
+        if seconds not in allowed:
+            return HTTPStatus.BAD_REQUEST, {"error": "Keep-alive duration must be one of 300, 600, 1800, or 3600 seconds."}
+        if cfg.get("state") != "active":
+            return HTTPStatus.CONFLICT, {"error": "Keep-alive is only available while Dedicated Inference is active.", "dedicated": self.public_payload(cfg)}
+        now = self.clock()
+        cfg["keep_alive_started_at"] = now
+        cfg["keep_alive_until"] = now + seconds
+        cfg["idle_warning_started_at"] = 0
+        self.save_config(cfg)
+        self.append_event("keep_alive", "Dedicated idle teardown extended", "info", {
+            "seconds": seconds,
+            "until": cfg["keep_alive_until"],
+            "operator": data.get("operator") or data.get("session_id") or "console-token-user",
+            "idle_policy": self.idle_policy_state(cfg, now),
+        })
+        return HTTPStatus.OK, self.status_payload(poll=False)
 
     def public_payload(self, cfg):
         now = self.clock()

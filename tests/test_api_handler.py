@@ -49,6 +49,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "dedicated_build": lambda data: (204, {"built": data}),
             "dedicated_teardown": lambda data: (205, {"torn_down": data}),
             "dedicated_policy": lambda data: (206, {"policy": data}),
+            "dedicated_keep_alive": lambda data: (207, {"keep_alive": data}),
             "save_budget": lambda data: {"daily": data.get("daily")},
             "digitalocean_report": lambda data: {"report": data},
             "text_models": lambda: ["model-a", "model-b"],
@@ -117,6 +118,11 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(payload["dedicated"], {"id": "cfg"})
         self.assertEqual(payload["events"], [{"state": "ready"}])
         self.assertTrue(any(call[0] == "append_dedicated_event" for call in calls))
+
+        handled, status, payload = handler.post("/api/dedicated/keep-alive", {"seconds": 600})
+        self.assertTrue(handled)
+        self.assertEqual(status, 207)
+        self.assertEqual(payload["keep_alive"], {"seconds": 600})
 
         handled, status, payload = handler.post("/api/test-models", {})
         self.assertTrue(handled)

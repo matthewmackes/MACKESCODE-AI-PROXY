@@ -287,6 +287,70 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
         self.assertTrue(any(event["state"] == "idle_teardown" for event in events))
 
+    def test_keep_alive_extends_idle_countdown_for_allowed_duration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1401)
+            service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                run_started_at=1000,
+                last_work_at=1000,
+                idle_warning_seconds=300,
+                idle_teardown_seconds=600,
+            ))
+
+            status, payload = service.keep_alive({"seconds": 600, "operator": "console-token:abc"})
+            cfg = service.load_config()
+            policy = payload["dedicated"]["idle_policy"]
+            event = next(item for item in service.events() if item["state"] == "keep_alive")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(cfg["keep_alive_started_at"], 1401)
+        self.assertEqual(cfg["keep_alive_until"], 2001)
+        self.assertTrue(policy["extension_active_unused"])
+        self.assertEqual(policy["teardown_countdown_seconds"], 600)
+        self.assertEqual(event["details"]["operator"], "console-token:abc")
+
+    def test_keep_alive_rejects_invalid_duration_and_inactive_server(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1401)
+
+            bad_status, bad_payload = service.keep_alive({"seconds": 120})
+            inactive_status, inactive_payload = service.keep_alive({"seconds": 300})
+
+        self.assertEqual(bad_status, HTTPStatus.BAD_REQUEST)
+        self.assertIn("300, 600, 1800, or 3600", bad_payload["error"])
+        self.assertEqual(inactive_status, HTTPStatus.CONFLICT)
+        self.assertIn("only available", inactive_payload["error"])
+
+    def test_unused_keep_alive_extension_tears_down_when_it_expires(self):
+        calls = []
+
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            calls.append((path, method))
+            return 202, {"ok": True}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=2002, do_request=do_request)
+            service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                run_started_at=1000,
+                last_work_at=1000,
+                idle_warning_seconds=300,
+                idle_teardown_seconds=600,
+                keep_alive_started_at=1401,
+                keep_alive_until=2001,
+            ))
+
+            result = service.enforce_policy()
+
+        self.assertEqual(result["action"], "teardown")
+        self.assertEqual(result["reason"], "keep_alive_extension_expired")
+        self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
+
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             service, _ = self.service(tmp, now=2000)
