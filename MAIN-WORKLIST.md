@@ -254,7 +254,7 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-006
 **Title:** Add health check endpoints
-**Status:** 📝 `NEEDS_REVIEW`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
@@ -264,6 +264,7 @@ The interface refactoring work consolidates previously separate components into 
 **Progress Notes:**
 - 2026-07-07: Added `/health`, `/ready`, `/version`, and `/metrics` endpoints to `image-studio.py`.
 - 2026-07-07: Added console health helpers, basic request counters, Prometheus text metrics, and README operations documentation.
+- 2026-07-08: Re-verified `/health`, `/ready`, `/version`, and `/metrics` on local runtime; all returned `200 OK`, readiness reported proxy listening, and metrics emitted Prometheus counters/gauges.
 
 **Description:** Add early health monitoring endpoints for operational visibility. Basic health and version endpoints should be implemented before the larger refactor chain so smoke tests and deployment checks are available while refactoring proceeds.
 
