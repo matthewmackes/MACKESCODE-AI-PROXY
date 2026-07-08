@@ -37,6 +37,13 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn('id="models-save"', html)
         self.assertIn('id="models-add"', html)
         self.assertIn('id="models-import-serverless"', html)
+        self.assertIn('id="global-dedicated-meter"', html)
+        self.assertIn("function dedicatedPolicyAlerts", html)
+        self.assertIn("function updateDedicatedTopMeter", html)
+        self.assertIn("function renderGlobalAlert", html)
+        self.assertIn("budget_state", html)
+        self.assertIn("idle_policy", html)
+        self.assertIn("unhealthy_policy", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

@@ -542,6 +542,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added `/api/dedicated/keep-alive` with allowed extensions of 5, 10, 30, and 60 minutes; active unused extensions suppress idle teardown until expiry, then immediately trigger teardown if no successful Dedicated work occurred. `scripts/release-check.sh` passed with 168 tests.
 - 2026-07-08: Added unhealthy-server governance: repeated failed status/model checks start a teardown countdown, recovery clears the counter, new Dedicated requests fail fast with fallback guidance while unhealthy, and background enforcement tears down after the countdown expires. `scripts/release-check.sh` passed with 171 tests.
 - 2026-07-08: Added lifecycle diagnostics retention: the Dedicated policy worker archives event records older than 30 days into gzip JSONL files in the app cache while retaining recent diagnostics. `scripts/release-check.sh` passed with 172 tests.
+- 2026-07-08: Added a global top-bar Dedicated daily budget pill backed by `budget_state`, cross-tab lifecycle alerts for idle/unhealthy/budget countdowns, and richer Console overview status showing Dedicated uptime, spend, daily budget usage, DigitalOcean account/prepay/platform health. `scripts/release-check.sh` passed with 172 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -575,13 +576,13 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Live DO account/token/scopes verified against a real Dedicated build
 - [x] Dedicated endpoint request shape verified against the deployed model runtime
 - [x] Idle auto-teardown background enforcement added outside page-driven refresh
-- [ ] Global daily Dedicated budget meter added to the top interface
+- [x] Global daily Dedicated budget meter added to the top interface
 - [x] Daily budget critical state blocks new Dedicated builds unless overridden
 - [x] Budget override decisions are logged with full build context
-- [ ] Idle warning and teardown countdown alerts appear across Code, Create, and Console
+- [x] Idle warning and teardown countdown alerts appear across Code, Create, and Console
 - [x] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
 - [x] Unhealthy-server countdown tears down after repeated failed health/model checks
-- [ ] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
+- [x] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
 - [x] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
 - [ ] Disabled Dedicated models expose guarded "Build again" in selectors
 - [x] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
