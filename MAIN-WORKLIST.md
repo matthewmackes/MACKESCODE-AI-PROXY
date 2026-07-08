@@ -865,6 +865,43 @@ The interface refactoring work consolidates previously separate components into 
 
 ---
 
+### Task ID: INT-025
+**Title:** Reconcile requirements survey into executable backlog
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 2 hours
+
+**Progress Notes:**
+- 2026-07-08: Added at user request after the 100-question worklist clarification survey. The survey answers should be converted into concrete acceptance criteria across the existing interface, model-routing, observability, cost, and release tasks instead of remaining only in chat history.
+
+**Description:** Convert the completed survey decisions into durable backlog updates. The project should not lose product decisions when chat context compacts or when implementation moves across tasks.
+
+**Key Features:**
+1. Extract survey decisions into a short requirements ledger grouped by Create, Code, Console, model management, observability, cost controls, and release readiness.
+2. Map each decision to an existing task where possible instead of creating duplicate implementation tracks.
+3. Add missing acceptance criteria to INT-014, INT-015, INT-016, INT-020, INT-021, INT-022, INT-024, and related tasks.
+4. Flag any survey answer that cannot be confidently reconstructed from local project context for quick user confirmation.
+5. Keep the worklist focused on executable outcomes, not raw question-and-answer transcripts.
+
+**Files to Create/Modify:**
+- `MAIN-WORKLIST.md`
+- Optional `docs/requirements-ledger.md`
+- Related task specs when acceptance criteria need more detail
+
+**Completion Criteria:**
+- [ ] Survey decisions are summarized in a durable project document
+- [ ] Existing tasks have updated acceptance criteria reflecting the survey decisions
+- [ ] Duplicate or conflicting backlog items are consolidated
+- [ ] Unknown or context-lost decisions are listed for confirmation
+- [ ] The implementation priority order is updated after reconciliation
+
+**Dependencies:** Existing worklist tasks and available chat/project context
+**Blocks:** Fully draining the worklist without losing clarified requirements
+
+---
+
 ## P2 Tasks - Enhancements
 
 ### Task ID: INT-007
