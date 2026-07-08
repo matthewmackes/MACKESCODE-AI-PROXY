@@ -29,6 +29,7 @@ python3 -m py_compile \
   src/console/services/session.py \
   src/console/services/usage.py \
   src/console/services/wallpaper.py \
+  src/console/services/websocket.py \
   tests/test_auth_handler.py \
   tests/test_agentboard_service.py \
   tests/test_chat_service.py \
@@ -46,6 +47,7 @@ python3 -m py_compile \
   tests/test_template_handler.py \
   tests/test_usage_service.py \
   tests/test_wallpaper_service.py \
+  tests/test_websocket_service.py \
   scripts/coverage-report.py \
   scripts/browser-smoke.py
 

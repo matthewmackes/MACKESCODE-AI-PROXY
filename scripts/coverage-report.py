@@ -30,6 +30,7 @@ DEFAULT_FILES = [
     "src/console/services/session.py",
     "src/console/services/usage.py",
     "src/console/services/wallpaper.py",
+    "src/console/services/websocket.py",
 ]
 
 

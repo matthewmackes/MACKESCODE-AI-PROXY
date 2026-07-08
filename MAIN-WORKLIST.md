@@ -107,6 +107,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted image prompt construction, request validation, proxy image-generation payload shaping, and generated-image history record creation into `src.console.services.ImageGenerationService`.
 - 2026-07-08: Extracted Serverless chat validation, stale-registry blocking/warning routing metadata, Dedicated chat dispatch, proxy chat payload shaping, and proxy GET helper behavior into `src.console.services.ChatRoutingService`.
 - 2026-07-08: Extracted AgentBoard tmux target sanitization, pane capture aggregation, terminal status inference, local usage/log counts, and leaderboard payload composition into `src.console.services.AgentBoardService`.
+- 2026-07-08: Extracted WebSocket accept-key generation, frame parsing/sending, exact reads, ping/close handling, and PTY resize ioctl behavior into `src.console.services.WebSocketProtocolService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Pure Python unified web console for Matts Value Set."""
 import argparse
-import base64
 import datetime
 import fcntl
 import hashlib
@@ -14,7 +13,6 @@ import select
 import shlex
 import signal
 import socket
-import struct
 import subprocess
 import sys
 import time
@@ -41,6 +39,7 @@ from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
+from src.console.services.websocket import WebSocketProtocolService
 
 
 EMBEDDED_ACCESS_KEY = ""
@@ -1785,87 +1784,32 @@ def agentboard_payload():
     return agentboard_service().payload()
 
 
+def websocket_protocol_service():
+    return WebSocketProtocolService(
+        select_func=select.select,
+        ioctl_func=fcntl.ioctl,
+        clock=time.time,
+    )
+
+
 def websocket_accept_key(key):
-    raw = (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")
-    return base64.b64encode(hashlib.sha1(raw).digest()).decode("ascii")
+    return websocket_protocol_service().accept_key(key)
 
 
 def websocket_recv_exact(conn, size, timeout=2.0):
-    chunks = []
-    remaining = size
-    deadline = time.time() + timeout
-    while remaining > 0:
-        wait = deadline - time.time()
-        if wait <= 0:
-            return None
-        ready, _, _ = select.select([conn], [], [], wait)
-        if not ready:
-            return None
-        try:
-            chunk = conn.recv(remaining)
-        except BlockingIOError:
-            continue
-        if not chunk:
-            return None
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
+    return websocket_protocol_service().recv_exact(conn, size, timeout)
 
 
 def websocket_read_frame(conn):
-    header = websocket_recv_exact(conn, 2)
-    if not header:
-        return None
-    first, second = header
-    opcode = first & 0x0F
-    masked = second & 0x80
-    length = second & 0x7F
-    if length == 126:
-        data = websocket_recv_exact(conn, 2)
-        if not data:
-            return None
-        length = struct.unpack("!H", data)[0]
-    elif length == 127:
-        data = websocket_recv_exact(conn, 8)
-        if not data:
-            return None
-        length = struct.unpack("!Q", data)[0]
-    mask = websocket_recv_exact(conn, 4) if masked else b""
-    if masked and mask is None:
-        return None
-    payload = websocket_recv_exact(conn, length) if length else b""
-    if payload is None:
-        return None
-    if masked:
-        payload = bytes(byte ^ mask[i % 4] for i, byte in enumerate(payload))
-    if opcode == 8:
-        return None
-    if opcode == 9:
-        return {"ping": payload}
-    return payload.decode("utf-8", errors="replace")
+    return websocket_protocol_service().read_frame(conn)
 
 
 def websocket_send(conn, text):
-    payload = text.encode("utf-8", errors="replace")
-    header = bytearray([0x81])
-    length = len(payload)
-    if length < 126:
-        header.append(length)
-    elif length < 65536:
-        header.append(126)
-        header.extend(struct.pack("!H", length))
-    else:
-        header.append(127)
-        header.extend(struct.pack("!Q", length))
-    conn.sendall(bytes(header) + payload)
+    return websocket_protocol_service().send(conn, text)
 
 
 def set_pty_size(fd, rows, cols):
-    try:
-        import termios
-        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", int(rows), int(cols), 0, 0))
-    except Exception:
-        pass
+    return websocket_protocol_service().set_pty_size(fd, rows, cols)
 
 
 def template_dir():
