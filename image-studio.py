@@ -43,6 +43,7 @@ from src.console.services.tmux_control import TmuxControlService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
 from src.console.services.websocket import WebSocketProtocolService
+from src.console.utils.error_logging import configure_console_logging, log_error_response
 from src.console.utils.errors import error_payload
 
 
@@ -1352,6 +1353,8 @@ class StudioHandler(BaseHTTPRequestHandler):
         print("%s - %s" % (self.log_date_time_string(), fmt % args), flush=True)
 
     def send_json(self, status, payload):
+        if int(status) >= 400:
+            log_error_response(getattr(self, "command", ""), urlparse(self.path).path, status, payload)
         data = json.dumps(payload).encode("utf-8")
         self.send_response(int(status))
         self.send_header("content-type", "application/json")
@@ -1478,6 +1481,7 @@ class StudioHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    configure_console_logging()
     parser = argparse.ArgumentParser(description="Run the Matts Value Set unified web console.")
     parser.add_argument("--host", default=os.environ.get("MATTS_STUDIO_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("MATTS_STUDIO_PORT", "18181")))
