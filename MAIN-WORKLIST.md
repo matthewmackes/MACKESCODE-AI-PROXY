@@ -641,15 +641,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-018
 **Title:** Separate release config, runtime state, and secrets
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 2 hours
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Current tracked config and local runtime state need stricter separation before release.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; config/state separation must preserve model-registry source-of-truth semantics while moving live cloud/runtime state out of release config.
+- 2026-07-08: Started release-state cleanup by moving Dedicated Inference live state to the console runtime app cache, adding a publishable Dedicated example config, ignoring the legacy tracked state path, and adding a legacy-state migration helper with unit coverage.
 
 **Description:** Establish clean boundaries between shipped defaults, operator configuration, runtime state, cache files, generated secrets, and live cloud resource metadata. The repository should contain examples and schemas, not local mutable state from a running deployment.
 
@@ -987,6 +988,7 @@ The interface refactoring work consolidates previously separate components into 
 **Progress Notes:**
 - 2026-07-08: Added at user request after the follow-up one-at-a-time worklist survey answers. These decisions should be folded into the requirements ledger and owning tasks before further UI polish, model-routing, or release-cleanup work depends on them.
 - 2026-07-08: User requested "add to worklist" after the latest answer sequence. Preserve this as an active reconciliation task: only promote follow-up answers into implementation criteria when the underlying question and product decision can be reconstructed from project context; otherwise list them as open confirmations.
+- 2026-07-08: User reaffirmed "add to worklist" after the latest answer-only sequence. Keep this queued under `INT-026` rather than duplicating raw answer choices across implementation tasks.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 

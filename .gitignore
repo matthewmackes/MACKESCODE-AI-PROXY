@@ -12,3 +12,4 @@ build/
 *.backup.local
 tmux-sessions.json
 dedicated-events.jsonl
+config/dedicated-inference.json

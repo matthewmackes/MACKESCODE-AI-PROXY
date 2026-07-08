@@ -31,10 +31,12 @@ class DedicatedInferenceService:
         active_text_models,
         default_text_model,
         clock=None,
+        legacy_config_file=None,
     ):
         self.default_config = dict(default_config)
         self.steps = list(steps)
         self.config_file = config_file
+        self.legacy_config_file = legacy_config_file
         self.events_file = events_file
         self.tail_jsonl = tail_jsonl
         self.digitalocean_token = digitalocean_token
@@ -49,16 +51,28 @@ class DedicatedInferenceService:
         self.default_text_model = default_text_model
         self.clock = clock or time.time
 
-    def load_config(self):
-        cfg = dict(self.default_config)
-        path = self.config_file()
+    def read_config_file(self, path):
         if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    cfg.update(data)
+                    return data
             except (OSError, ValueError):
                 pass
+        return {}
+
+    def load_config(self):
+        cfg = dict(self.default_config)
+        path = self.config_file()
+        data = self.read_config_file(path)
+        if not data and self.legacy_config_file:
+            legacy_path = self.legacy_config_file()
+            if legacy_path != path:
+                data = self.read_config_file(legacy_path)
+                if data:
+                    self.save_config(data)
+        if data:
+            cfg.update(data)
         return cfg
 
     def save_config(self, cfg):

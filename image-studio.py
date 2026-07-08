@@ -136,7 +136,11 @@ def serverless_catalog_cache_file():
 
 
 def dedicated_config_file():
-    return configured_path("dedicated_config_file", "config/dedicated-inference.json", "MATTS_DEDICATED_CONFIG_FILE", PROJECT_DIR)
+    return configured_path("dedicated_config_file", "dedicated-inference.json", "MATTS_DEDICATED_CONFIG_FILE", app_dir())
+
+
+def legacy_dedicated_config_file():
+    return PROJECT_DIR / "config" / "dedicated-inference.json"
 
 
 def dedicated_events_file():
@@ -592,6 +596,7 @@ def dedicated_service():
         default_config=DEFAULT_DEDICATED_CONFIG,
         steps=DEDICATED_STEPS,
         config_file=dedicated_config_file,
+        legacy_config_file=legacy_dedicated_config_file,
         events_file=dedicated_events_file,
         tail_jsonl=tail_jsonl,
         digitalocean_token=digitalocean_token,

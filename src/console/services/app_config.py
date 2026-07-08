@@ -22,7 +22,7 @@ DEFAULT_CONSOLE_CONFIG = {
         "studio_dir": ".cache/matts-value-set/studio",
         "default_model_registry_file": "config/default-models.json",
         "model_config_file": "config/models.json",
-        "dedicated_config_file": "config/dedicated-inference.json",
+        "dedicated_config_file": "dedicated-inference.json",
         "serverless_catalog_cache_file": "serverless-model-catalog.json",
         "dedicated_events_file": "dedicated-events.jsonl",
         "tmux_session_registry_file": "tmux-sessions.json",

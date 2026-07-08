@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
 
 
 class DedicatedInferenceServiceTests(unittest.TestCase):
-    def service(self, tmp, token="do-token", now=1000, do_request=None, health=None):
+    def service(self, tmp, token="do-token", now=1000, do_request=None, health=None, legacy_config_file=None):
         root = Path(tmp)
         config_path = root / "dedicated.json"
         events_path = root / "dedicated-events.jsonl"
@@ -67,6 +67,7 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
             default_config=DEFAULT_CONFIG,
             steps=["plan", "build", "route"],
             config_file=lambda: config_path,
+            legacy_config_file=legacy_config_file,
             events_file=lambda: events_path,
             tail_jsonl=tail_jsonl,
             digitalocean_token=lambda: token,
@@ -105,6 +106,18 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertEqual(payload["idle_seconds"], 300)
         self.assertEqual(payload["estimated_cost_usd"], 2.0)
         self.assertEqual(payload["budget_percent"], 20.0)
+
+    def test_load_config_migrates_legacy_config_when_runtime_file_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy_path = Path(tmp) / "legacy-dedicated.json"
+            legacy_path.write_text(json.dumps({"state": "active", "model_id": "legacy-model"}), encoding="utf-8")
+            service, _ = self.service(tmp, legacy_config_file=lambda: legacy_path)
+
+            cfg = service.load_config()
+
+            self.assertEqual(cfg["state"], "active")
+            self.assertEqual(cfg["model_id"], "legacy-model")
+            self.assertTrue((Path(tmp) / "dedicated.json").exists())
 
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):
         with tempfile.TemporaryDirectory() as tmp:
