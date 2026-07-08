@@ -316,6 +316,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Requirements survey clarified the Create target: prioritize atmosphere first, then conversational presence, then creative workflow. The Create chat should feel alive over the wallpaper with subtle always-on desktop effects, mobile effects disabled, model-specific motion accents, progressive answer reveal, and text-model comparison inside the same conversation.
 - 2026-07-08: Added Create chat pending model cards with model identity, routing stage, elapsed timer, routing-change notice, model-colored reply ripple, word-by-word answer reveal, click-to-skip reveal, and clean chat-history saves that persist final answer text only.
 - 2026-07-08: Disabled the Create atmospheric effect layer on mobile/coarse-pointer devices and reduced wallpaper transition work there for better small-device performance.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Create work should follow the ledger entries for greeting, weather, wallpaper attribution, comparison, and mobile/desktop verification.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -355,6 +356,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
 - [ ] Create supports text-model comparison for up to five selected models
 - [ ] Comparison entries save as one chat-history entry and support "continue with this model"
+- [ ] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
 - [ ] Mobile and desktop layouts verified visually
 - [ ] Documentation updated if workflows or screenshots change
 
@@ -498,6 +500,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Rebuilt the Code session picker with enriched live/previous session cards, inline tmux rename support, new-session highlighting, session metadata persistence, and previous-session read-only red styling.
 - 2026-07-08: Consolidated Code session create/select/rename/stop into the running tmux chooser with display-name/tmux-id separation, generated `STARTTIME_` names, preset-based new session creation, pinned current/live/previous groups, and read-only previous sessions.
 - 2026-07-08: Requirements survey reopened this task to harden cost-governance for private-operator dependability. Completed lifecycle work remains checked below, but remaining scope now emphasizes daily budget visibility, budget override logging, idle/unhealthy countdown enforcement, and budget-blocked fallback behavior.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Dedicated work should prioritize global cost visibility, idle teardown, budget-governed build/rebuild, and trace-visible fallback.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -537,6 +540,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Idle warning and teardown countdown alerts appear across Code, Create, and Console
 - [ ] Keep-alive extension choices implemented with teardown-after-unused-extension behavior
 - [ ] Unhealthy-server countdown tears down after repeated failed health/model checks
+- [ ] Dedicated uptime, estimated spend, DigitalOcean account health, prepay status, and platform incidents are reflected in lifecycle and global status surfaces
 - [ ] Full lifecycle diagnostics retained for 30 days and compressed into app-cache archives
 - [ ] Disabled Dedicated models expose guarded "Build again" in selectors
 - [ ] Budget-blocked Dedicated routing falls back to Serverless with prominent notice and `budget_blocked_fallback` trace reason
@@ -555,7 +559,7 @@ The interface refactoring work consolidates previously separate components into 
 **Estimated Duration:** 2.5 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; hero cards should reuse the global model label metadata and add richer strengths, weaknesses, alternatives, origin, cost, and access context.
 
 **Specification:** `MODEL-HERO-CARD-SPEC.md`
 
@@ -590,6 +594,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Model info modal implemented with feature-rich design
 - [ ] API endpoint serving model information
 - [ ] Info buttons added throughout UI (chat, image studio, model selection)
+- [ ] Hero cards include cost, origin, provider logo/identity, access state, best-fit use cases, weaknesses, and alternatives to similar models
 - [ ] Responsive design working on all screen sizes
 - [ ] Documentation updated
 
@@ -608,6 +613,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Current tracked config and local runtime state need stricter separation before release.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; config/state separation must preserve model-registry source-of-truth semantics while moving live cloud/runtime state out of release config.
 
 **Description:** Establish clean boundaries between shipped defaults, operator configuration, runtime state, cache files, generated secrets, and live cloud resource metadata. The repository should contain examples and schemas, not local mutable state from a running deployment.
 
@@ -632,6 +638,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Live DigitalOcean resource metadata is not tracked in release config
 - [ ] Example config files are safe to publish
 - [ ] Runtime state paths are documented
+- [ ] Model registry, wallpaper cache, weather defaults, traces, usage logs, tmux registry, and Dedicated lifecycle state have explicit release-config vs runtime-state ownership
 - [ ] Existing local installs migrate without data loss
 - [ ] Config validation fails with human-readable errors
 - [ ] Tests cover missing, old, and malformed config
@@ -651,6 +658,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. README and SECURITY still describe older key behavior and should be brought back in sync with the cleaned launcher and current Console.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; release docs must explain model access audit, Serverless catalog behavior, Dedicated lifecycle/cost controls, and global routing proof.
 
 **Description:** Update the release documentation so setup, security, model registry behavior, Dedicated Inference lifecycle, cost reporting, and operational commands match the current code.
 
@@ -666,6 +674,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Model registry and `--list-models` behavior documented accurately
 - [ ] Serverless and Dedicated Inference workflows documented
 - [ ] Cost, billing, and DigitalOcean token scopes documented
+- [ ] Model access key verification, allowed/forbidden model states, routing Show Detail fields, and global source-of-truth behavior documented
 - [ ] Release cleanup and runtime-state boundaries documented
 - [ ] Quickstart verified on a clean checkout
 
@@ -684,6 +693,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Industry-leading LLM platforms expose request traces before evals and dashboards; the current usage log is useful but not trace-grade.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; trace records must be the authoritative proof for model routing, fallback, Dedicated state, cost, latency, and Show Detail surfaces.
 
 **Description:** Create a first-class trace model for every LLM, image, Dedicated, proxy, and Claude Code routing action. Traces should make it possible to debug model choice, provider failures, retries, token/cost math, tool calls, latency, and user-visible output.
 
@@ -705,8 +715,10 @@ The interface refactoring work consolidates previously separate components into 
 
 **Completion Criteria:**
 - [ ] Every chat/proxy/Dedicated request emits a trace record
+- [ ] Image generation, model access probes, Dedicated build/teardown, gateway fallback, and tmux launch actions emit trace/audit records or explicit non-LLM event records
 - [ ] Console exposes trace search/filter by model, session, status, and cost
 - [ ] Message-level Show Detail links to trace ID
+- [ ] Show Detail exposes requested model, routed model, fallback reason, provider, endpoint mode, cost, tokens, latency, upstream id, and human-friendly error category where available
 - [ ] Trace data redaction policy exists
 - [ ] Tests cover trace emission for success, fallback, and failure
 
@@ -725,6 +737,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. The platform needs eval datasets, regression checks, and side-by-side model comparison to be industry competitive.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; evals and Create comparison should share comparison concepts but remain separate workflows.
 
 **Description:** Build an evaluation layer for testing prompts, models, routing policies, and Dedicated vs Serverless behavior before changes become defaults.
 
@@ -748,6 +761,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Eval runner supports selected models and prompts
 - [ ] Console can run and compare evals
 - [ ] Results include cost, latency, failures, and selected answer
+- [ ] Create comparison supports up to five selected models with strict unavailable-model errors and one saved comparison history entry
 - [ ] Registry changes can be checked against a baseline
 - [ ] Documentation explains how to add evals
 
@@ -766,6 +780,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Industry gateways include failover, rate limits, caching, circuit breakers, quota controls, and provider policy routing.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; gateway policy must make Dedicated preference, Serverless fallback, budget-blocked fallback, and stale-registry protection explicit and trace-visible.
 
 **Description:** Expand the proxy from a model adapter into a policy-driven AI gateway with configurable reliability, cost, and abuse-protection behavior.
 
@@ -790,6 +805,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Rate limits and quotas emit useful client errors
 - [ ] Cache can be enabled/disabled per route
 - [ ] Console shows active gateway policy and recent decisions
+- [ ] Dedicated-online preference, Build Server prompt, budget-blocked fallback, stale-registry protection, and access-forbidden rejection are represented as explicit policy decisions
 - [ ] Tests cover fallback, circuit break, cache hit, and rate-limit cases
 
 **Dependencies:** INT-004 (Configuration system), INT-020 (Trace-first observability)
@@ -807,6 +823,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Token auth is acceptable for private single-operator use, but team or enterprise use needs identity and authorization boundaries.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; budget overrides, model admin, Dedicated build/teardown, tmux actions, and key verification need identity/audit context.
 
 **Description:** Replace single shared console-token semantics with user/session identity, scoped permissions, and audit logging suitable for a trusted team deployment.
 
@@ -830,6 +847,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] RBAC roles and permissions defined
 - [ ] Sensitive actions are authorization checked
 - [ ] Audit log records model/admin/tmux/Dedicated actions
+- [ ] Budget overrides, key access audits, model enablement changes, Dedicated build/rebuild/teardown, and tmux kill/send actions include actor/session attribution
 - [ ] Token/session rotation is documented
 - [ ] Login UX supports user sessions
 - [ ] Security tests cover denied actions
@@ -849,6 +867,7 @@ The interface refactoring work consolidates previously separate components into 
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review as inferred item 9. Industry-ready products need repeatable releases, install validation, migrations, and rollback.
+- 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; release packaging must preserve the global model registry, runtime state, usage/cost history, tmux sessions, and Dedicated lifecycle records.
 
 **Description:** Make the platform releaseable from a clean checkout and upgradeable on an existing host without losing runtime state or leaving cloud resources orphaned.
 
@@ -873,6 +892,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Rollback path documented
 - [ ] Release checklist exists
 - [ ] Health validation command exists
+- [ ] Release gate includes unit tests, coverage, Python syntax, template JavaScript syntax, and headless browser smoke
 - [ ] Changelog includes migration notes
 
 **Dependencies:** INT-018 (Config/state separation), INT-019 (Documentation reconciliation), INT-005 (Test suite)
@@ -882,14 +902,17 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-025
 **Title:** Reconcile requirements survey into executable backlog
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 2 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Added at user request after the 100-question worklist clarification survey. The survey answers should be converted into concrete acceptance criteria across the existing interface, model-routing, observability, cost, and release tasks instead of remaining only in chat history.
+- 2026-07-08: Created `docs/requirements-ledger.md` with grouped survey decisions, evidence levels, owning task mappings, open confirmations, and updated priority order.
+- 2026-07-08: Updated acceptance criteria across Create, Dedicated, model hero cards, config/state separation, documentation, traces, evals, gateway policy, governance, and release packaging so survey decisions are executable through existing tasks.
 
 **Description:** Convert the completed survey decisions into durable backlog updates. The project should not lose product decisions when chat context compacts or when implementation moves across tasks.
 
@@ -906,11 +929,11 @@ The interface refactoring work consolidates previously separate components into 
 - Related task specs when acceptance criteria need more detail
 
 **Completion Criteria:**
-- [ ] Survey decisions are summarized in a durable project document
-- [ ] Existing tasks have updated acceptance criteria reflecting the survey decisions
-- [ ] Duplicate or conflicting backlog items are consolidated
-- [ ] Unknown or context-lost decisions are listed for confirmation
-- [ ] The implementation priority order is updated after reconciliation
+- [x] Survey decisions are summarized in a durable project document
+- [x] Existing tasks have updated acceptance criteria reflecting the survey decisions
+- [x] Duplicate or conflicting backlog items are consolidated
+- [x] Unknown or context-lost decisions are listed for confirmation
+- [x] The implementation priority order is updated after reconciliation
 
 **Dependencies:** Existing worklist tasks and available chat/project context
 **Blocks:** Fully draining the worklist without losing clarified requirements
@@ -1266,16 +1289,20 @@ The interface refactoring work consolidates previously separate components into 
 - Image generation with prompt builder
 - Chat interface for text models
 
-### Next Immediate Actions (P1 Priority):
-1. **Start with INT-006:** Early health check endpoints (1 hour)
-2. **Then INT-001:** HTML template separation (2 hours)
-3. **Follow with INT-014:** Bing-like Image/Text redesign (3 hours)
-4. **Continue with INT-002:** HTTP handler refactoring (3 hours)
-5. **Then INT-003:** Error handling improvements (1.5 hours)
-6. **Then INT-004:** Configuration system (2 hours)
-7. **Then INT-005:** Comprehensive test suite (3 hours)
+### Next Immediate Actions (Reconciled 2026-07-08):
+1. **Start with INT-002:** HTTP handler/service-boundary refactoring
+2. **Then INT-003:** Standardized error handling
+3. **Then INT-004:** Configuration system and validation
+4. **Then INT-018:** Separate release config, runtime state, and secrets
+5. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+6. **Then INT-020:** Trace-first observability
+7. **Then INT-022:** Gateway reliability and cost controls
+8. **Then INT-021:** Evaluation and model comparison workflows
+9. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+10. **Then INT-019:** Documentation reconciliation
+11. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-**Total P1 Work Estimate:** 15.5 hours
+Completed prerequisites: INT-001, INT-005, INT-006, INT-015, INT-025.
 
 ---
 
@@ -1313,13 +1340,17 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-006:** Early health check endpoints
-2. **Then INT-001:** HTML template separation
-3. **Follow with INT-014:** Bing-like Image/Text redesign
-4. **Continue with INT-002:** HTTP handler refactoring
-5. **Then INT-003:** Error handling improvements
-6. **Then INT-004:** Configuration system
-7. **Then INT-005:** Comprehensive test suite
+1. **Start with INT-002:** HTTP handler/service-boundary refactoring
+2. **Then INT-003:** Standardized error handling
+3. **Then INT-004:** Configuration system and validation
+4. **Then INT-018:** Separate release config, runtime state, and secrets
+5. **Then INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
+6. **Then INT-020:** Trace-first observability
+7. **Then INT-022:** Gateway reliability and cost controls
+8. **Then INT-021:** Evaluation and model comparison workflows
+9. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+10. **Then INT-019:** Documentation reconciliation
+11. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
 ## Dependencies & Blockers
 
