@@ -216,7 +216,7 @@ def _normalized_model(item):
     }
     if isinstance(item.get("dedicated"), dict):
         normalized["dedicated"] = item["dedicated"]
-    for key in ("state", "endpoint", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error"):
+    for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error"):
         if item.get(key):
             normalized[key] = item[key]
     return normalized

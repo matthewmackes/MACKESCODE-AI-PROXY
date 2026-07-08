@@ -55,6 +55,33 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual([model["id"] for model in all_models], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in active], ["allowed-text", "image-ok"])
 
+    def test_registry_normalization_drops_token_endpoint_and_secret_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            models = [{
+                "id": "safe-model",
+                "type": "text",
+                "enabled": True,
+                "pricing": {"input": 0.1},
+                "access_token": "secret",
+                "endpoint": "https://example.invalid",
+                "public_endpoint_fqdn": "example.invalid",
+                "private_endpoint_fqdn": "internal.example.invalid",
+                "api_key": "secret",
+                "password": "secret",
+            }]
+
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+                saved = studio.save_model_registry(models)
+                raw_text = path.read_text(encoding="utf-8")
+
+        forbidden_keys = {"access_token", "endpoint", "public_endpoint_fqdn", "private_endpoint_fqdn", "api_key", "password"}
+        self.assertTrue(saved)
+        self.assertTrue(forbidden_keys.isdisjoint(saved[0].keys()))
+        for key in forbidden_keys:
+            self.assertNotIn(key, raw_text)
+        self.assertIn("safe-model", raw_text)
+
     def test_selectable_text_models_includes_managed_dedicated_model_even_when_disabled(self):
         registry = [
             {"id": "serverless-ok", "type": "text", "enabled": True, "serverless": True, "access_status": "ok", "pricing": {"input": 0.1}},

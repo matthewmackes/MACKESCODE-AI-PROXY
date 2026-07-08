@@ -373,6 +373,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-07: Added Console > Inference split for Serverless Inference and Dedicated Inference, with Serverless remaining the fallback/control baseline.
 - 2026-07-08: Requirements survey clarified `config/models.json` as the private-operator source of truth for model availability, metadata, access probe results, and enabled policy. Proxy sync should use both explicit Console sync and file modification polling, with visible stale/sync-failed states.
 - 2026-07-08: Added unittest coverage for model route gating, registry persistence/filtering, managed Dedicated selector visibility, and enriched model labels/status.
+- 2026-07-08: Hardened model-registry normalization so endpoint/token/credential fields are excluded from saved model entries; verified checked-in `config/models.json` has no explicit token or endpoint credential keys.
 
 **Specification:** `DIGITALOCEAN-MODELS-SPEC.md`
 
@@ -420,7 +421,7 @@ The interface refactoring work consolidates previously separate components into 
 - [ ] Caching and fallback working
 - [ ] Hardcoded models replaced
 - [x] `config/models.json` remains the global source of truth for safe model policy, metadata, access state, and enabled state
-- [ ] Tokens and endpoint credentials are excluded from checked-in model registry data
+- [x] Tokens and endpoint credentials are excluded from checked-in model registry data
 - [ ] New catalog models are added automatically with generated metadata and default enabled policy
 - [ ] Removed catalog models are retained as unavailable and hidden from normal selectors
 - [ ] Proxy reloads model registry changes by both explicit sync and file modification polling
