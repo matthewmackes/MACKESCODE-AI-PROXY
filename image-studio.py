@@ -36,6 +36,7 @@ from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.session import SessionService
+from src.console.services.terminal import TerminalSessionService
 from src.console.services.tmux_control import TmuxControlService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
@@ -1383,70 +1384,6 @@ def delete_chat(chat_id):
 # ── End chat persistence ─────────────────────────────────────────────────────
 
 
-class TerminalSession:
-    def __init__(self, model, project_dir, extra_args):
-        self.id = uuid.uuid4().hex
-        self.created_at = time.time()
-        self.output = ""
-        self.closed = False
-        cmd = [str(script_dir() / "claude-DO.sh"), "--model", model]
-        if project_dir:
-            cmd += ["--project-dir", project_dir]
-        if extra_args:
-            cmd += extra_args
-        env = os.environ.copy()
-        env["TERM"] = env.get("TERM", "xterm-256color")
-        self.pid, self.fd = pty.fork()
-        if self.pid == 0:
-            os.chdir(project_dir or str(script_dir()))
-            os.execvpe(cmd[0], cmd, env)
-        flags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
-        fcntl.fcntl(self.fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-    def read(self):
-        if self.closed:
-            return {"id": self.id, "output": "", "closed": True}
-        chunks = []
-        while True:
-            ready, _, _ = select.select([self.fd], [], [], 0)
-            if not ready:
-                break
-            try:
-                data = os.read(self.fd, 4096)
-            except OSError:
-                self.closed = True
-                break
-            if not data:
-                self.closed = True
-                break
-            chunks.append(data.decode("utf-8", errors="replace"))
-        text = "".join(chunks)
-        self.output = (self.output + text)[-100000:]
-        try:
-            ended, _ = os.waitpid(self.pid, os.WNOHANG)
-            if ended:
-                self.closed = True
-        except ChildProcessError:
-            self.closed = True
-        return {"id": self.id, "output": text, "closed": self.closed}
-
-    def write(self, text):
-        if not self.closed:
-            os.write(self.fd, text.encode("utf-8"))
-
-    def stop(self):
-        if not self.closed:
-            try:
-                os.kill(self.pid, signal.SIGTERM)
-            except OSError:
-                pass
-            self.closed = True
-        try:
-            os.close(self.fd)
-        except OSError:
-            pass
-
-
 def session_service():
     return SessionService(
         registry_file=tmux_session_registry_file,
@@ -1512,6 +1449,35 @@ def tmux_session_items():
 
 def tmux_rename_session(old_name, new_name, display_name=None):
     return session_service().rename_session(old_name, new_name, display_name=display_name)
+
+
+def terminal_session_service():
+    return TerminalSessionService(
+        script_dir=script_dir,
+        text_models=lambda: TEXT_MODELS,
+        default_text_model=default_text_model,
+        sessions=TERMINALS,
+    )
+
+
+def terminal_start(data):
+    return terminal_session_service().start(data)
+
+
+def terminal_read(session_id):
+    return terminal_session_service().read(session_id)
+
+
+def terminal_write(session_id, text):
+    return terminal_session_service().write(session_id, text)
+
+
+def terminal_stop(session_id):
+    return terminal_session_service().stop(session_id)
+
+
+def terminal_stop_all():
+    return terminal_session_service().stop_all()
 
 
 def tmux_control_service():
@@ -2024,30 +1990,17 @@ class StudioHandler(BaseHTTPRequestHandler):
             status, payload = tmux_rename_session(data.get("old_name"), data.get("new_name"), data.get("display_name"))
             return self.send_json(status, payload)
         if path == "/api/terminal/start":
-            model = data.get("model") if data.get("model") in TEXT_MODELS else default_text_model()
-            project_dir = data.get("project_dir") or str(script_dir())
-            if not Path(project_dir).is_dir():
-                return self.send_json(400, {"error": "project directory does not exist"})
-            extra_args = [part for part in str(data.get("extra_args") or "").split() if part]
-            session = TerminalSession(model, project_dir, extra_args)
-            TERMINALS[session.id] = session
-            return self.send_json(200, {"id": session.id})
+            status, payload = terminal_start(data)
+            return self.send_json(status, payload)
         if path == "/api/terminal/read":
-            session = TERMINALS.get(data.get("id"))
-            if not session:
-                return self.send_json(404, {"error": "terminal not found"})
-            return self.send_json(200, session.read())
+            status, payload = terminal_read(data.get("id"))
+            return self.send_json(status, payload)
         if path == "/api/terminal/write":
-            session = TERMINALS.get(data.get("id"))
-            if not session:
-                return self.send_json(404, {"error": "terminal not found"})
-            session.write(data.get("text") or "")
-            return self.send_json(200, {"ok": True})
+            status, payload = terminal_write(data.get("id"), data.get("text") or "")
+            return self.send_json(status, payload)
         if path == "/api/terminal/stop":
-            session = TERMINALS.pop(data.get("id"), None)
-            if session:
-                session.stop()
-            return self.send_json(200, {"ok": True})
+            status, payload = terminal_stop(data.get("id"))
+            return self.send_json(status, payload)
         self.send_error(404)
 
 
@@ -2073,8 +2026,7 @@ def main():
     try:
         server.serve_forever()
     finally:
-        for session in list(TERMINALS.values()):
-            session.stop()
+        terminal_stop_all()
 
 
 if __name__ == "__main__":

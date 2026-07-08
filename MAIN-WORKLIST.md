@@ -109,6 +109,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted AgentBoard tmux target sanitization, pane capture aggregation, terminal status inference, local usage/log counts, and leaderboard payload composition into `src.console.services.AgentBoardService`.
 - 2026-07-08: Extracted WebSocket accept-key generation, frame parsing/sending, exact reads, ping/close handling, and PTY resize ioctl behavior into `src.console.services.WebSocketProtocolService`.
 - 2026-07-08: Extracted Claude launcher self-heal, tmux command argument construction, start/attach/reset behavior, capture/send-key/send-text/stop, and live tmux session listing into `src.console.services.TmuxControlService`.
+- 2026-07-08: Extracted lightweight Claude terminal PTY process lifecycle, buffered reads, writes, stop, and cleanup into `src.console.services.TerminalSessionService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 

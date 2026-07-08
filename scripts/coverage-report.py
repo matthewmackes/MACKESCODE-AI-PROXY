@@ -28,6 +28,7 @@ DEFAULT_FILES = [
     "src/console/services/model_registry.py",
     "src/console/services/persistence.py",
     "src/console/services/session.py",
+    "src/console/services/terminal.py",
     "src/console/services/tmux_control.py",
     "src/console/services/usage.py",
     "src/console/services/wallpaper.py",
