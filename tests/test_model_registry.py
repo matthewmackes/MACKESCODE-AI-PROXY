@@ -142,6 +142,44 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertNotIn("removed-model", active_ids)
         self.assertIn("dedicated-building", models)
 
+    def test_catalog_sync_adds_new_models_with_default_policy_and_metadata(self):
+        catalog = {
+            "ok": True,
+            "source": "test",
+            "fetched_at": 1,
+            "payload": {
+                "data": [
+                    {"id": "openai-cheap-new", "created": 1, "owned_by": "openai", "context_length": 8192, "max_output_tokens": 256},
+                    {"id": "expensive-new", "created": 2, "owned_by": "digitalocean", "context_length": 4096, "max_output_tokens": 128},
+                ]
+            },
+        }
+        pricing = {
+            "openai-cheap-new": {"input": 0.10, "output": 0.40},
+            "expensive-new": {"input": 0.10, "output": 0.50},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}), \
+                 patch.object(studio, "serverless_catalog_payload", return_value=catalog), \
+                 patch.object(studio, "SERVERLESS_MODEL_PRICING", pricing), \
+                 patch.object(studio, "proxy_sync_payload", return_value={"in_sync": True}):
+                result = studio.sync_serverless_model_catalog(force=True, validate_access=False)
+                models = {model["id"]: model for model in studio.load_model_registry(include_disabled=True)}
+                options = {item["id"]: item for item in studio.model_options("text", include_disabled=True)}
+                active_ids = [model["id"] for model in studio.load_model_registry(include_disabled=False)]
+
+        self.assertEqual(result["added"], 2)
+        self.assertTrue(models["openai-cheap-new"]["enabled"])
+        self.assertFalse(models["expensive-new"]["enabled"])
+        self.assertEqual(models["openai-cheap-new"]["pricing_source"], "digitalocean_pricing_docs_2026_07_01")
+        self.assertEqual(models["openai-cheap-new"]["context_window"], 8192)
+        self.assertEqual(models["openai-cheap-new"]["display_name"], "Openai Cheap New")
+        self.assertEqual(options["openai-cheap-new"]["brand"], "OpenAI")
+        self.assertIn("Training origin: United States", options["openai-cheap-new"]["label"])
+        self.assertIn("$0.4 output / 1M tokens", options["openai-cheap-new"]["cost_label"])
+        self.assertNotIn("openai-cheap-new", active_ids)
+
     def test_proxy_sync_requires_loaded_matching_registry_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
