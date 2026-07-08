@@ -46,6 +46,9 @@ class RuntimeConfigServiceTests(unittest.TestCase):
             disabled = self.service(tmp, env={"HOME": tmp, "MATTS_CONSOLE_DISABLE_AUTH": "1"})
             self.assertFalse(disabled.auth_enabled())
 
+            config_disabled = RuntimeConfigService(env={"HOME": tmp}, file_path=Path(tmp) / "image-studio.py", config={"auth": {"enabled": False}})
+            self.assertFalse(config_disabled.auth_enabled())
+
             token_file = Path(tmp) / "model-token"
             token_file.write_text("file-key\n", encoding="utf-8")
             file_key = self.service(tmp, env={"HOME": tmp, "MATTS_VALUE_SET_TOKEN_FILE": str(token_file)})
@@ -96,6 +99,18 @@ class RuntimeConfigServiceTests(unittest.TestCase):
         self.assertEqual(service.log_file(), Path(tmp) / "proxy.log")
         self.assertEqual(service.digitalocean_token(), "do-token")
         self.assertEqual(service.digitalocean_account_urn(), "urn:do:account:1")
+
+    def test_proxy_defaults_can_come_from_console_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = RuntimeConfigService(
+                env={"HOME": tmp},
+                file_path=Path(tmp) / "image-studio.py",
+                config={"proxy": {"host": "proxy.internal", "port": 19001}},
+            )
+
+            self.assertEqual(service.proxy_host(), "proxy.internal")
+            self.assertEqual(service.proxy_port(), 19001)
+            self.assertEqual(service.proxy_url("/v1/models"), "http://proxy.internal:19001/v1/models")
 
     def test_digitalocean_token_reads_known_files_and_local_addresses_filter(self):
         with tempfile.TemporaryDirectory() as tmp:

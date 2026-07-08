@@ -198,14 +198,15 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-004
 **Title:** Add configuration system
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 2 hours
 
 **Progress Notes:**
 - 2026-07-08: Product/platform review reaffirmed this as prerequisite for separating release config, runtime state, secrets, gateway policy, and trace/eval settings.
+- 2026-07-08: Added `config/console.json` plus `ConsoleConfigService` for JSON config loading, deep merge defaults, environment overrides, and validation. Wired server host/port, logging level, model auto-enable threshold, serverless catalog TTL, proxy host/port/base URL/script, and auth enable defaults through the config layer while keeping secrets env/file based.
 
 **Description:** Move hardcoded constants to configuration file with environment variable support.
 

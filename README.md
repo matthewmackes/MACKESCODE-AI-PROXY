@@ -91,6 +91,14 @@ The proxy listens on:
 127.0.0.1:18081
 ```
 
+Console runtime defaults are stored in:
+
+```text
+config/console.json
+```
+
+Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON config. Environment variables such as `MATTS_STUDIO_PORT`, `MATTS_VALUE_SET_PROXY_PORT`, `MATTS_MODEL_AUTO_ENABLE_MAX_USD`, and `MATTS_CONSOLE_LOG_LEVEL` still override the file. Secrets and tokens remain file/env based and are not stored in this config.
+
 The web console exposes unauthenticated operational endpoints for local smoke checks and monitoring:
 
 ```text

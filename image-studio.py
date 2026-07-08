@@ -26,6 +26,7 @@ from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
+from src.console.services.app_config import ConsoleConfigService
 from src.console.services.chat import ChatRoutingService
 from src.console.services.health import ConsoleHealthService
 from src.console.services.http_json import JsonHttpService
@@ -48,6 +49,7 @@ from src.console.utils.errors import error_payload
 
 
 EMBEDDED_ACCESS_KEY = ""
+STARTUP_CONFIG = ConsoleConfigService(file_path=Path(__file__).resolve()).load()
 DEFAULT_MODEL_REGISTRY = [
     {"id": "deepseek-3.2", "display_name": "DeepSeek 3.2", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek"], "pricing": {"input": 0.50, "output": 1.50}, "context_window": 128000},
     {"id": "deepseek-v4-pro", "display_name": "DeepSeek V4 Pro", "type": "text", "provider": "DigitalOcean", "enabled": True, "aliases": ["deepseek-v4"], "pricing": {"input": 1.00, "output": 3.00}, "context_window": 128000},
@@ -59,8 +61,8 @@ DEFAULT_MODEL_REGISTRY = [
 APP_VERSION = "1.0.0"
 SERVER_STARTED_AT = time.time()
 REQUEST_COUNTS = {"GET": 0, "POST": 0}
-MODEL_AUTO_ENABLE_MAX_USD = float(os.environ.get("MATTS_MODEL_AUTO_ENABLE_MAX_USD", "0.45"))
-SERVERLESS_CATALOG_TTL_SECONDS = int(os.environ.get("MATTS_SERVERLESS_CATALOG_TTL_SECONDS", "3600"))
+MODEL_AUTO_ENABLE_MAX_USD = float(STARTUP_CONFIG["models"]["auto_enable_max_usd"])
+SERVERLESS_CATALOG_TTL_SECONDS = int(STARTUP_CONFIG["serverless"]["catalog_ttl_seconds"])
 MODEL_TYPES = {"text", "image", "embedding", "rerank", "audio", "video", "router", "unknown"}
 SERVERLESS_MODEL_PRICING = {
     "alibaba-qwen3-32b": {"input": 0.25, "output": 0.55},
@@ -404,6 +406,7 @@ def runtime_config_service():
         env=os.environ,
         file_path=__file__,
         embedded_access_key=EMBEDDED_ACCESS_KEY,
+        config=STARTUP_CONFIG,
         token_urlsafe=secrets.token_urlsafe,
         check_output_func=subprocess.check_output,
     )
@@ -562,7 +565,7 @@ def proxy_process_service(proxy_in_sync_func=None):
         model_config_fingerprint=model_config_fingerprint,
         same_model_config_fingerprint=same_model_config_fingerprint,
         all_models=lambda: ALL_MODELS,
-        base_url=lambda: os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run"),
+        base_url=lambda: os.environ.get("MATTS_VALUE_SET_BASE_URL", STARTUP_CONFIG["proxy"]["base_url"]),
         write_token=write_token,
         default_text_model=default_text_model,
         token_file=token_file,
@@ -570,7 +573,7 @@ def proxy_process_service(proxy_in_sync_func=None):
         cost_file=cost_file,
         budget_file=budget_file,
         log_file=log_file,
-        proxy_script=lambda: Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / "do-anthropic-proxy.py")),
+        proxy_script=lambda: Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / STARTUP_CONFIG["proxy"]["script"])),
         executable=sys.executable,
         env=os.environ,
         sleep_func=time.sleep,
@@ -1489,10 +1492,10 @@ class StudioHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    configure_console_logging()
+    configure_console_logging(STARTUP_CONFIG["logging"]["level"])
     parser = argparse.ArgumentParser(description="Run the Matts Value Set unified web console.")
-    parser.add_argument("--host", default=os.environ.get("MATTS_STUDIO_HOST", "0.0.0.0"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("MATTS_STUDIO_PORT", "18181")))
+    parser.add_argument("--host", default=str(STARTUP_CONFIG["server"]["host"]))
+    parser.add_argument("--port", type=int, default=int(STARTUP_CONFIG["server"]["port"]))
     parser.add_argument("--no-open", action="store_true")
     args = parser.parse_args()
     write_token()

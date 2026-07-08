@@ -1,0 +1,27 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 18181
+  },
+  "auth": {
+    "enabled": true
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "models": {
+    "auto_enable_max_usd": 0.45
+  },
+  "serverless": {
+    "catalog_ttl_seconds": 3600
+  },
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 18081,
+    "base_url": "https://inference.do-ai.run",
+    "script": "do-anthropic-proxy.py"
+  },
+  "rate_limits": {
+    "enabled": false
+  }
+}

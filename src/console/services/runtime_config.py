@@ -14,14 +14,22 @@ class RuntimeConfigService:
         env=None,
         file_path=None,
         embedded_access_key="",
+        config=None,
         token_urlsafe=None,
         check_output_func=None,
     ):
         self.env = env if env is not None else os.environ
         self.file_path = Path(file_path or __file__).resolve()
         self.embedded_access_key = embedded_access_key
+        self.config = config or {}
         self.token_urlsafe = token_urlsafe or secrets.token_urlsafe
         self.check_output_func = check_output_func or subprocess.check_output
+
+    def config_value(self, section, key, default=None):
+        section_value = self.config.get(section) if isinstance(self.config, dict) else None
+        if isinstance(section_value, dict) and key in section_value:
+            return section_value[key]
+        return default
 
     def home_dir(self):
         return Path(self.env.get("HOME") or "/root")
@@ -52,7 +60,9 @@ class RuntimeConfigService:
         return token
 
     def auth_enabled(self):
-        return self.env.get("MATTS_CONSOLE_DISABLE_AUTH") != "1"
+        if self.env.get("MATTS_CONSOLE_DISABLE_AUTH") == "1":
+            return False
+        return bool(self.config_value("auth", "enabled", True))
 
     def token_file(self):
         return Path(self.env.get("MATTS_VALUE_SET_TOKEN_FILE", self.home_dir() / ".mcnf-do-model-access-token"))
@@ -78,10 +88,10 @@ class RuntimeConfigService:
         path.chmod(0o600)
 
     def proxy_host(self):
-        return self.env.get("MATTS_VALUE_SET_PROXY_HOST", "127.0.0.1")
+        return self.env.get("MATTS_VALUE_SET_PROXY_HOST", str(self.config_value("proxy", "host", "127.0.0.1")))
 
     def proxy_port(self):
-        return int(self.env.get("MATTS_VALUE_SET_PROXY_PORT", "18081"))
+        return int(self.env.get("MATTS_VALUE_SET_PROXY_PORT", self.config_value("proxy", "port", 18081)))
 
     def proxy_url(self, path):
         return "http://%s:%d%s" % (self.proxy_host(), self.proxy_port(), path)
