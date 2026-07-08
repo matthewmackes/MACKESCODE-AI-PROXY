@@ -233,6 +233,58 @@ class DedicatedInferenceService:
             return 0
         return max(0, int(now - last))
 
+    def idle_policy_state(self, cfg, now=None):
+        now = now or self.clock()
+        idle = self.idle_seconds(cfg, now)
+        warning_seconds = max(0, int(cfg.get("idle_warning_seconds") or 300))
+        teardown_seconds = max(warning_seconds, int(cfg.get("idle_teardown_seconds") or 600))
+        keep_alive_until = float(cfg.get("keep_alive_until") or 0)
+        keep_alive_started_at = float(cfg.get("keep_alive_started_at") or 0)
+        last_work_at = float(cfg.get("last_work_at") or 0)
+        extension_expired_unused = bool(keep_alive_until and now >= keep_alive_until and last_work_at <= keep_alive_started_at)
+        warning = bool(cfg.get("state") == "active" and warning_seconds and idle >= warning_seconds)
+        teardown_due = bool(cfg.get("state") == "active" and ((teardown_seconds and idle >= teardown_seconds) or extension_expired_unused))
+        return {
+            "idle_seconds": idle,
+            "warning_seconds": warning_seconds,
+            "teardown_seconds": teardown_seconds,
+            "warning": warning,
+            "teardown_due": teardown_due,
+            "teardown_countdown_seconds": max(0, teardown_seconds - idle) if cfg.get("state") == "active" else 0,
+            "keep_alive_until": keep_alive_until,
+            "keep_alive_started_at": keep_alive_started_at,
+            "extension_expired_unused": extension_expired_unused,
+        }
+
+    def enforce_policy(self):
+        cfg = self.load_config()
+        idle_policy = self.idle_policy_state(cfg)
+        if cfg.get("state") != "active":
+            return {"action": "none", "reason": "not_active", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+        if idle_policy["teardown_due"]:
+            reason = "keep_alive_extension_expired" if idle_policy["extension_expired_unused"] else "idle_timeout"
+            self.append_event("idle_teardown", "Dedicated idle policy triggered teardown", "warning", {
+                "reason": reason,
+                "idle_policy": idle_policy,
+                "model_id": cfg.get("model_id"),
+                "inference_id": cfg.get("inference_id"),
+            })
+            status, payload = self.teardown({"reason": reason})
+            return {"action": "teardown", "reason": reason, "status": int(status), "payload": payload}
+        if idle_policy["warning"]:
+            warning_started = float(cfg.get("idle_warning_started_at") or 0)
+            last_work = float(cfg.get("last_work_at") or cfg.get("run_started_at") or 0)
+            if warning_started < last_work:
+                cfg["idle_warning_started_at"] = self.clock()
+                self.save_config(cfg)
+                self.append_event("idle_warning", "Dedicated server is idle and teardown countdown is active", "warning", {
+                    "idle_policy": idle_policy,
+                    "model_id": cfg.get("model_id"),
+                    "inference_id": cfg.get("inference_id"),
+                })
+                return {"action": "warning", "reason": "idle_warning", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+        return {"action": "none", "reason": "within_policy", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+
     def public_payload(self, cfg):
         now = self.clock()
         clean = dict(cfg)
@@ -242,6 +294,7 @@ class DedicatedInferenceService:
         clean.update({
             "elapsed_seconds": self.elapsed_seconds(cfg, now),
             "idle_seconds": self.idle_seconds(cfg, now),
+            "idle_policy": self.idle_policy_state(cfg, now),
             "estimated_cost_usd": self.cost_usd(cfg, now),
             "build_age_seconds": max(0, int(now - float(cfg.get("created_at") or now))),
             "status_age_seconds": max(0, int(now - float(cfg.get("last_status_at") or cfg.get("created_at") or now))),
@@ -709,6 +762,7 @@ class DedicatedInferenceService:
             message = choices[0].get("message") if isinstance(choices[0].get("message"), dict) else {}
             text = message.get("content") or choices[0].get("text") or ""
         cfg["last_work_at"] = self.clock()
+        cfg["idle_warning_started_at"] = 0
         self.save_config(cfg)
         self.append_event("active", "Dedicated served chat request", "success", {"model": cfg.get("model_id")})
         usage = raw.get("usage") if isinstance(raw, dict) else {}

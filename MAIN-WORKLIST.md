@@ -538,6 +538,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Requirements survey reopened this task to harden cost-governance for private-operator dependability. Completed lifecycle work remains checked below, but remaining scope now emphasizes daily budget visibility, budget override logging, idle/unhealthy countdown enforcement, and budget-blocked fallback behavior.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Dedicated work should prioritize global cost visibility, idle teardown, budget-governed build/rebuild, and trace-visible fallback.
 - 2026-07-08: Added reusable Dedicated daily budget state, blocked critical-budget builds before DigitalOcean API calls unless explicitly overridden, logged overrides with model/region/GPU/fallback/cost/operator context, and routed budget-blocked Dedicated chat requests to Serverless with a prominent notice plus `budget_blocked_fallback` routing reason. `scripts/release-check.sh` passed with 163 tests.
+- 2026-07-08: Added a background Dedicated policy worker, reusable idle policy state, one-shot idle warning events with teardown countdown data, automatic idle teardown after the configured threshold, and successful-request idle warning reset. `scripts/release-check.sh` passed with 165 tests.
 
 **Description:** Build an enterprise-class Dedicated Inference control plane that automates DigitalOcean Dedicated Inference creation, registration, teardown, routing fallback, billing estimation, idle policy visibility, monitoring events, and Serverless parity controls.
 
@@ -570,7 +571,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Activity timeline and step variation added
 - [x] Live DO account/token/scopes verified against a real Dedicated build
 - [x] Dedicated endpoint request shape verified against the deployed model runtime
-- [ ] Idle auto-teardown background enforcement added outside page-driven refresh
+- [x] Idle auto-teardown background enforcement added outside page-driven refresh
 - [ ] Global daily Dedicated budget meter added to the top interface
 - [x] Daily budget critical state blocks new Dedicated builds unless overridden
 - [x] Budget override decisions are logged with full build context

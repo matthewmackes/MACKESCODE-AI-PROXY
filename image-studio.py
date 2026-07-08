@@ -11,6 +11,7 @@ import select
 import socket
 import subprocess
 import sys
+import threading
 import time
 import uuid
 import webbrowser
@@ -745,6 +746,25 @@ def dedicated_resource_issue(resource):
 
 def dedicated_status_payload(poll=True):
     return dedicated_service().status_payload(poll=poll)
+
+
+def enforce_dedicated_policy():
+    return dedicated_service().enforce_policy()
+
+
+def dedicated_policy_worker(interval=30):
+    while True:
+        try:
+            enforce_dedicated_policy()
+        except Exception as exc:
+            append_dedicated_event("policy_worker", "Dedicated policy worker failed", "error", {"error": str(exc)})
+        time.sleep(interval)
+
+
+def start_dedicated_policy_worker(interval=30):
+    thread = threading.Thread(target=dedicated_policy_worker, kwargs={"interval": interval}, name="dedicated-policy-worker", daemon=True)
+    thread.start()
+    return thread
 
 
 def dedicated_create_token(cfg):
@@ -1483,6 +1503,7 @@ def main():
     write_token()
     console_token = auth_token()
     start_proxy_if_needed()
+    start_dedicated_policy_worker()
     server = ThreadingHTTPServer((args.host, args.port), StudioHandler)
     url = "http://%s:%d/" % (args.host, args.port)
     print("Mackes Code : FOR PRIVATE USE: %s" % url, flush=True)

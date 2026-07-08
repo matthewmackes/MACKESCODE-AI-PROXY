@@ -232,6 +232,61 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertEqual(payload["routing"]["used"], "serverless-a")
         self.assertEqual(event["details"]["fallback_model"], "serverless-a")
 
+    def test_idle_policy_warns_once_after_idle_threshold(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(tmp, now=1401)
+            service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                run_started_at=1000,
+                last_work_at=1000,
+                idle_warning_seconds=300,
+                idle_teardown_seconds=600,
+            ))
+
+            result = service.enforce_policy()
+            second = service.enforce_policy()
+            cfg = service.load_config()
+            events = [event for event in service.events() if event["state"] == "idle_warning"]
+
+        self.assertEqual(result["action"], "warning")
+        self.assertEqual(second["action"], "none")
+        self.assertEqual(cfg["idle_warning_started_at"], 1401)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(result["idle_policy"]["teardown_countdown_seconds"], 199)
+
+    def test_idle_policy_auto_tears_down_after_teardown_threshold(self):
+        calls = []
+
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            calls.append((path, method))
+            return 202, {"ok": True}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, registry = self.service(tmp, now=1701, do_request=do_request)
+            registry.append({"id": "dedicated-inference", "enabled": True, "type": "text"})
+            service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-1",
+                run_started_at=1000,
+                last_work_at=1000,
+                idle_warning_seconds=300,
+                idle_teardown_seconds=600,
+            ))
+
+            result = service.enforce_policy()
+            cfg = service.load_config()
+            events = service.events()
+
+        self.assertEqual(result["action"], "teardown")
+        self.assertEqual(result["reason"], "idle_timeout")
+        self.assertEqual(cfg["state"], "deleted")
+        self.assertFalse(registry)
+        self.assertIn(("/v2/dedicated-inferences/server-1", "DELETE"), calls)
+        self.assertTrue(any(event["state"] == "idle_teardown" for event in events))
+
     def test_resource_update_activates_and_clears_stale_endpoint_until_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             service, _ = self.service(tmp, now=2000)
