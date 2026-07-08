@@ -947,6 +947,43 @@ The interface refactoring work consolidates previously separate components into 
 
 ---
 
+### Task ID: INT-026
+**Title:** Reconcile follow-up worklist survey answers
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** *Unassigned*
+**Start Time:** *Not started*
+**Estimated Duration:** 1 hour
+
+**Progress Notes:**
+- 2026-07-08: Added at user request after the follow-up one-at-a-time worklist survey answers. These decisions should be folded into the requirements ledger and owning tasks before further UI polish, model-routing, or release-cleanup work depends on them.
+
+**Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
+
+**Key Features:**
+1. Review the latest survey-answer sequence and identify decisions that are not already covered by `docs/requirements-ledger.md`.
+2. Add new decisions to the ledger with evidence level, owner task, and any open confirmation needed.
+3. Update existing task acceptance criteria instead of creating duplicate implementation tracks.
+4. Preserve current priority order unless a new answer explicitly changes implementation sequencing.
+5. Keep the worklist actionable; avoid raw transcript dumping.
+
+**Files to Modify:**
+- `MAIN-WORKLIST.md`
+- `docs/requirements-ledger.md`
+- Owning task specs or implementation specs when a decision needs more detail
+
+**Completion Criteria:**
+- [ ] Follow-up survey answers are summarized in the requirements ledger
+- [ ] Existing tasks have updated acceptance criteria where needed
+- [ ] Any ambiguous answer is listed as an open confirmation instead of being guessed
+- [ ] Priority order is updated if the follow-up survey changes sequencing
+- [ ] Duplicate or stale worklist entries are consolidated
+
+**Dependencies:** INT-025 (initial survey reconciliation)
+**Blocks:** Fully draining the worklist without losing newly clarified requirements
+
+---
+
 ## P2 Tasks - Enhancements
 
 ### Task ID: INT-007
