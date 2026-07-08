@@ -112,6 +112,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted lightweight Claude terminal PTY process lifecycle, buffered reads, writes, stop, and cleanup into `src.console.services.TerminalSessionService`.
 - 2026-07-08: Extracted local proxy sync detection, forced reload/start orchestration, listener cleanup, sync payloads, and selected-model registry mismatch warnings into `src.console.services.ProxyProcessService`.
 - 2026-07-08: Extracted shared JSON HTTP request handling for proxy calls, DigitalOcean API calls, and public status/wallpaper metadata into `src.console.services.JsonHttpService`.
+- 2026-07-08: Extracted Serverless catalog caching, model-access token discovery, access probes, access audit, catalog-to-registry merge, removed-model handling, and Serverless model metadata preservation into `src.console.services.ServerlessCatalogService`.
 
 **Description:** Break monolithic `StudioHandler` class into smaller, focused handler classes with separation of concerns.
 
