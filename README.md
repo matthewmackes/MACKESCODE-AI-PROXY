@@ -157,6 +157,8 @@ scripts/release-check.sh
 
 It runs the unit/smoke suite, coverage report, Python syntax checks, template JavaScript syntax checks when `node` is available, and a headless browser smoke check when Playwright is installed. GitHub Actions installs Playwright and requires the browser smoke pass for Code, Create, Console, and terminal page navigation.
 
+Release, upgrade, rollback, runtime-state backup, and post-upgrade health validation are documented in `RELEASE.md`.
+
 To run the browser smoke locally:
 
 ```bash

@@ -53,6 +53,7 @@ python3 -m py_compile \
   tests/test_persistence_service.py \
   tests/test_proxy_process_service.py \
   tests/test_proxy_registry_reload.py \
+  tests/test_release_scripts.py \
   tests/test_runtime_config_service.py \
   tests/test_serverless_catalog_service.py \
   tests/test_session_service.py \
@@ -65,7 +66,9 @@ python3 -m py_compile \
   tests/test_websocket_handler.py \
   tests/test_websocket_service.py \
   scripts/coverage-report.py \
-  scripts/browser-smoke.py
+  scripts/browser-smoke.py \
+  scripts/health-validate.py \
+  scripts/runtime-state.py
 
 if command -v node >/dev/null 2>&1; then
   echo "==> Template JavaScript syntax"

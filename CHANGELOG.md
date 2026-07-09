@@ -21,4 +21,11 @@
 - Added per-message routing detail, trace search, gateway policy visibility, model comparison/eval workflows, and model hero cards.
 - Separated release config from runtime state for Dedicated lifecycle data, Serverless cache, traces, usage, wallpaper cache, budgets, and tmux sessions.
 - Removed default embedded model access key behavior; the launcher now requires a token file or explicit one-run override.
+- Added `RELEASE.md`, runtime-state backup/restore tooling, and post-upgrade health validation.
 - Converted `matts-image` from a shell helper to a Python CLI.
+
+### Migration Notes
+
+- Run `scripts/runtime-state.py backup` before upgrading hosts that have local chats, usage logs, tmux sessions, or Dedicated Inference state.
+- Run `scripts/health-validate.py` after restarting the proxy and Console.
+- Token files are not included in runtime-state backups unless `--include-secrets` is supplied.

@@ -935,15 +935,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-024
 **Title:** Add release packaging, upgrade, and rollback discipline
-**Status:** 📋 `TODO`
+**Status:** 🔄 `IN_PROGRESS`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
 **Estimated Duration:** 3 hours
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review as inferred item 9. Industry-ready products need repeatable releases, install validation, migrations, and rollback.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; release packaging must preserve the global model registry, runtime state, usage/cost history, tmux sessions, and Dedicated lifecycle records.
+- 2026-07-09: Started implementation after documentation reconciliation and clean-checkout quickstart verification.
 
 **Description:** Make the platform releaseable from a clean checkout and upgradeable on an existing host without losing runtime state or leaving cloud resources orphaned.
 
