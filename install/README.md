@@ -152,6 +152,16 @@ MATTS_STUDIO_PORT="18181"
 - Model access token: `/var/lib/matts-value-set/.mcnf-do-model-access-token`
 - Console auth token: `/var/lib/matts-value-set/studio/console-auth-token` (auto-generated)
 
+The launcher does not include a default model access key. Populate `MATTS_VALUE_SET_TOKEN_FILE` or run with `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` and `MATTS_VALUE_SET_ACCESS_KEY` for an intentional one-run bootstrap.
+
+### Model Registry
+
+The active model registry is `config/models.json` by default, or `MATTS_MODEL_CONFIG_FILE` when overridden. `--list-models`, proxy `/v1/models`, Code/Create selectors, Console LLM Management, Serverless catalog import, model access audit, and model hero cards all use this registry. Do not maintain a separate static model list in service configuration unless it is only a bootstrap fallback.
+
+### DigitalOcean Permissions
+
+DigitalOcean billing reports need `DIGITALOCEAN_TOKEN` and, for daily spend insights, `DIGITALOCEAN_ACCOUNT_URN`; the token needs billing read access. Dedicated Inference automation needs permissions to create, inspect, and destroy Dedicated Inference resources and issue access tokens. The Console preflight and lifecycle panels report missing permissions, account/balance status when available, region/GPU placement, and teardown countdowns.
+
 ## Web Console Access
 
 1. Start the web console:
@@ -170,6 +180,8 @@ MATTS_STUDIO_PORT="18181"
    ```
 
 4. Open the AgentBoard tab to inspect and control all local tmux sessions. It uses the existing console token and reads local tmux state plus proxy logs; no separate AgentBoard service is installed.
+5. Open Console > LLM Management to audit the model key and sync allowed/forbidden model states before relying on Code/Create selectors.
+6. Open Console > Inference Hosting Lifecycle to build, monitor, keep alive, or tear down Dedicated Inference.
 
 ## Troubleshooting
 

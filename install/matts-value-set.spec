@@ -25,10 +25,10 @@ various LLM models. It provides:
 - Web console on port 18181 with authentication
 - Cost tracking and budget enforcement
 - Integration with Claude Code CLI
-- Support for multiple text and image models
+- Global model registry support for Serverless and Dedicated Inference models
 
-Available models: deepseek-3.2, deepseek-v4-pro, glm-5, mistral-3-14B,
-openai-gpt-5.3-codex, stable-diffusion-3.5-large
+Run `claude-do --list-models` or open Console > LLM Management to inspect the
+active registry, access state, pricing, and routing policy.
 
 %prep
 %setup -q

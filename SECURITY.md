@@ -4,15 +4,15 @@ This setup is intended for local or trusted-host use. The proxy binds to `127.0.
 
 ## Access Key
 
-This private deployment intentionally keeps a default Matts Value Set access key in the launcher code. `MATTS_VALUE_SET_ACCESS_KEY` is ignored unless `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` is also set.
+The launcher does not ship with a default model access key. Provide a key by writing the token file below, or set `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` with `MATTS_VALUE_SET_ACCESS_KEY` for an intentional one-run override. If neither source is present, the launcher exits before starting the proxy.
 
-At launch, the key is written to:
+The default token file is:
 
 ```text
 $HOME/.mcnf-do-model-access-token
 ```
 
-The token file is created with `0600` permissions.
+When the launcher writes the token file, it creates it with `0600` permissions. The Console model-access audit can also use `MODEL_ACCESS_KEY`, `DIGITALOCEAN_MODEL_ACCESS_KEY`, `MATTS_VALUE_SET_ACCESS_TOKEN`, the default token file, a project-local `.mcnf-do-model-access-token`, or `/root/.mcnf-do-model-access-token` depending on how the host is operated.
 
 ## Sensitive Data
 
@@ -55,3 +55,5 @@ The unified web console includes an embedded Claude Code terminal. Keep token au
 ```text
 $HOME/.cache/matts-value-set/studio/console-auth-token
 ```
+
+Model registry entries can reveal which models a key is allowed to use. Treat `access_status`, Dedicated routing state, and model audit output as operational metadata even when no raw token is present.

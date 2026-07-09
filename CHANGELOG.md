@@ -16,4 +16,9 @@
 - Added enterprise Claude Code launch controls: autonomy profiles, permission modes, tool boundaries, context directories, run modes, output formats, budget caps, safe mode, and bare mode.
 - Added a Reporting page with local model usage plus optional DigitalOcean balance, billing history, and daily spend insights.
 - Added a full-screen xterm.js terminal page connected to tmux over WebSocket for a real interactive Claude Code console.
+- Added global model registry management, Serverless catalog import, model access key audit, and selector labels with cost, origin, access state, and use-case context.
+- Added DigitalOcean Dedicated Inference lifecycle automation with preflight, build, status, access-token creation, budget guard, idle warning, auto-teardown, and Serverless fallback routing.
+- Added per-message routing detail, trace search, gateway policy visibility, model comparison/eval workflows, and model hero cards.
+- Separated release config from runtime state for Dedicated lifecycle data, Serverless cache, traces, usage, wallpaper cache, budgets, and tmux sessions.
+- Removed default embedded model access key behavior; the launcher now requires a token file or explicit one-run override.
 - Converted `matts-image` from a shell helper to a Python CLI.

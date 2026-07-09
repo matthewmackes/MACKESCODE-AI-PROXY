@@ -55,6 +55,8 @@ The console includes:
 - reporting page for local model usage and DigitalOcean billing data
 - AgentBoard tab for all local tmux sessions, status inference, task/trajectory summaries, approximate eval metrics, and model/session leaderboard data
 - Local eval datasets and model comparison runs with cost, latency, failures, selected answers, and baseline deltas
+- global model management with key audit, allowed/forbidden states, enriched model labels, and detailed model hero cards
+- Serverless and Dedicated Inference lifecycle controls with build, health, budget, idle teardown, and fallback routing feedback
 
 Create workspace behavior is documented in `docs/create-experience.md`. Rich model detail cards are documented in `docs/model-hero-cards.md`.
 
@@ -76,17 +78,19 @@ Stable Diffusion is also available through the one-shot helper:
 ./matts-console.py --no-open
 ```
 
-The launcher writes the embedded Matts Value Set access key to:
+The launcher requires a Matts Value Set model access key. Write it to:
 
 ```text
 $HOME/.mcnf-do-model-access-token
 ```
 
-To intentionally override the embedded key for one run:
+or intentionally override it for one run:
 
 ```bash
 MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1 MATTS_VALUE_SET_ACCESS_KEY=... ./claude-DO.sh --doctor
 ```
+
+The launcher no longer ships with a default embedded access key. If neither the token file nor the explicit override is present, it exits before starting the proxy.
 
 The proxy listens on:
 
@@ -101,6 +105,10 @@ config/console.json
 ```
 
 Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON config. Environment variables such as `MATTS_STUDIO_PORT`, `MATTS_VALUE_SET_PROXY_PORT`, `MATTS_MODEL_AUTO_ENABLE_MAX_USD`, and `MATTS_CONSOLE_LOG_LEVEL` still override the file. The `paths` section controls template, default model registry, active model registry, Dedicated, Serverless cache, tmux registry, wallpaper, usage, budget, and log locations; existing path-specific environment variables still take precedence. Model pricing comes from the configured model registry data. Secrets and tokens remain file/env based and are not stored in this config.
+
+The active model registry is `config/models.json`. `./claude-DO.sh --list-models`, the proxy `/v1/models` endpoint, Code/Create selectors, model hero cards, and Console LLM management all derive from that registry. Serverless catalog refresh can add new DigitalOcean-hosted models, and models priced below the configured auto-enable threshold are enabled by policy once access audit confirms the key can use them.
+
+Use Console > LLM Management > key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
 
 Dedicated Inference live state is runtime data. The default state file is under the console app cache, and `config/dedicated-inference.example.json` is the publishable template. Do not commit live Dedicated endpoint metadata, access tokens, CA certificates, or raw DigitalOcean resource payloads.
 
@@ -173,6 +181,8 @@ export DIGITALOCEAN_ACCOUNT_URN=do:team:...
 ```
 
 The token needs `billing:read`. Without those values, the Reporting page still shows local model spend from proxy logs.
+
+Dedicated Inference automation also requires a DigitalOcean API token with permission to create, inspect, and destroy Dedicated Inference resources and create access tokens. The Console preflight and lifecycle panels surface missing permissions, region/GPU availability, account status, balance/prepay status when available, idle warnings, and teardown countdowns.
 
 ## AgentBoard
 

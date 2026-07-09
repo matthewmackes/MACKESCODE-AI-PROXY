@@ -68,10 +68,10 @@ if command -v claude-do >/dev/null 2>&1; then
     echo "Logs:           sudo journalctl -u matts-value-set-proxy -f"
     echo "Launch Claude:  claude-deepseek, claude-glm, claude-mistral, claude-codex"
 
-    # Available models
-    echo -e "\n\033[1;34mAvailable Models:\033[0m"
-    echo "Text: deepseek-3.2, deepseek-v4-pro, glm-5, mistral-3-14B, openai-gpt-5.3-codex"
-    echo "Image: stable-diffusion-3.5-large"
+    # Model registry
+    echo -e "\n\033[1;34mModel Registry:\033[0m"
+    echo "List models:    claude-do --list-models"
+    echo "Manage models:  Web Console > LLM Management"
 
     # Token location
     echo -e "\n\033[1;34mConfiguration:\033[0m"

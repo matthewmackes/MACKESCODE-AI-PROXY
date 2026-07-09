@@ -122,7 +122,7 @@ sudo systemctl status matts-value-set-proxy
 # - Service status
 # - Web console URL with token
 # - Quick commands
-# - Available models
+# - Registry inspection commands
 ```
 
 ### **Uninstallation**:

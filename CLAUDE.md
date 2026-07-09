@@ -34,7 +34,9 @@ This is the Matts Value Set Claude Code Proxy - a private Claude Code launcher a
   - Embedded Claude Code terminal via tmux sessions
   - Text model chat interface
   - Image generation studio with prompt builder
-  - Status dashboard with proxy health, costs, budgets, logs
+  - Console tabs for Inference Hosting Lifecycle, LLM Management, Observability, Accounting & Time, AgentBoard, and System Operations
+  - Global model registry management, Serverless catalog import, access-key audit, and detailed model hero cards
+  - Dedicated Inference build, status, budget guard, idle teardown, fallback, and lifecycle event controls
   - Reporting page for local usage and DigitalOcean billing
   - Full-screen xterm.js terminal over WebSocket
 - Manages tmux sessions for persistent Claude Code instances
@@ -50,15 +52,9 @@ This is the Matts Value Set Claude Code Proxy - a private Claude Code launcher a
 
 ## Available Models
 
-Text models:
-- `deepseek-3.2` (aliases: `deepseek`)
-- `deepseek-v4-pro` (aliases: `deepseek-v4`)
-- `glm-5` (aliases: `glm`)
-- `mistral-3-14B` (aliases: `mistral`)
-- `openai-gpt-5.3-codex` (aliases: `codex`)
+Available models are loaded from `config/models.json`, filtered by enabled state and access status, and exposed consistently through `./claude-DO.sh --list-models`, `/v1/models`, Code/Create selectors, Console LLM Management, and model hero cards. `config/default-models.json` is only the bootstrap fallback.
 
-Image model:
-- `stable-diffusion-3.5-large` (aliases: `sd35`)
+Use Console > LLM Management > key audit to verify which Serverless text models the configured key can access. Forbidden, rate-limited, probe-failed, disabled, and Dedicated-offline states are visible in the registry metadata and selector labels.
 
 ## Common Development Tasks
 
@@ -100,6 +96,10 @@ curl -s "http://127.0.0.1:18081/v1/claude-do/capabilities" | python3 -m json.too
 # View recent logs
 tail -f /tmp/matts-value-set-proxy.jsonl
 
+# Inspect routing proof in the GUI
+# Create > chat message > Show Detail
+# Console > Observability > Trace search
+
 # Check tmux sessions
 tmux list-sessions | grep matts-
 ```
@@ -124,19 +124,23 @@ The web console creates tmux sessions prefixed with `matts-` for persistent Clau
 3. All API calls require token in URL (`?token=...`) or headers
 4. WebSocket connections also require token validation
 
+### Model Registry And Routing Proof
+`config/models.json` is the active source of truth for model IDs, aliases, type, pricing, access state, and Dedicated metadata. Serverless catalog sync can add new DigitalOcean models and key audit updates access status. Chat responses include routing metadata; the GUI exposes it through each message's `Show Detail` button and through Console trace search.
+
 ### Cost Tracking System
 - Usage logged to `~/.cache/matts-value-set/usage.jsonl`
 - Budget limits in `~/.cache/matts-value-set/budgets.json`
-- Costs per million tokens configured in `DEFAULT_COSTS_PER_MTOK`
+- Costs per million tokens come from the active model registry
 - Image generation has separate per-image pricing
 
 ### Environment Configuration
 Key environment variables:
-- `MATTS_VALUE_SET_ACCESS_KEY` - Override embedded access key
-- `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` - Enable key override
+- `MATTS_VALUE_SET_ACCESS_KEY` - One-run model access key override when explicitly enabled
+- `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` - Permit the one-run key override
 - `MATTS_VALUE_SET_BASE_URL` - Upstream inference endpoint
 - `MATTS_VALUE_SET_PROXY_HOST/PORT` - Proxy binding
 - `MATTS_VALUE_SET_TOKEN_FILE` - Token file location
+- `MATTS_MODEL_CONFIG_FILE` - Active model registry override
 - `DIGITALOCEAN_TOKEN` - For billing reporting
 - `DIGITALOCEAN_ACCOUNT_URN` - For billing reporting
 
