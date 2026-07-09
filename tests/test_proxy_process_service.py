@@ -38,6 +38,7 @@ class ProxyProcessServiceTests(unittest.TestCase):
             "budget_file": lambda: root / "budgets.json",
             "log_file": lambda: root / "proxy.jsonl",
             "trace_file": lambda: root / "traces.jsonl",
+            "gateway_policy_file": lambda: root / "gateway-policy.json",
             "proxy_script": lambda: root / "do-anthropic-proxy.py",
             "executable": "/python",
             "env": {},
@@ -133,6 +134,8 @@ class ProxyProcessServiceTests(unittest.TestCase):
         self.assertIn("--models", command)
         self.assertIn("--trace-file", command)
         self.assertIn(str(Path(tmp) / "traces.jsonl"), command)
+        self.assertIn("--gateway-policy-file", command)
+        self.assertIn(str(Path(tmp) / "gateway-policy.json"), command)
 
     def test_stop_kills_tmux_and_listener_pid(self):
         with tempfile.TemporaryDirectory() as tmp:

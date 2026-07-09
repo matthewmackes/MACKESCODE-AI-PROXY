@@ -19,6 +19,53 @@ DEFAULT_COST_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-se
 DEFAULT_LOG_FILE = "/tmp/matts-value-set-proxy.jsonl"
 DEFAULT_TRACE_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/studio/traces.jsonl")
 DEFAULT_BUDGET_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/budgets.json")
+DEFAULT_GATEWAY_POLICY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "gateway-policy.json")
+DEFAULT_GATEWAY_POLICY = {
+    "schema_version": 1,
+    "enabled": True,
+    "failover": {
+        "enabled": True,
+        "max_attempts": 2,
+        "dedicated_preference": "active_only",
+        "serverless_fallback": True,
+        "fallback_reason_codes": [
+            "budget_blocked_fallback",
+            "dedicated_unhealthy",
+            "dedicated_endpoint_unreachable",
+            "provider_5xx",
+            "provider_rate_limited",
+        ],
+    },
+    "circuit_breakers": {
+        "enabled": False,
+        "failure_window_seconds": 300,
+        "failure_threshold": 5,
+        "cooldown_seconds": 120,
+        "tracked_statuses": [429, 500, 502, 503, 504],
+    },
+    "rate_limits": {
+        "enabled": False,
+        "global_per_minute": 0,
+        "per_model_per_minute": {},
+        "per_session_per_minute": {},
+    },
+    "cache": {
+        "enabled": False,
+        "ttl_seconds": 300,
+        "routes": {"chat": False, "images": False, "model_list": True},
+    },
+    "retries": {
+        "enabled": True,
+        "max_retries": 1,
+        "retry_statuses": [429, 500, 502, 503, 504],
+        "backoff_seconds": 1,
+    },
+    "budget": {
+        "enforce_proxy_budget_file": True,
+        "trace_budget_blocks": True,
+        "dedicated_budget_fallback": True,
+    },
+}
 MATTS_VALUE_SET_MODELS = [
     "deepseek-3.2",
     "deepseek-v4-pro",
@@ -861,6 +908,52 @@ def _read_json_file(path, default):
         return default
 
 
+def _deep_merge(base, override):
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return override if override is not None else base
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _load_gateway_policy(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("Gateway policy must be a JSON object.")
+        schema_version = int(data.get("schema_version", 1))
+        if schema_version != 1:
+            raise ValueError("Gateway policy schema_version %s is not supported; expected 1." % schema_version)
+        return _deep_merge(DEFAULT_GATEWAY_POLICY, data), True, ""
+    except (OSError, TypeError, ValueError) as exc:
+        return dict(DEFAULT_GATEWAY_POLICY), False, str(exc)
+
+
+def _refresh_gateway_policy(server):
+    policy, loaded, error = _load_gateway_policy(getattr(server, "gateway_policy_file", ""))
+    server.gateway_policy = policy
+    server.gateway_policy_loaded = loaded
+    server.gateway_policy_last_error = "" if loaded else error
+    server.gateway_policy_last_loaded_at = time.time() if loaded else getattr(server, "gateway_policy_last_loaded_at", 0)
+
+
+def _gateway_policy_state(server):
+    if not hasattr(server, "gateway_policy"):
+        _refresh_gateway_policy(server)
+    return {
+        "file": getattr(server, "gateway_policy_file", ""),
+        "loaded": bool(getattr(server, "gateway_policy_loaded", False)),
+        "loaded_at": getattr(server, "gateway_policy_last_loaded_at", 0),
+        "last_error": getattr(server, "gateway_policy_last_error", ""),
+        "policy": getattr(server, "gateway_policy", dict(DEFAULT_GATEWAY_POLICY)),
+    }
+
+
 def _usage_totals(cost_file):
     totals = {"all": 0.0, "today": 0.0, "month": 0.0}
     now = time.localtime()
@@ -1070,8 +1163,12 @@ class Handler(BaseHTTPRequestHandler):
     def _refresh_models(self, force=False):
         _refresh_model_registry(self.server, force=force)
 
+    def _refresh_gateway_policy(self):
+        _refresh_gateway_policy(self.server)
+
     def do_GET(self):
         self._refresh_models()
+        self._refresh_gateway_policy()
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/v1/models":
@@ -1103,7 +1200,10 @@ class Handler(BaseHTTPRequestHandler):
                 "model_config_loaded": self.server.model_config_loaded,
                 "model_config_state": _model_config_state(self.server),
                 "dedicated": _dedicated_lifecycle(_load_dedicated_config().get("model_id")),
+                "gateway_policy": _gateway_policy_state(self.server),
             })
+        if path == "/v1/claude-do/gateway-policy":
+            return self._json(200, _gateway_policy_state(self.server))
         if path == "/v1/claude-do/budget":
             return self._json(200, {
                 "budget_file": self.server.budget_file,
@@ -1118,14 +1218,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._refresh_models()
+        self._refresh_gateway_policy()
         path = urlparse(self.path).path
         if path == "/v1/claude-do/reload":
             self._refresh_models(force=True)
+            self._refresh_gateway_policy()
             return self._json(200, {
                 "ok": True,
                 "models": self.server.models,
                 "model_config_loaded": self.server.model_config_loaded,
                 "model_config_state": _model_config_state(self.server),
+                "gateway_policy": _gateway_policy_state(self.server),
             })
 
         if path == "/v1/claude-do/estimate_cost":
@@ -1533,6 +1636,7 @@ def main():
     parser.add_argument("--budget-file", default=os.environ.get("CLAUDE_DO_BUDGET_FILE", DEFAULT_BUDGET_FILE))
     parser.add_argument("--log-file", default=os.environ.get("CLAUDE_DO_LOG_FILE", DEFAULT_LOG_FILE))
     parser.add_argument("--trace-file", default=os.environ.get("MATTS_TRACE_FILE", DEFAULT_TRACE_FILE))
+    parser.add_argument("--gateway-policy-file", default=os.environ.get("MATTS_GATEWAY_POLICY_FILE", DEFAULT_GATEWAY_POLICY_FILE))
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
@@ -1559,10 +1663,16 @@ def main():
     server.budget_file = args.budget_file
     server.log_file = args.log_file
     server.trace_file = args.trace_file
+    server.gateway_policy_file = args.gateway_policy_file
+    server.gateway_policy = dict(DEFAULT_GATEWAY_POLICY)
+    server.gateway_policy_loaded = False
+    server.gateway_policy_last_error = ""
+    server.gateway_policy_last_loaded_at = 0
     server.base_url = args.base_url.rstrip("/")
     server.chat_url = _chat_url(args.base_url)
     server.images_url = _images_url(args.base_url)
     _refresh_model_registry(server, force=True)
+    _refresh_gateway_policy(server)
     print("listening on http://%s:%d -> %s" % (args.host, args.port, server.chat_url), flush=True)
     server.serve_forever()
 

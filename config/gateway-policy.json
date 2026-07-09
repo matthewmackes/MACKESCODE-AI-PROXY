@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "failover": {
+    "enabled": true,
+    "max_attempts": 2,
+    "dedicated_preference": "active_only",
+    "serverless_fallback": true,
+    "fallback_reason_codes": [
+      "budget_blocked_fallback",
+      "dedicated_unhealthy",
+      "dedicated_endpoint_unreachable",
+      "provider_5xx",
+      "provider_rate_limited"
+    ]
+  },
+  "circuit_breakers": {
+    "enabled": false,
+    "failure_window_seconds": 300,
+    "failure_threshold": 5,
+    "cooldown_seconds": 120,
+    "tracked_statuses": [429, 500, 502, 503, 504]
+  },
+  "rate_limits": {
+    "enabled": false,
+    "global_per_minute": 0,
+    "per_model_per_minute": {},
+    "per_session_per_minute": {}
+  },
+  "cache": {
+    "enabled": false,
+    "ttl_seconds": 300,
+    "routes": {
+      "chat": false,
+      "images": false,
+      "model_list": true
+    }
+  },
+  "retries": {
+    "enabled": true,
+    "max_retries": 1,
+    "retry_statuses": [429, 500, 502, 503, 504],
+    "backoff_seconds": 1
+  },
+  "budget": {
+    "enforce_proxy_budget_file": true,
+    "trace_budget_blocks": true,
+    "dedicated_budget_fallback": true
+  }
+}

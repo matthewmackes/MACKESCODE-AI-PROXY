@@ -135,6 +135,10 @@ def model_config_file():
     return configured_path("model_config_file", "config/models.json", "MATTS_MODEL_CONFIG_FILE", PROJECT_DIR)
 
 
+def gateway_policy_file():
+    return configured_path("gateway_policy_file", "config/gateway-policy.json", "MATTS_GATEWAY_POLICY_FILE", PROJECT_DIR)
+
+
 def serverless_catalog_cache_file():
     return configured_path("serverless_catalog_cache_file", "serverless-model-catalog.json", "MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir())
 
@@ -560,6 +564,7 @@ def proxy_process_service(proxy_in_sync_func=None):
         budget_file=budget_file,
         log_file=log_file,
         trace_file=trace_file,
+        gateway_policy_file=gateway_policy_file,
         proxy_script=lambda: Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / STARTUP_CONFIG["proxy"]["script"])),
         executable=sys.executable,
         env=os.environ,

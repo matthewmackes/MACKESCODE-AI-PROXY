@@ -31,6 +31,7 @@ class ProxyProcessService:
         log_file,
         proxy_script,
         trace_file=None,
+        gateway_policy_file=None,
         executable=None,
         env=None,
         run_func=subprocess.run,
@@ -58,6 +59,7 @@ class ProxyProcessService:
         self.budget_file = budget_file
         self.log_file = log_file
         self.trace_file = trace_file
+        self.gateway_policy_file = gateway_policy_file
         self.proxy_script = proxy_script
         self.executable = executable or sys.executable
         self.env = env if env is not None else os.environ
@@ -193,6 +195,8 @@ class ProxyProcessService:
         ]
         if self.trace_file is not None:
             cmd.extend(["--trace-file", str(self.value(self.trace_file))])
+        if self.gateway_policy_file is not None:
+            cmd.extend(["--gateway-policy-file", str(self.value(self.gateway_policy_file))])
         self.popen_func(cmd, stdout=self.devnull, stderr=self.devnull, start_new_session=True)
         for _ in range(50):
             if self.port_open(self.host(), self.port()):

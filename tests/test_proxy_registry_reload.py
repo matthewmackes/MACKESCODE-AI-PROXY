@@ -218,6 +218,37 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertEqual(rows[0]["message_summary"]["last_user_preview"], "hello private prompt")
         self.assertEqual(rows[0]["cost_usd"], 0.00001)
 
+    def test_gateway_policy_loads_defaults_and_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            policy_file = Path(tmp) / "gateway-policy.json"
+            policy_file.write_text(json.dumps({
+                "schema_version": 1,
+                "failover": {"max_attempts": 3},
+                "rate_limits": {"enabled": True, "global_per_minute": 60},
+            }), encoding="utf-8")
+
+            policy, loaded, error = proxy._load_gateway_policy(str(policy_file))
+
+        self.assertTrue(loaded)
+        self.assertEqual(error, "")
+        self.assertTrue(policy["failover"]["enabled"])
+        self.assertEqual(policy["failover"]["max_attempts"], 3)
+        self.assertTrue(policy["rate_limits"]["enabled"])
+        self.assertEqual(policy["rate_limits"]["global_per_minute"], 60)
+        self.assertIn("chat", policy["cache"]["routes"])
+
+    def test_gateway_policy_bad_schema_falls_back_to_defaults(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            policy_file = Path(tmp) / "gateway-policy.json"
+            policy_file.write_text(json.dumps({"schema_version": 99}), encoding="utf-8")
+
+            policy, loaded, error = proxy._load_gateway_policy(str(policy_file))
+
+        self.assertFalse(loaded)
+        self.assertIn("schema_version", error)
+        self.assertEqual(policy["schema_version"], 1)
+        self.assertTrue(policy["budget"]["trace_budget_blocks"])
+
 
 if __name__ == "__main__":
     unittest.main()
