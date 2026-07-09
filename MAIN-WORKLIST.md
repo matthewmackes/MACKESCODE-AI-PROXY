@@ -1370,7 +1370,7 @@ The interface refactoring work consolidates previously separate components into 
 ```
 ### Task ID: INT-001
 **Title:** Clean up HTML template separation
-**Status:** 🔄 `IN_PROGRESS`
+Status: IN_PROGRESS
 **Priority:** P1
 **Assigned To:** Claude (general-purpose agent)
 **Start Time:** 2026-07-07 15:30
@@ -1384,10 +1384,10 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-07 16:00: Refactored main HTML template (70% complete)
 
 **Completion Criteria:**
-- [ ] All HTML moved to template files
-- [ ] Template loading system working
-- [ ] Tests pass
-- [ ] Documentation updated
+- All HTML moved to template files
+- Template loading system working
+- Tests pass
+- Documentation updated
 
 **Dependencies:** None
 **Blocks:** INT-002 (Refactor HTTP handler class)
