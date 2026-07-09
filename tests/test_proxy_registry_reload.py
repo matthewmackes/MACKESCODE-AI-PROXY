@@ -303,6 +303,53 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertEqual(other_model["scope"], "session")
         self.assertEqual(other_model["key"], "session-1")
 
+    def test_gateway_cache_respects_route_policy_and_returns_clone(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "cache": {
+                    "enabled": True,
+                    "ttl_seconds": 30,
+                    "routes": {"chat": True, "images": False},
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_cache={},
+        )
+        request = {"model": "model-a", "messages": [{"role": "user", "content": "hi"}]}
+        response = {"id": "msg-1", "content": [{"type": "text", "text": "hello"}], "claude_do": {"trace_id": "old"}}
+
+        stored = proxy._gateway_cache_store(server, "chat", "model-a", request, response, now=1000)
+        disabled_store = proxy._gateway_cache_store(server, "images", "model-a", request, response, now=1000)
+        hit = proxy._gateway_cache_get(server, "chat", "model-a", request, now=1010)
+        hit["content"][0]["text"] = "mutated"
+        second_hit = proxy._gateway_cache_get(server, "chat", "model-a", request, now=1011)
+
+        self.assertTrue(stored)
+        self.assertFalse(disabled_store)
+        self.assertEqual(hit["claude_do"]["gateway_cache"]["route"], "chat")
+        self.assertNotIn("trace_id", second_hit["claude_do"])
+        self.assertEqual(second_hit["content"][0]["text"], "hello")
+
+    def test_gateway_cache_expires_entries(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "cache": {
+                    "enabled": True,
+                    "ttl_seconds": 5,
+                    "routes": {"chat": True},
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_cache={},
+        )
+        request = {"model": "model-a", "messages": []}
+
+        self.assertTrue(proxy._gateway_cache_store(server, "chat", "model-a", request, {"id": "msg"}, now=1000))
+        self.assertIsNotNone(proxy._gateway_cache_get(server, "chat", "model-a", request, now=1004))
+        self.assertIsNone(proxy._gateway_cache_get(server, "chat", "model-a", request, now=1006))
+
 
 if __name__ == "__main__":
     unittest.main()

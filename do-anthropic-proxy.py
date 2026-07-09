@@ -1037,6 +1037,80 @@ def _gateway_rate_limit_error(server, body, model, route_type, now=None):
     return None
 
 
+def _json_clone(value):
+    return json.loads(json.dumps(value))
+
+
+def _gateway_cache_policy(server, route_type):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    if not policy.get("enabled", True):
+        return None
+    cache_policy = policy.get("cache") if isinstance(policy.get("cache"), dict) else {}
+    routes = cache_policy.get("routes") if isinstance(cache_policy.get("routes"), dict) else {}
+    if not cache_policy.get("enabled") or not routes.get(route_type):
+        return None
+    ttl = _positive_int(cache_policy.get("ttl_seconds")) or 300
+    return {"ttl_seconds": ttl, "source": getattr(server, "gateway_policy_file", "")}
+
+
+def _gateway_cache_key(route_type, model, request_payload):
+    return "%s:%s:%s" % (route_type, model, json.dumps(request_payload or {}, sort_keys=True, separators=(",", ":")))
+
+
+def _gateway_cache_get(server, route_type, model, request_payload, now=None):
+    policy = _gateway_cache_policy(server, route_type)
+    if not policy:
+        return None
+    now = time.time() if now is None else float(now)
+    cache = getattr(server, "gateway_cache", None)
+    if cache is None:
+        cache = {}
+        server.gateway_cache = cache
+    key = _gateway_cache_key(route_type, model, request_payload)
+    item = cache.get(key)
+    if not item:
+        return None
+    if float(item.get("expires_at") or 0) <= now:
+        cache.pop(key, None)
+        return None
+    payload = _json_clone(item.get("payload"))
+    meta = payload.setdefault("claude_do", {})
+    meta["gateway_cache"] = {
+        "hit": True,
+        "route": route_type,
+        "cached_at": item.get("cached_at"),
+        "expires_at": item.get("expires_at"),
+        "ttl_seconds": policy["ttl_seconds"],
+    }
+    return payload
+
+
+def _gateway_cache_store(server, route_type, model, request_payload, response_payload, now=None):
+    policy = _gateway_cache_policy(server, route_type)
+    if not policy or response_payload is None:
+        return False
+    now = time.time() if now is None else float(now)
+    cache = getattr(server, "gateway_cache", None)
+    if cache is None:
+        cache = {}
+        server.gateway_cache = cache
+    key = _gateway_cache_key(route_type, model, request_payload)
+    payload = _json_clone(response_payload)
+    if isinstance(payload, dict):
+        payload.pop("trace_id", None)
+        if isinstance(payload.get("error"), dict):
+            payload["error"].pop("trace_id", None)
+        if isinstance(payload.get("claude_do"), dict):
+            payload["claude_do"].pop("trace_id", None)
+            payload["claude_do"].pop("gateway_cache", None)
+    cache[key] = {
+        "cached_at": now,
+        "expires_at": now + policy["ttl_seconds"],
+        "payload": payload,
+    }
+    return True
+
+
 def _usage_totals(cost_file):
     totals = {"all": 0.0, "today": 0.0, "month": 0.0}
     now = time.localtime()
@@ -1352,6 +1426,22 @@ class Handler(BaseHTTPRequestHandler):
                     extra={"gateway_policy": {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key")}},
                 )
                 return self._json(429, _attach_trace(payload, trace))
+            cached = _gateway_cache_get(self.server, "images", model, body, now=started)
+            if cached is not None:
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=200,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="gateway-cache",
+                    routing_reason="cache_hit",
+                    started_at=started,
+                    extra={"gateway_policy": {"decision": "cache_hit", "route": "images"}},
+                )
+                cached.setdefault("claude_do", {})["trace_id"] = trace.get("trace_id")
+                return self._json(200, cached)
             try:
                 resp = requests.post(
                     self.server.images_url,
@@ -1428,6 +1518,7 @@ class Handler(BaseHTTPRequestHandler):
             }
             _write_jsonl(self.server.log_file, record)
             _write_jsonl(self.server.cost_file, record)
+            _gateway_cache_store(self.server, "images", model, body, data, now=time.time())
             trace = _trace_request(
                 self.server,
                 action="proxy.image",
@@ -1545,6 +1636,23 @@ class Handler(BaseHTTPRequestHandler):
         upstream_url = route["url"] if route else self.server.chat_url
         upstream_token = route["token"] if route else self._token()
         started = time.time()
+        if not body.get("stream"):
+            cached = _gateway_cache_get(self.server, "chat", payload_model, payload, now=started)
+            if cached is not None:
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.chat",
+                    status=200,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=payload_model,
+                    endpoint_mode="gateway-cache",
+                    routing_reason="cache_hit",
+                    started_at=started,
+                    extra={"gateway_policy": {"decision": "cache_hit", "route": "chat"}},
+                )
+                _attach_trace(cached, trace)
+                return self._json(200, cached)
         try:
             resp = requests.post(
                 upstream_url,
@@ -1695,6 +1803,8 @@ class Handler(BaseHTTPRequestHandler):
         }
         if token_clamp:
             anthropic["claude_do"]["token_clamp"] = token_clamp
+        if not body.get("stream"):
+            _gateway_cache_store(self.server, "chat", payload.get("model", model), payload, anthropic, now=time.time())
         record = {
             "ts": time.time(),
             "provider": self.server.provider,
