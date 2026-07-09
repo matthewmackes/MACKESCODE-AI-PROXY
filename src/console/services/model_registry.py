@@ -272,6 +272,26 @@ class ModelRegistryService:
         profile = self.brand_profile(model)
         disabled = not self.route_enabled(model)
         dedicated = (model or {}).get("dedicated") if isinstance((model or {}).get("dedicated"), dict) else {}
+        access = (model or {}).get("access_status") or "not_checked"
+        policy_decision = {}
+        if disabled and dedicated.get("managed"):
+            policy_decision = {
+                "decision": "build_server_prompt",
+                "reason": "dedicated_not_online",
+                "state": dedicated.get("state") or (model or {}).get("state") or "not_configured",
+            }
+        elif disabled and access in {"forbidden", "unauthorized"}:
+            policy_decision = {
+                "decision": "access_forbidden_rejection",
+                "reason": "access_forbidden",
+                "access_status": access,
+            }
+        elif dedicated.get("managed"):
+            policy_decision = {
+                "decision": "dedicated_online_preference",
+                "reason": "dedicated_online",
+                "state": dedicated.get("state") or (model or {}).get("state") or "active",
+            }
         name = str((model or {}).get("display_name") or (model or {}).get("id") or "")
         cost = self.readable_cost(model)
         status = self.status_label(model)
@@ -298,6 +318,7 @@ class ModelRegistryService:
             "pricing": dict((model or {}).get("pricing") or {}),
             "dedicated": dict(dedicated),
             "dedicated_rebuildable": bool(disabled and dedicated.get("managed")),
+            "policy_decision": policy_decision,
         }
 
     def options(self, rows, model_type=None, include_disabled=True):

@@ -480,11 +480,30 @@ class DedicatedInferenceService:
             next_step = "Rebuild Dedicated Inference with another available GPU or region, or select a Serverless model."
         elif state in {"deleted", "tearing_down", "not_configured"}:
             next_step = "Build a Dedicated Inference server before selecting this model."
+            decision = "build_server_prompt"
+            reason = "dedicated_not_online"
         else:
             next_step = "Wait for DigitalOcean to report active, then the app will register and enable the Dedicated model globally."
+            decision = "dedicated_wait_not_ready"
+            reason = "dedicated_not_ready"
+        if state in {"failed", "error"}:
+            decision = "dedicated_failed_rebuild_or_fallback"
+            reason = "dedicated_failed"
         return {
             "error": message,
             "message": message,
+            "routing": {
+                "requested": requested_model,
+                "used": None,
+                "backend": "dedicated",
+                "reason": reason,
+                "policy_decision": {
+                    "decision": decision,
+                    "model": requested_model,
+                    "state": state,
+                    "next_step": next_step,
+                },
+            },
             "dedicated": lifecycle,
             "digitalocean": do_health,
             "lifecycle": {
@@ -850,6 +869,12 @@ class DedicatedInferenceService:
                     "reason": "budget_blocked_fallback",
                     "backend": "serverless",
                     "budget_state": budget_state,
+                    "policy_decision": {
+                        "decision": "budget_blocked_fallback",
+                        "model": data.get("model"),
+                        "fallback_model": fallback,
+                        "budget_percent": budget_state.get("percent"),
+                    },
                 }
             return status, fallback_payload
         if cfg.get("state") != "active" or not endpoint or not cfg.get("access_token"):
@@ -884,7 +909,7 @@ class DedicatedInferenceService:
             self.append_event("fallback", "Dedicated request failed; routed chat to Serverless", "warning", {"status": exc.code, "response": error})
             status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
             if isinstance(fallback_payload, dict):
-                fallback_payload["routing"] = {"requested": data.get("model"), "used": fallback, "reason": "Dedicated request failed", "backend": "serverless"}
+                fallback_payload["routing"] = {"requested": data.get("model"), "used": fallback, "reason": "dedicated_request_failed_fallback", "backend": "serverless", "policy_decision": {"decision": "dedicated_request_failed_fallback", "model": data.get("model"), "fallback_model": fallback, "status": exc.code}}
             return status, fallback_payload
         except URLError as exc:
             cfg = self.record_health_failure(cfg, str(exc.reason), {"error": str(exc.reason)})
@@ -892,7 +917,7 @@ class DedicatedInferenceService:
             self.append_event("fallback", "Dedicated endpoint unreachable; routed chat to Serverless", "warning", {"error": str(exc.reason)})
             status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
             if isinstance(fallback_payload, dict):
-                fallback_payload["routing"] = {"requested": data.get("model"), "used": fallback, "reason": "Dedicated endpoint unreachable", "backend": "serverless"}
+                fallback_payload["routing"] = {"requested": data.get("model"), "used": fallback, "reason": "dedicated_unreachable_fallback", "backend": "serverless", "policy_decision": {"decision": "dedicated_unreachable_fallback", "model": data.get("model"), "fallback_model": fallback}}
             return status, fallback_payload
         text = ""
         choices = raw.get("choices") if isinstance(raw, dict) else []
@@ -905,4 +930,4 @@ class DedicatedInferenceService:
         self.save_config(cfg)
         self.append_event("active", "Dedicated served chat request", "success", {"model": cfg.get("model_id")})
         usage = raw.get("usage") if isinstance(raw, dict) else {}
-        return HTTPStatus.OK, {"text": text, "raw": raw, "usage": usage or {}, "cost": {"total_cost_usd": self.cost_usd(cfg)}, "routing": {"requested": data.get("model"), "used": cfg.get("model_id"), "backend": "dedicated"}}
+        return HTTPStatus.OK, {"text": text, "raw": raw, "usage": usage or {}, "cost": {"total_cost_usd": self.cost_usd(cfg)}, "routing": {"requested": data.get("model"), "used": cfg.get("model_id"), "backend": "dedicated", "policy_decision": {"decision": "dedicated_online_preference", "model": cfg.get("model_id"), "state": cfg.get("state")}}}

@@ -82,6 +82,22 @@ class ModelRegistryServiceTests(unittest.TestCase):
         self.assertEqual(option["dedicated"]["region"], "tor1")
         self.assertEqual(option["pricing"]["hourly"], 2.59)
         self.assertIn("$2.59 / hour", option["cost_label"])
+        self.assertEqual(option["policy_decision"]["decision"], "build_server_prompt")
+
+    def test_forbidden_serverless_option_has_policy_decision(self):
+        option = self.service().enriched_option({
+            "id": "haiku-4-5",
+            "display_name": "Haiku 4.5",
+            "type": "text",
+            "enabled": True,
+            "serverless": True,
+            "access_status": "forbidden",
+            "pricing": {"input": 0.1},
+        })
+
+        self.assertTrue(option["disabled"])
+        self.assertEqual(option["policy_decision"]["decision"], "access_forbidden_rejection")
+        self.assertEqual(option["policy_decision"]["access_status"], "forbidden")
 
     def test_catalog_pricing_detects_common_shapes(self):
         pricing = self.service().catalog_pricing_from_item({

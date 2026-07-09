@@ -224,6 +224,24 @@ def _model_config_state(server):
     }
 
 
+def _registry_record_for_model(server, model):
+    for record in getattr(server, "model_registry_records", []) or []:
+        if isinstance(record, dict) and record.get("id") == model:
+            return record
+    return {}
+
+
+def _unavailable_model_policy(server, model):
+    record = _registry_record_for_model(server, model)
+    dedicated = record.get("dedicated") if isinstance(record.get("dedicated"), dict) else {}
+    access = record.get("access_status") or "not_checked"
+    if record.get("serverless") and access in {"forbidden", "unauthorized"}:
+        return {"decision": "access_forbidden_rejection", "model": model, "reason": "access_forbidden", "access_status": access}
+    if dedicated.get("managed"):
+        return {"decision": "build_server_prompt", "model": model, "reason": "dedicated_not_online", "state": dedicated.get("state") or record.get("state") or "not_configured"}
+    return {"decision": "model_unavailable_rejection", "model": model, "reason": "model_not_configured", "access_status": access}
+
+
 def _dedicated_config_path():
     return os.environ.get(
         "MATTS_DEDICATED_CONFIG_FILE",
@@ -314,6 +332,18 @@ def _dedicated_not_ready_error(model, lifecycle):
             "type": "service_unavailable_error",
             "message": message,
             "dedicated_lifecycle": lifecycle,
+        },
+        "routing": {
+            "requested": model,
+            "used": None,
+            "backend": "dedicated",
+            "reason": "dedicated_not_ready",
+            "policy_decision": {
+                "decision": "dedicated_wait_not_ready",
+                "model": model,
+                "state": lifecycle.get("state"),
+                "next_step": lifecycle.get("next_step"),
+            },
         },
     }
 
@@ -1705,16 +1735,20 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category=budget_error.get("type") or "budget_exceeded",
                 human_message=budget_error.get("message") or "",
+                extra={"gateway_policy": {"decision": "budget_exceeded_rejection", "model": model, "reason": "budget_exceeded"}},
             )
             return self._json(402, _attach_trace(payload, trace))
         if model not in self.server.models:
+            policy_decision = _unavailable_model_policy(self.server, model)
             payload = {
                 "type": "error",
                 "error": {
                     "type": "not_found_error",
                     "message": "model is not configured for Matts Value Set",
                     "model": model,
+                    "policy_decision": policy_decision,
                 },
+                "routing": {"requested": requested_model, "used": None, "backend": "proxy", "reason": policy_decision.get("reason") or "model_not_configured", "policy_decision": policy_decision},
             }
             trace = _trace_request(
                 self.server,
@@ -1728,6 +1762,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category="not_found_error",
                 human_message="model is not configured for Matts Value Set",
+                extra={"gateway_policy": policy_decision},
             )
             return self._json(404, _attach_trace(payload, trace))
         lifecycle = _dedicated_lifecycle(model)
@@ -1754,7 +1789,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category="service_unavailable_error",
                 human_message=payload.get("error", {}).get("message", ""),
-                extra={"dedicated_lifecycle": lifecycle},
+                extra={"dedicated_lifecycle": lifecycle, "gateway_policy": {"decision": "dedicated_wait_not_ready", "model": model, "state": lifecycle.get("state"), "reason": "dedicated_not_ready"}},
             )
             return self._json(409, _attach_trace(payload, trace))
         route = _dedicated_route(model)

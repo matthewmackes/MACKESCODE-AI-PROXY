@@ -19,6 +19,7 @@ class ChatRoutingService:
         dedicated_status_payload,
         dedicated_chat_completion,
         load_dedicated_config,
+        model_policy_for_model=None,
         trace_service=None,
     ):
         self.start_proxy_if_needed = start_proxy_if_needed
@@ -32,6 +33,7 @@ class ChatRoutingService:
         self.dedicated_status_payload = dedicated_status_payload
         self.dedicated_chat_completion = dedicated_chat_completion
         self.load_dedicated_config = load_dedicated_config
+        self.model_policy_for_model = model_policy_for_model or (lambda model: {})
         self.trace_service = trace_service
 
     def active_text_models(self):
@@ -45,6 +47,17 @@ class ChatRoutingService:
     def trace_record(self, action, data, model, started_at, status, payload=None, backend=None, reason=None):
         payload = payload if isinstance(payload, dict) else {}
         routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
+        policy_decision = routing.get("policy_decision") if isinstance(routing.get("policy_decision"), dict) else {}
+        route_reason = routing.get("reason") or reason or ""
+        if not policy_decision and route_reason in {"budget_blocked_fallback", "registry_sync_blocked", "registry_sync_warning", "access_forbidden", "dedicated_not_online", "dedicated_not_ready"}:
+            decision = {
+                "registry_sync_blocked": "stale_registry_protection",
+                "registry_sync_warning": "stale_registry_warning",
+                "access_forbidden": "access_forbidden_rejection",
+                "dedicated_not_online": "build_server_prompt",
+                "dedicated_not_ready": "dedicated_wait_not_ready",
+            }.get(route_reason, route_reason)
+            policy_decision = {"decision": decision, "model": model, "reason": route_reason}
         cost = payload.get("cost") if isinstance(payload.get("cost"), dict) else {}
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
         raw = payload.get("raw") if isinstance(payload.get("raw"), dict) else {}
@@ -58,7 +71,7 @@ class ChatRoutingService:
             "routed_model": routing.get("used") or (model if int(status) < 400 else None),
             "provider": "DigitalOcean",
             "endpoint_mode": routing.get("backend") or backend or "serverless",
-            "routing_reason": routing.get("reason") or reason or "",
+            "routing_reason": route_reason,
             "latency_ms": int((time.time() - started_at) * 1000),
             "message_summary": self.trace_service.summarize_messages(data.get("messages") if isinstance(data, dict) else []) if self.trace_service else {},
             "usage": usage,
@@ -68,6 +81,8 @@ class ChatRoutingService:
             "error_category": payload.get("category") or payload.get("code") or ("http_%s" % int(status) if int(status) >= 400 else ""),
             "human_message": payload.get("message") or payload.get("error") or "",
         }
+        if policy_decision:
+            record["gateway_policy"] = policy_decision
         trace = self.trace(record)
         if trace is not None:
             payload["trace_id"] = trace["trace_id"]
@@ -81,15 +96,18 @@ class ChatRoutingService:
         started_at = time.time()
         self.start_proxy_if_needed()
         if not allow_unregistered and model not in self.active_text_models():
-            payload = {"error": "unknown text model", "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "unknown_model"}}
+            policy = self.model_policy_for_model(model) or {"decision": "unknown_model_rejection", "model": model}
+            reason = policy.get("reason") or ("access_forbidden" if policy.get("decision") == "access_forbidden_rejection" else "unknown_model")
+            payload = {"error": "unknown text model", "routing": {"requested": model, "used": None, "backend": "serverless", "reason": reason, "policy_decision": policy}}
             return HTTPStatus.BAD_REQUEST, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.BAD_REQUEST, payload, backend="serverless", reason="unknown_model")
         registry_issue = self.registry_sync_issue_for_model(model)
         if registry_issue and registry_issue.get("blocking"):
+            policy = {"decision": "stale_registry_protection", "model": model, "blocking": True, "reason": registry_issue.get("reason") or "registry_sync_blocked"}
             payload = {
                 "error": registry_issue["message"],
                 "message": registry_issue["message"],
                 "registry_sync": registry_issue,
-                "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "registry_sync_blocked"},
+                "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "registry_sync_blocked", "policy_decision": policy},
             }
             return HTTPStatus.CONFLICT, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.CONFLICT, payload, backend="serverless", reason="registry_sync_blocked")
         messages = data.get("messages") if isinstance(data.get("messages"), list) else []
@@ -115,6 +133,7 @@ class ChatRoutingService:
         if registry_issue:
             routing["reason"] = "registry_sync_warning"
             routing["registry_sync"] = registry_issue
+            routing["policy_decision"] = {"decision": "stale_registry_warning", "model": model, "blocking": False, "reason": registry_issue.get("reason") or "registry_sync_warning"}
         payload = {
             "text": text,
             "raw": response,
@@ -134,6 +153,12 @@ class ChatRoutingService:
         if self.is_dedicated_model(model):
             self.dedicated_status_payload(poll=True)
             status, payload = self.dedicated_chat_completion(data, self.load_dedicated_config())
+            if isinstance(payload, dict):
+                routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
+                if not routing.get("policy_decision") and (routing.get("backend") in (None, "", "dedicated")):
+                    routing = dict(routing)
+                    routing["policy_decision"] = self.model_policy_for_model(model) or {"decision": "dedicated_online_preference", "model": model}
+                    payload["routing"] = routing
             return status, self.trace_record("chat.dedicated", data, model, started_at, status, payload, backend="dedicated")
         return self.serverless_completion(data, model)
 

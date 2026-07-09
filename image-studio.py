@@ -179,6 +179,24 @@ def model_route_enabled(model):
     return model_registry_service().route_enabled(model)
 
 
+def model_policy_for_model(model_id):
+    rows = load_model_registry(include_disabled=True)
+    record = next((row for row in rows if row.get("id") == model_id), None)
+    if not record:
+        return {"decision": "unknown_model_rejection", "model": model_id, "reason": "unknown_model"}
+    dedicated = record.get("dedicated") if isinstance(record.get("dedicated"), dict) else {}
+    access = record.get("access_status") or "not_checked"
+    if record.get("serverless") and access in {"forbidden", "unauthorized"}:
+        return {"decision": "access_forbidden_rejection", "model": model_id, "reason": "access_forbidden", "access_status": access}
+    if dedicated.get("managed") and not model_route_enabled(record):
+        return {"decision": "build_server_prompt", "model": model_id, "reason": "dedicated_not_online", "state": dedicated.get("state") or record.get("state") or "not_configured"}
+    if dedicated.get("managed") and model_route_enabled(record):
+        return {"decision": "dedicated_online_preference", "model": model_id, "reason": "dedicated_online", "state": dedicated.get("state") or record.get("state") or "active"}
+    if not model_route_enabled(record):
+        return {"decision": "model_unavailable_rejection", "model": model_id, "reason": "model_disabled", "access_status": access}
+    return {}
+
+
 def _normalized_model(item):
     return model_registry_service().normalize(item)
 
@@ -887,6 +905,7 @@ def chat_routing_service():
         dedicated_status_payload=dedicated_status_payload,
         dedicated_chat_completion=dedicated_chat_completion,
         load_dedicated_config=load_dedicated_config,
+        model_policy_for_model=model_policy_for_model,
         trace_service=trace_service(),
     )
 

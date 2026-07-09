@@ -24,7 +24,7 @@ class MemoryTraceService:
 
 
 class ChatRoutingServiceTests(unittest.TestCase):
-    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False, trace_service=None, dedicated_response=None):
+    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False, trace_service=None, dedicated_response=None, model_policy=None):
         started = []
         dedicated_polls = []
 
@@ -48,6 +48,7 @@ class ChatRoutingServiceTests(unittest.TestCase):
             dedicated_status_payload=lambda poll=True: dedicated_polls.append(poll),
             dedicated_chat_completion=lambda data, cfg: dedicated_response or (HTTPStatus.OK, {"text": "dedicated", "cfg": cfg}),
             load_dedicated_config=lambda: {"state": "active"},
+            model_policy_for_model=model_policy or (lambda model: {}),
             trace_service=trace_service,
         )
         return service, started, dedicated_polls
@@ -127,7 +128,23 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["trace_id"], "trace-memory")
         self.assertEqual(traces.records[0]["status"], "error")
         self.assertEqual(traces.records[0]["routing_reason"], "registry_sync_blocked")
+        self.assertEqual(traces.records[0]["gateway_policy"]["decision"], "stale_registry_protection")
         self.assertEqual(traces.records[0]["error_category"], "http_409")
+
+    def test_forbidden_model_rejection_is_policy_visible(self):
+        traces = MemoryTraceService()
+        service, _, _ = self.service(
+            text_models=["model-a"],
+            trace_service=traces,
+            model_policy=lambda model: {"decision": "access_forbidden_rejection", "model": model, "reason": "access_forbidden", "access_status": "forbidden"},
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hi"}]}, "forbidden-model")
+
+        self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+        self.assertEqual(payload["routing"]["reason"], "access_forbidden")
+        self.assertEqual(payload["routing"]["policy_decision"]["decision"], "access_forbidden_rejection")
+        self.assertEqual(traces.records[0]["gateway_policy"]["decision"], "access_forbidden_rejection")
 
     def test_registry_warning_attaches_routing_detail(self):
         issue = {"blocking": False, "message": "Proxy sync warning"}
@@ -169,6 +186,7 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(traces.records[0]["action"], "chat.dedicated")
         self.assertEqual(traces.records[0]["endpoint_mode"], "serverless")
         self.assertEqual(traces.records[0]["routing_reason"], "budget_blocked_fallback")
+        self.assertEqual(traces.records[0]["gateway_policy"]["decision"], "budget_blocked_fallback")
 
     def test_proxy_get_uses_get_request(self):
         requests = []
