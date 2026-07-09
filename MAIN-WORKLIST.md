@@ -935,16 +935,18 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-024
 **Title:** Add release packaging, upgrade, and rollback discipline
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-09
 **Estimated Duration:** 3 hours
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review as inferred item 9. Industry-ready products need repeatable releases, install validation, migrations, and rollback.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; release packaging must preserve the global model registry, runtime state, usage/cost history, tmux sessions, and Dedicated lifecycle records.
 - 2026-07-09: Started implementation after documentation reconciliation and clean-checkout quickstart verification.
+- 2026-07-09: Added `RELEASE.md`, `scripts/runtime-state.py` backup/restore, `scripts/health-validate.py`, release-check coverage for the new scripts, changelog migration notes, and runtime-state unit coverage. Passed `./scripts/release-check.sh` with 199 tests and browser smoke; clean clone verified `./claude-DO.sh --list-models`, runtime-state backup, release script tests, and template smoke.
 
 **Description:** Make the platform releaseable from a clean checkout and upgradeable on an existing host without losing runtime state or leaving cloud resources orphaned.
 
@@ -964,13 +966,13 @@ The interface refactoring work consolidates previously separate components into 
 - Health-check script
 
 **Completion Criteria:**
-- [ ] Clean checkout setup documented and tested
-- [ ] Upgrade path preserves runtime state
-- [ ] Rollback path documented
-- [ ] Release checklist exists
-- [ ] Health validation command exists
-- [ ] Release gate includes unit tests, coverage, Python syntax, template JavaScript syntax, and headless browser smoke
-- [ ] Changelog includes migration notes
+- [x] Clean checkout setup documented and tested
+- [x] Upgrade path preserves runtime state
+- [x] Rollback path documented
+- [x] Release checklist exists
+- [x] Health validation command exists
+- [x] Release gate includes unit tests, coverage, Python syntax, template JavaScript syntax, and headless browser smoke
+- [x] Changelog includes migration notes
 
 **Dependencies:** INT-018 (Config/state separation), INT-019 (Documentation reconciliation), INT-005 (Test suite)
 **Blocks:** External release
