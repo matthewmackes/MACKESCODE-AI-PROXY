@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "smoke",
+  "name": "Smoke Eval",
+  "description": "Small local sanity set for routing, cost, latency, and answer comparison checks.",
+  "examples": [
+    {
+      "id": "reply-ok",
+      "input": "Reply only with the word ok.",
+      "expected": "ok",
+      "tags": ["smoke", "format"]
+    },
+    {
+      "id": "brief-summary",
+      "input": "Summarize this in five words or fewer: DigitalOcean Serverless and Dedicated Inference routes should stay observable.",
+      "expected": "observable inference routes",
+      "tags": ["smoke", "summary"]
+    }
+  ]
+}

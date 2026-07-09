@@ -61,6 +61,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("function renderGatewayPolicy", html)
         self.assertIn("function loadGatewayDecisions", html)
         self.assertIn("gateway_policy", html)
+        self.assertIn('id="chat-compare-models"', html)
+        self.assertIn("function compareChatModels", html)
+        self.assertIn("/api/chat/compare", html)
+        self.assertIn("function runEval", html)
+        self.assertIn("/api/evals/run", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

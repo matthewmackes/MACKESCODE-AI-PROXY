@@ -54,6 +54,7 @@ The console includes:
 - proxy status, costs, budgets, and recent logs
 - reporting page for local model usage and DigitalOcean billing data
 - AgentBoard tab for all local tmux sessions, status inference, task/trajectory summaries, approximate eval metrics, and model/session leaderboard data
+- Local eval datasets and model comparison runs with cost, latency, failures, selected answers, and baseline deltas
 
 Stable Diffusion is also available through the one-shot helper:
 

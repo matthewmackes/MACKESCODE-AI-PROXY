@@ -107,6 +107,8 @@ class ConsoleApiHandler:
                     min_cost=(query.get("min_cost") or [""])[0] or None,
                 )
             }
+        if path == "/api/evals":
+            return True, 200, {"datasets": self.call("list_eval_datasets"), "runs": self.call("list_eval_runs")}
         if path == "/api/wallpaper":
             return True, 200, self.call("wallpaper_payload", randomize=(query.get("random") or ["0"])[0] == "1")
         if path == "/api/dedicated/status":
@@ -148,6 +150,53 @@ class ConsoleApiHandler:
         if path == "/api/chat":
             status, payload = self.call("chat_completion", data)
             return self.result(status, payload, default_message="chat request failed")
+        if path == "/api/chat/compare":
+            models = data.get("models") if isinstance(data.get("models"), list) else []
+            models = [str(model) for model in models if str(model or "").strip()]
+            if not models or len(models) > 5:
+                return self.error(400, "Select between one and five models for comparison.", code="invalid_comparison_models")
+            active = set(self.call("text_models"))
+            unavailable = [model for model in models if model not in active]
+            if unavailable:
+                return self.error(400, "Unavailable comparison models: " + ", ".join(unavailable), code="unavailable_comparison_model", details={"models": unavailable})
+            messages = data.get("messages") if isinstance(data.get("messages"), list) else []
+            prompt = str(data.get("prompt") or "").strip()
+            if prompt:
+                messages = messages + [{"role": "user", "content": prompt}]
+            if not messages:
+                return self.error(400, "comparison prompt is required", code="missing_comparison_prompt")
+            results = []
+            total_cost = 0.0
+            saved_messages = list(messages)
+            for model in models:
+                status, payload = self.call("chat_completion", {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": data.get("max_tokens"),
+                    "temperature": data.get("temperature"),
+                })
+                cost = payload.get("cost") if isinstance(payload, dict) and isinstance(payload.get("cost"), dict) else {}
+                total_cost += float(cost.get("total_cost_usd") or 0.0)
+                result = {
+                    "model": model,
+                    "status": int(status),
+                    "ok": int(status) < 400,
+                    "text": payload.get("text") if isinstance(payload, dict) else "",
+                    "routing": payload.get("routing") if isinstance(payload, dict) else {},
+                    "usage": payload.get("usage") if isinstance(payload, dict) else {},
+                    "cost": cost,
+                    "trace_id": payload.get("trace_id") if isinstance(payload, dict) else "",
+                    "error": (payload.get("message") or payload.get("error") or "") if isinstance(payload, dict) and int(status) >= 400 else "",
+                }
+                results.append(result)
+                saved_messages.append({"role": "assistant", "content": result["text"] or result["error"], "model": (result.get("routing") or {}).get("used") or model, "meta": {"comparison": True, "requested_model": model, "routing": result.get("routing"), "usage": result.get("usage"), "cost": result.get("cost"), "trace": {"trace_id": result.get("trace_id")}}})
+            chat = self.call("save_chat", {"model": "comparison", "title": "Comparison: " + str(messages[-1].get("content") or "")[:48], "messages": saved_messages})
+            return True, 200, {"models": models, "results": results, "total_cost_usd": round(total_cost, 8), "chat": {"id": chat.get("id"), "title": chat.get("title"), "message_count": len(chat.get("messages") or [])}}
+        if path == "/api/evals/run":
+            try:
+                return True, 200, self.call("run_eval", data)
+            except ValueError as exc:
+                return self.error(400, str(exc), code="eval_run_invalid")
         if path == "/api/chat/save":
             return True, 200, self.call("save_chat", data)
         if path == "/api/chat/delete":

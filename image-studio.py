@@ -29,6 +29,7 @@ from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
 from src.console.services.app_config import ConsoleConfigService
 from src.console.services.chat import ChatRoutingService
+from src.console.services.evals import EvalService
 from src.console.services.health import ConsoleHealthService
 from src.console.services.http_json import JsonHttpService
 from src.console.services.dedicated import DedicatedInferenceService
@@ -165,6 +166,14 @@ def tmux_session_registry_file():
 
 def wallpaper_cache_dir():
     return configured_path("wallpaper_cache_dir", ".cache/matts-value-set/wallpapers", "MATTS_WALLPAPER_CACHE_DIR", home_dir())
+
+
+def evals_dir():
+    return configured_path("evals_dir", "evals", "MATTS_EVALS_DIR", PROJECT_DIR)
+
+
+def eval_runs_dir():
+    return configured_path("eval_runs_dir", "eval-runs", "MATTS_EVAL_RUNS_DIR", app_dir())
 
 
 def model_registry_service():
@@ -918,6 +927,30 @@ def chat_completion(data):
     return chat_routing_service().completion(data)
 
 
+def eval_service():
+    return EvalService(
+        evals_dir=evals_dir,
+        runs_dir=eval_runs_dir,
+        chat_completion=chat_completion,
+        active_text_models=lambda: TEXT_MODELS,
+        default_text_model=default_text_model,
+        clock=time.time,
+        uuid_factory=uuid.uuid4,
+    )
+
+
+def list_eval_datasets():
+    return eval_service().list_datasets()
+
+
+def list_eval_runs():
+    return eval_service().list_runs()
+
+
+def run_eval(data):
+    return eval_service().run(data)
+
+
 def proxy_get(path):
     return chat_routing_service().proxy_get(path)
 
@@ -1372,6 +1405,9 @@ def api_handler():
         launcher_health=launcher_health,
         generate_images=generate_images,
         chat_completion=chat_completion,
+        list_eval_datasets=list_eval_datasets,
+        list_eval_runs=list_eval_runs,
+        run_eval=run_eval,
         save_chat=save_chat,
         delete_chat=delete_chat,
         delete_history_item=delete_history_item,

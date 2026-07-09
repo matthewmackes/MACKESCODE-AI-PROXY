@@ -785,15 +785,17 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-021
 **Title:** Add evaluation and model comparison workflows
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
 **Estimated Duration:** 4 hours
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. The platform needs eval datasets, regression checks, and side-by-side model comparison to be industry competitive.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; evals and Create comparison should share comparison concepts but remain separate workflows.
+- 2026-07-09: Added local JSON eval dataset format, `EvalService`, default smoke dataset, `/api/evals` and `/api/evals/run`, Console > AgentBoard > Evals runner UI, baseline delta support, Create multi-model comparison API/UI with one saved chat history entry, and docs in `docs/evals.md`.
 
 **Description:** Build an evaluation layer for testing prompts, models, routing policies, and Dedicated vs Serverless behavior before changes become defaults.
 
@@ -813,13 +815,13 @@ The interface refactoring work consolidates previously separate components into 
 - `templates/main.html`
 
 **Completion Criteria:**
-- [ ] Eval dataset format defined
-- [ ] Eval runner supports selected models and prompts
-- [ ] Console can run and compare evals
-- [ ] Results include cost, latency, failures, and selected answer
-- [ ] Create comparison supports up to five selected models with strict unavailable-model errors and one saved comparison history entry
-- [ ] Registry changes can be checked against a baseline
-- [ ] Documentation explains how to add evals
+- [x] Eval dataset format defined
+- [x] Eval runner supports selected models and prompts
+- [x] Console can run and compare evals
+- [x] Results include cost, latency, failures, and selected answer
+- [x] Create comparison supports up to five selected models with strict unavailable-model errors and one saved comparison history entry
+- [x] Registry changes can be checked against a baseline
+- [x] Documentation explains how to add evals
 
 **Dependencies:** INT-020 (Trace-first observability)
 **Blocks:** Enterprise model governance

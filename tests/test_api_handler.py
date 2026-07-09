@@ -45,7 +45,10 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "launcher_health": record("launcher_health", {"ok": True}),
             "generate_images": lambda data: (201, {"images": [data]}),
             "chat_completion": lambda data: (202, {"text": data["messages"][0]["content"]}),
-            "save_chat": lambda data: {"saved": data},
+            "list_eval_datasets": record("list_eval_datasets", [{"id": "smoke"}]),
+            "list_eval_runs": record("list_eval_runs", [{"id": "eval-a"}]),
+            "run_eval": lambda data: {"run": data},
+            "save_chat": lambda data: {"id": "chat-compare", "title": data.get("title"), "messages": data.get("messages") or []},
             "delete_chat": lambda chat_id: chat_id == "chat",
             "delete_history_item": lambda image_id: image_id == "img",
             "save_models_payload": lambda data: (203, {"models": data["models"]}),
@@ -119,6 +122,12 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(payload["traces"][0]["kwargs"]["model"], "model-a")
         self.assertEqual(payload["traces"][0]["kwargs"]["limit"], 5)
 
+        handled, status, payload = handler.get("/api/evals")
+        self.assertTrue(handled)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["datasets"], [{"id": "smoke"}])
+        self.assertEqual(payload["runs"], [{"id": "eval-a"}])
+
         self.assertEqual(handler.get("/not-found"), (False, 404, {}))
 
     def test_operator_actions_emit_traces(self):
@@ -151,6 +160,17 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         handler, calls = self.handler()
 
         self.assertEqual(handler.post("/api/chat", {"messages": [{"content": "hi"}]}), (True, 202, {"text": "hi"}))
+
+        handled, status, payload = handler.post("/api/chat/compare", {"models": ["model-a", "model-b"], "prompt": "hi"})
+        self.assertTrue(handled)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["models"], ["model-a", "model-b"])
+        self.assertEqual(payload["chat"]["message_count"], 3)
+
+        handled, status, payload = handler.post("/api/evals/run", {"dataset_id": "smoke"})
+        self.assertTrue(handled)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["run"], {"dataset_id": "smoke"})
 
         handled, status, payload = handler.post("/api/dedicated/preflight", {"region": "nyc"})
         self.assertTrue(handled)
