@@ -35,6 +35,7 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
     def handler(self, **overrides):
         records = {
             "sent": [],
+            "pongs": [],
             "sizes": [],
             "writes": [],
             "kills": [],
@@ -63,6 +64,7 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
             tmux_cmd=overrides.pop("tmux_cmd", lambda args, check=True: records["tmux"].append((args, check)) or (0, "", "")),
             websocket_accept_key=overrides.pop("websocket_accept_key", lambda key: "accept-" + key),
             websocket_send=overrides.pop("websocket_send", lambda conn, text: records["sent"].append(text)),
+            websocket_send_pong=overrides.pop("websocket_send_pong", lambda conn, payload=b"": records["pongs"].append(payload)),
             websocket_read_frame=overrides.pop("websocket_read_frame", lambda conn: frames.pop(0) if frames else None),
             set_pty_size=overrides.pop("set_pty_size", lambda fd, rows, cols: records["sizes"].append((fd, rows, cols))),
             fork_func=overrides.pop("fork_func", lambda: (123, 7)),
@@ -94,8 +96,8 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
 
     def test_successful_bridge_sends_output_resizes_writes_input_and_cleans_up(self):
         request = FakeRequest()
-        frames = ['{"resize":{"rows":44,"cols":132}}', "hello", None]
-        select_ready = [[7], [request.connection], [request.connection], [request.connection]]
+        frames = [{"ping": b"keepalive"}, '{"resize":{"rows":44,"cols":132}}', "hello", None]
+        select_ready = [[7], [request.connection], [request.connection], [request.connection], [request.connection]]
         handler, request, records = self.handler(request=request, frames=frames, select_ready=select_ready)
 
         handler.handle(request)
@@ -105,10 +107,22 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
         self.assertIn(("Sec-WebSocket-Accept", "accept-client-key"), request.headers_sent)
         self.assertTrue(request.connection.blocking)
         self.assertEqual(records["sent"], ["screen"])
+        self.assertEqual(records["pongs"], [b"keepalive"])
         self.assertEqual(records["sizes"], [(7, 30, 100), (7, 44, 132)])
         self.assertEqual(records["writes"], [(7, b"hello")])
         self.assertEqual(records["kills"], [(123, signal.SIGHUP)])
         self.assertEqual(records["closed"], [7])
+        self.assertIn("reason=client_closed", records["prints"][-1][0][0])
+
+    def test_bad_query_and_resize_dimensions_are_clamped_or_fallback(self):
+        request = FakeRequest(path="/ws/tmux?name=work&cols=bad&rows=999")
+        frames = ['{"resize":{"rows":-1,"cols":900}}', None]
+        select_ready = [[request.connection], [request.connection]]
+        handler, request, records = self.handler(request=request, frames=frames, reads=[], select_ready=select_ready)
+
+        handler.handle(request)
+
+        self.assertEqual(records["sizes"], [(7, 200, 120), (7, 8, 400)])
 
     def test_pty_eof_breaks_and_cleans_up(self):
         handler, request, records = self.handler(reads=[b""])
@@ -117,6 +131,7 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
         self.assertEqual(request.responses[0][0], 101)
         self.assertEqual(records["sent"], [])
         self.assertEqual(records["closed"], [7])
+        self.assertIn("reason=pty_eof", records["prints"][-1][0][0])
 
 
 if __name__ == "__main__":

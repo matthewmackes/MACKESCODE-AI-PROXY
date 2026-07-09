@@ -68,6 +68,8 @@ class WebSocketProtocolService:
             return None
         if opcode == 9:
             return {"ping": payload}
+        if opcode == 10:
+            return {"pong": payload}
         return payload.decode("utf-8", errors="replace")
 
     def send(self, conn, text):
@@ -84,9 +86,17 @@ class WebSocketProtocolService:
             header.extend(struct.pack("!Q", length))
         conn.sendall(bytes(header) + payload)
 
+    def send_control(self, conn, opcode, payload=b""):
+        payload = payload.encode("utf-8", errors="replace") if isinstance(payload, str) else bytes(payload or b"")
+        if len(payload) > 125:
+            payload = payload[:125]
+        conn.sendall(bytes([0x80 | int(opcode), len(payload)]) + payload)
+
     def set_pty_size(self, fd, rows, cols):
         try:
             import termios
-            self.ioctl_func(fd, termios.TIOCSWINSZ, struct.pack("HHHH", int(rows), int(cols), 0, 0))
+            rows = min(max(int(rows), 8), 200)
+            cols = min(max(int(cols), 20), 400)
+            self.ioctl_func(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
         except Exception:
             pass

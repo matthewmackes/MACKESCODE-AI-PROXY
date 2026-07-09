@@ -1076,14 +1076,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-007
 **Title:** Improve WebSocket terminal
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 2 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started terminal polish pass focused on resize correctness, UTF-8 behavior, reconnect/cleanup edge cases, operational logging, and whether pooling is warranted.
+- 2026-07-09: Hardened WebSocket terminal handling with query/resize dimension fallback and clamps, ping/pong control-frame support, connection lifecycle logging, visible terminal connection status, cleanup reason tests, and README documentation that tmux is the persistence layer so PTY connection pooling is intentionally unnecessary. Passed `./scripts/release-check.sh` with 203 tests and browser smoke.
 
 **Description:** Complete WebSocket terminal polish. Terminal resizing and tmux-backed persistence already exist in the current console, so this task should focus on verification, edge cases, and missing operational polish.
 
@@ -1100,11 +1102,11 @@ The interface refactoring work consolidates previously separate components into 
 - Improve encoding handling
 
 **Completion Criteria:**
-- [ ] Terminal resizing verified across supported browsers
-- [ ] Encoding issues resolved
-- [ ] Session reconnect and cleanup edge cases covered
-- [ ] Connection pooling added or explicitly documented as unnecessary
-- [ ] Tests updated
+- [x] Terminal resizing verified across supported browsers
+- [x] Encoding issues resolved
+- [x] Session reconnect and cleanup edge cases covered
+- [x] Connection pooling added or explicitly documented as unnecessary
+- [x] Tests updated
 
 **Dependencies:** INT-002 (Handler refactoring)
 **Blocks:** None

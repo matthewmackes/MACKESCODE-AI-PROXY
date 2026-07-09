@@ -1354,6 +1354,10 @@ def websocket_send(conn, text):
     return websocket_protocol_service().send(conn, text)
 
 
+def websocket_send_pong(conn, payload=b""):
+    return websocket_protocol_service().send_control(conn, 10, payload)
+
+
 def set_pty_size(fd, rows, cols):
     return websocket_protocol_service().set_pty_size(fd, rows, cols)
 
@@ -1417,6 +1421,7 @@ def tmux_websocket_handler(authorized):
         tmux_cmd=tmux_cmd,
         websocket_accept_key=websocket_accept_key,
         websocket_send=websocket_send,
+        websocket_send_pong=websocket_send_pong,
         websocket_read_frame=websocket_read_frame,
         set_pty_size=set_pty_size,
     )

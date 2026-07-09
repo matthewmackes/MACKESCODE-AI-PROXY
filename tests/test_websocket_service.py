@@ -57,6 +57,7 @@ class WebSocketProtocolServiceTests(unittest.TestCase):
     def test_read_frame_handles_ping_and_close(self):
         service = self.service()
         self.assertEqual(service.read_frame(FakeConn(self.masked_frame("ping", opcode=9))), {"ping": b"ping"})
+        self.assertEqual(service.read_frame(FakeConn(self.masked_frame("pong", opcode=10))), {"pong": b"pong"})
         self.assertIsNone(service.read_frame(FakeConn(bytes([0x88, 0]))))
 
     def test_send_uses_short_and_extended_lengths(self):
@@ -70,15 +71,25 @@ class WebSocketProtocolServiceTests(unittest.TestCase):
         self.assertEqual(long.sent[:4], b"\x81\x7e\x00\x82")
         self.assertEqual(long.sent[4:], b"a" * 130)
 
+    def test_send_control_uses_control_opcode_and_truncates_payload(self):
+        service = self.service()
+        conn = FakeConn()
+        service.send_control(conn, 10, b"x" * 140)
+
+        self.assertEqual(conn.sent[:2], b"\x8a\x7d")
+        self.assertEqual(len(conn.sent[2:]), 125)
+
     def test_set_pty_size_swallows_bad_values_and_calls_ioctl_for_good_values(self):
         calls = []
         service = self.service(ioctl_calls=calls)
         service.set_pty_size(10, 24, 80)
+        service.set_pty_size(10, 400, 900)
         service.set_pty_size(10, "bad", 80)
 
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][0], 10)
         self.assertEqual(len(calls[0][2]), 8)
+        self.assertEqual(calls[1][2], struct.pack("HHHH", 200, 400, 0, 0))
 
 
 if __name__ == "__main__":

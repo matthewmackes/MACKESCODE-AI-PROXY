@@ -8,14 +8,14 @@
 <style>
 html,body{height:100%;margin:0;background:linear-gradient(180deg,#141311,#1a1815);color:#f4f4f4;font-family:"IBM Plex Sans",system-ui,sans-serif}
 .bar{height:48px;background:linear-gradient(135deg,#1d1a15,#242119,#1d1a15);border-bottom:1px solid #34312b;display:flex;align-items:center;justify-content:space-between;padding:0 1rem;box-shadow:0 1px 0 0 rgba(255,250,242,.04) inset,0 2px 12px rgba(0,0,0,.3)}
-.bar b{font-size:14px}.bar span{font-size:12px;color:#b8b2a6}.actions{display:flex;gap:.5rem;align-items:center}
+.bar b{font-size:14px}.bar span{font-size:12px;color:#b8b2a6}.status{display:inline-flex;align-items:center;gap:6px;margin-left:10px}.status:before{content:"";width:7px;height:7px;border-radius:50%;background:#8d8d8d}.status.live:before{background:#42be65;box-shadow:0 0 10px rgba(66,190,101,.65)}.status.warn:before{background:#f1c21b}.status.closed:before{background:#fa4d56}.actions{display:flex;gap:.5rem;align-items:center}
 button{height:32px;border:0;background:#2d2924;color:#f4f4f4;padding:0 .75rem;cursor:pointer;border-radius:6px;transition:background .15s ease,box-shadow .15s ease}button:hover{background:#3d3831;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 #terminal{height:calc(100vh - 48px);width:100vw}
 body.fullscreen .bar,body.embedded .bar{display:none}body.fullscreen #terminal,body.embedded #terminal{height:100vh}
 </style>
 </head>
 <body>
-<div class="bar"><div><b>Mackes Code : FOR PRIVATE USE</b> <span id="meta"></span></div><div class="actions"><button id="fullscreen">Fullscreen</button><button id="fit">Fit</button><button id="reconnect">Reconnect</button></div></div>
+<div class="bar"><div><b>Mackes Code : FOR PRIVATE USE</b> <span id="meta"></span><span class="status" id="ws-status">connecting</span></div><div class="actions"><button id="fullscreen">Fullscreen</button><button id="fit">Fit</button><button id="reconnect">Reconnect</button></div></div>
 <div id="terminal"></div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit/lib/addon-fit.js"></script>
@@ -33,6 +33,7 @@ term.open(document.getElementById('terminal'));
 fit.fit();
 let ws, reconnectTimer=null, connectSeq=0;
 term.onData(data=>{if(ws&&ws.readyState===1)ws.send(data)});
+function setWsStatus(text,cls){const el=document.getElementById('ws-status');el.textContent=text;el.className='status '+(cls||'')}
 function connect(){
   connectSeq+=1;
   const seq=connectSeq;
@@ -42,12 +43,14 @@ function connect(){
   const url=`${proto}://${location.host}/ws/tmux?token=${encodeURIComponent(token)}&name=${encodeURIComponent(name)}&cols=${term.cols}&rows=${term.rows}`;
   const socket=new WebSocket(url);
   ws=socket;
-  socket.onopen=()=>{if(seq!==connectSeq)return;term.focus();term.writeln('\r\n[connected to '+name+']')};
+  setWsStatus('connecting','warn');
+  socket.onopen=()=>{if(seq!==connectSeq)return;setWsStatus('connected','live');term.focus();term.writeln('\r\n[connected to '+name+']')};
   socket.onmessage=ev=>{if(seq===connectSeq)term.write(ev.data)};
-  socket.onerror=()=>{};
+  socket.onerror=()=>{if(seq===connectSeq)setWsStatus('connection error','closed')};
   socket.onclose=ev=>{
     if(seq!==connectSeq)return;
-    term.writeln('\r\n[connection closed; reconnecting]');
+    setWsStatus('reconnecting','warn');
+    term.writeln('\r\n[connection closed'+(ev.code?' '+ev.code:'')+'; reconnecting]');
     reconnectTimer=setTimeout(()=>{if(seq===connectSeq)connect()},900);
   };
 }
