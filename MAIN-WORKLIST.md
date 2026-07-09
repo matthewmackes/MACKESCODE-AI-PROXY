@@ -841,6 +841,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added policy-driven global, per-model, and per-session rolling-window rate limits for chat and image proxy routes. Rate-limited requests now return structured 429 `rate_limit_exceeded` errors and emit trace-visible gateway decisions before upstream provider calls.
 - 2026-07-08: Added opt-in route-specific gateway cache helpers and proxy integration for non-stream chat and image generation. Cache hits return fresh trace IDs with `cache_hit` routing decisions and avoid duplicate cost-log writes.
 - 2026-07-08: Added policy-driven circuit breakers for chat/image routes and retryable serverless chat failover to the next configured text model. Circuit-open and failover decisions are trace-visible and covered by focused gateway tests.
+- 2026-07-09: Added Console > System Operations visibility for the active gateway policy and recent trace-backed gateway decisions, including failover, cache, rate-limit, circuit, budget, Dedicated readiness, and unavailable-model reasons.
 
 **Description:** Expand the proxy from a model adapter into a policy-driven AI gateway with configurable reliability, cost, and abuse-protection behavior.
 
@@ -864,7 +865,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Failover and circuit breaker behavior implemented
 - [x] Rate limits and quotas emit useful client errors
 - [x] Cache can be enabled/disabled per route
-- [ ] Console shows active gateway policy and recent decisions
+- [x] Console shows active gateway policy and recent decisions
 - [ ] Dedicated-online preference, Build Server prompt, budget-blocked fallback, stale-registry protection, and access-forbidden rejection are represented as explicit policy decisions
 - [x] Tests cover fallback, circuit break, cache hit, and rate-limit cases
 

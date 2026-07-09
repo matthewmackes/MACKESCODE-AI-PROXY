@@ -56,6 +56,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("error_category", html)
         self.assertIn("human_message", html)
         self.assertIn("claude_do", html)
+        self.assertIn('id="gateway-policy-grid"', html)
+        self.assertIn('id="gateway-decisions"', html)
+        self.assertIn("function renderGatewayPolicy", html)
+        self.assertIn("function loadGatewayDecisions", html)
+        self.assertIn("gateway_policy", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(
