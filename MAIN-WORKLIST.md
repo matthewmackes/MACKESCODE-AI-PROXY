@@ -1031,6 +1031,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-09: User again requested "add to worklist" after a new answer-only continuation. Reopened this reconciliation task so the latest sequence is preserved for a future requirements-ledger pass without inventing missing prompt context.
 - 2026-07-09: Reconciled the reopened item by preserving the latest answer-only continuation in `docs/requirements-ledger.md` as an open confirmation. No implementation criteria were invented from missing survey prompts.
 - 2026-07-09: User requested "add to worklist" again after another answer-only continuation. Preserve it as a ledger confirmation only; do not infer requirements from choices whose prompts are not durable in the project files.
+- 2026-07-09: User again requested "add to worklist" after the latest answer continuation. Preserve this as another backlog-hygiene confirmation under `INT-026`; only promote choices into implementation criteria when the corresponding product question can be reconstructed from durable project context.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
@@ -1055,6 +1056,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
 - [x] The 2026-07-09 answer-only continuation is reconciled into durable decisions or explicitly marked unreconstructable
 - [x] The latest 2026-07-09 "add to worklist" request is preserved without inventing missing survey prompt context
+- [x] The current 2026-07-09 "add to worklist" request is preserved as backlog hygiene without inventing missing survey prompt context
 
 **Dependencies:** INT-025 (initial survey reconciliation)
 **Blocks:** Fully draining the worklist without losing newly clarified requirements
