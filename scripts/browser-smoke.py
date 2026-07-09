@@ -3,6 +3,7 @@
 import argparse
 import importlib.util
 import os
+import sys
 import tempfile
 import threading
 from http.server import ThreadingHTTPServer
@@ -10,6 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def load_studio():
@@ -105,16 +108,89 @@ def start_server(studio):
 def run_browser_smoke(base_url):
     from playwright.sync_api import sync_playwright
 
+    def assert_create_layout(page, width, height):
+        page.set_viewport_size({"width": width, "height": height})
+        page.get_by_role("button", name="Create", exact=True).click()
+        page.wait_for_selector("#create.active")
+        page.wait_for_selector("#create-greeting")
+        page.wait_for_selector("#wallpaper-caption")
+        page.wait_for_selector("#create-mood")
+        page.wait_for_selector("#wallpaper-info")
+        page.wait_for_selector(".create-search")
+
+        def collect_metrics():
+            return page.evaluate(
+                """() => {
+                    const view = document.querySelector('#create');
+                    const search = document.querySelector('.create-search');
+                    const greeting = document.querySelector('#create-greeting');
+                    const caption = document.querySelector('.create-caption');
+                    const mood = document.querySelector('#create-mood');
+                    const info = document.querySelector('#wallpaper-info');
+                    const rect = el => {
+                        const r = el.getBoundingClientRect();
+                        return {left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height};
+                    };
+                    const visible = el => {
+                        const r = el.getBoundingClientRect();
+                        const s = getComputedStyle(el);
+                        return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+                    };
+                    return {
+                        viewportWidth: innerWidth,
+                        viewportHeight: innerHeight,
+                        scrollWidth: document.documentElement.scrollWidth,
+                        search: rect(search),
+                        greeting: rect(greeting),
+                        caption: rect(caption),
+                        visible: {
+                            greeting: visible(greeting),
+                            caption: visible(caption),
+                            mood: visible(mood),
+                            info: visible(info),
+                        },
+                        activePane: document.querySelector('.create-pane.active')?.id,
+                        viewActive: view.classList.contains('active'),
+                    };
+                }"""
+            )
+
+        metrics = collect_metrics()
+        assert metrics["viewActive"], "Create view is not active"
+        assert metrics["activePane"] == "chat", "Text mode should open the chat pane"
+        assert metrics["visible"]["greeting"], "Create greeting is not visible"
+        assert metrics["visible"]["caption"], "Wallpaper caption is not visible"
+        assert metrics["visible"]["mood"], "Weather/mood pill is not visible"
+        assert metrics["visible"]["info"], "Wallpaper info control is not visible"
+        assert metrics["scrollWidth"] <= metrics["viewportWidth"] + 2, "Create layout has horizontal overflow"
+        assert metrics["search"]["width"] <= metrics["viewportWidth"] - 20, "Create search exceeds viewport width"
+        search_center = (metrics["search"]["left"] + metrics["search"]["right"]) / 2
+        viewport_center = metrics["viewportWidth"] / 2
+        assert abs(search_center - viewport_center) <= max(24, metrics["viewportWidth"] * 0.08), "Create search is not centered"
+        assert metrics["greeting"]["bottom"] <= metrics["search"]["top"] + 4, "Greeting overlaps the search box"
+        assert metrics["caption"]["bottom"] <= metrics["viewportHeight"] + 2, "Caption renders below viewport"
+        page.get_by_role("button", name="Image", exact=True).click()
+        page.wait_for_selector("#images.active")
+        image_metrics = collect_metrics()
+        assert image_metrics["activePane"] == "images", "Image mode should open the image pane"
+        assert image_metrics["search"]["width"] <= image_metrics["viewportWidth"] - 20, "Image prompt exceeds viewport width"
+        image_center = (image_metrics["search"]["left"] + image_metrics["search"]["right"]) / 2
+        assert abs(image_center - image_metrics["viewportWidth"] / 2) <= max(24, image_metrics["viewportWidth"] * 0.08), "Image prompt is not centered"
+        assert page.locator("#create-image-model").is_visible(), "Image model selector is not visible in Image mode"
+        assert page.locator("#generate").is_visible(), "Image generation controls are not visible"
+        page.get_by_role("button", name="Text", exact=True).click()
+        page.wait_for_selector("#chat.active")
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(base_url, wait_until="domcontentloaded")
         page.wait_for_selector("#claude.active")
-        page.get_by_role("button", name="Create").click()
-        page.wait_for_selector("#create.active")
-        page.wait_for_selector("#chat-log")
+        assert_create_layout(page, 1280, 900)
+        assert_create_layout(page, 390, 844)
         page.get_by_label("Open Console").click()
         page.wait_for_selector("#console.active")
+        page.get_by_role("button", name="LLM Management").click()
         page.wait_for_selector("#models-editor")
         page.get_by_role("button", name="Coding").click()
         page.wait_for_selector("#claude.active")

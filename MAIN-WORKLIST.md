@@ -334,11 +334,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-014
 **Title:** Redesign Image and Text interfaces with Bing-like layout
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-07
 **Estimated Duration:** 3 hours
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-07: Added exhaustive GLM-5 build artifact: `BING-UPDATE-SPEC.md`.
@@ -358,6 +359,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-09: Added registry-backed generated model styles plus seven-day global "new" sparkle metadata for DigitalOcean catalog additions, and rendered those accents in model cards and Serverless model management.
 - 2026-07-09: Added Create first-view greeting with typewriter replay, model/weather-aware copy, dimmed suggestions while typing, and wallpaper Info control that reports attribution or fallback status.
 - 2026-07-09: Documented the Create first view, wallpaper controls, text comparison, image workflow, model styling, and graceful fallback behavior in `docs/create-experience.md`.
+- 2026-07-09: Added required Playwright browser-smoke assertions for desktop and mobile Create layouts, covering centered Text and Image prompt modes, greeting, caption, mood, wallpaper info, horizontal overflow, and Console LLM Management navigation.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -384,10 +386,10 @@ The interface refactoring work consolidates previously separate components into 
 - Documentation screenshots or usage notes if the interface changes materially
 
 **Completion Criteria:**
-- [ ] Image tab redesigned around a Bing-like centered prompt/search experience
-- [ ] Text tab redesigned around a Bing-like chat/search experience
+- [x] Image tab redesigned around a Bing-like centered prompt/search experience
+- [x] Text tab redesigned around a Bing-like chat/search experience
 - [x] Background uses Bing public wallpaper-style imagery or configurable Bing image source with fallback
-- [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
+- [x] Existing image generation, history, iteration, chat, save/load, and model controls still work
 - [x] Create chat bubbles float over the wallpaper without a blocking white conversation panel
 - [x] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
 - [x] Mobile disables atmospheric effects for performance
@@ -398,7 +400,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Create supports text-model comparison for up to five selected models
 - [x] Comparison entries save as one chat-history entry and support "continue with this model"
 - [x] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
-- [ ] Mobile and desktop layouts verified visually
+- [x] Mobile and desktop layouts verified visually
 - [x] Documentation updated if workflows or screenshots change
 
 **Dependencies:** INT-001 (Template separation recommended; can be done in current HTML if prioritized)
