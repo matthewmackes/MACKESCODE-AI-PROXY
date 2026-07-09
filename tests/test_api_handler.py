@@ -13,6 +13,10 @@ class ConsoleApiHandlerTests(unittest.TestCase):
                 return result
             return inner
 
+        def append_trace(trace_record):
+            calls.append(("append_trace", (trace_record,), {}))
+            return {"trace_id": "trace-%d" % len([call for call in calls if call[0] == "append_trace"]), "status": trace_record.get("status")}
+
         deps = {
             "read_history": record("read_history", [{"id": "img"}]),
             "list_chats": record("list_chats", [{"id": "chat"}]),
@@ -25,6 +29,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "active_model_access_key_info": record("active_model_access_key_info", {"configured": True}),
             "cost_summary_payload": record("cost_summary_payload", {"cost": 1}),
             "read_traces": lambda **kwargs: [{"trace_id": "trace-a", "kwargs": kwargs}],
+            "append_trace": append_trace,
             "wallpaper_payload": lambda randomize=False: {"randomize": randomize},
             "dedicated_status_payload": lambda poll=True: {"poll": poll},
             "dedicated_events": record("dedicated_events", [{"state": "ready"}]),
@@ -98,6 +103,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(payload["serverless_catalog"]["ok"])
         self.assertFalse(payload["refresh_catalog"])
+        self.assertEqual(payload["trace"]["status"], "success")
 
         handled, status, payload = handler.get("/api/status")
         self.assertTrue(handled)
@@ -114,6 +120,32 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(payload["traces"][0]["kwargs"]["limit"], 5)
 
         self.assertEqual(handler.get("/not-found"), (False, 404, {}))
+
+    def test_operator_actions_emit_traces(self):
+        handler, calls = self.handler()
+
+        actions = [
+            ("/api/generate", {"model": "image-a", "prompt": "tile"}, "image.generate"),
+            ("/api/model-access-audit", {}, "model_access.audit"),
+            ("/api/dedicated/build", {"model_id": "dedicated-a", "provider": "digitalocean"}, "dedicated.build"),
+            ("/api/dedicated/teardown", {"model_id": "dedicated-a"}, "dedicated.teardown"),
+            ("/api/tmux/start", {"name": "STARTTIME_session", "model": "model-a"}, "tmux.start"),
+        ]
+
+        for path, request, expected_action in actions:
+            handled, status, payload = handler.post(path, request)
+            self.assertTrue(handled)
+            self.assertLess(status, 400)
+            self.assertIn("trace_id", payload)
+            self.assertEqual(calls[-1][0], "append_trace")
+            self.assertEqual(calls[-1][1][0]["action"], expected_action)
+
+        traced_actions = [call[1][0]["action"] for call in calls if call[0] == "append_trace"]
+        self.assertIn("image.generate", traced_actions)
+        self.assertIn("model_access.audit", traced_actions)
+        self.assertIn("dedicated.build", traced_actions)
+        self.assertIn("dedicated.teardown", traced_actions)
+        self.assertIn("tmux.start", traced_actions)
 
     def test_post_chat_dedicated_preflight_test_models_and_tmux_terminal(self):
         handler, calls = self.handler()

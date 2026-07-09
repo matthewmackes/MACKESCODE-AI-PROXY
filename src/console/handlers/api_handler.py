@@ -20,6 +20,43 @@ class ConsoleApiHandler:
             payload = normalize_error_payload(payload, status, code=code, category=category, default_message=default_message)
         return True, status, payload
 
+    def trace_action(self, action, status, payload=None, request=None):
+        """Attach an operator-action trace without making tracing a hard dependency."""
+        if "append_trace" not in self.deps:
+            return payload
+        status = int(status)
+        if not isinstance(payload, dict):
+            payload = {"result": payload}
+        request = request if isinstance(request, dict) else {}
+        routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
+        cost = payload.get("cost") if isinstance(payload.get("cost"), dict) else {}
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+        record = {
+            "action": action,
+            "status": "success" if status < 400 else "error",
+            "http_status": status,
+            "requested_model": request.get("model") or request.get("model_id") or payload.get("model") or routing.get("requested"),
+            "routed_model": routing.get("used") or payload.get("model"),
+            "provider": request.get("provider") or payload.get("provider") or "local-console",
+            "endpoint_mode": routing.get("backend") or action.split(".")[0],
+            "routing_reason": routing.get("reason") or "",
+            "session_id": request.get("session_id") or request.get("id") or request.get("name") or payload.get("session_id"),
+            "cost": cost,
+            "usage": usage,
+            "cost_usd": cost.get("total_cost_usd") if isinstance(cost, dict) else None,
+            "human_message": payload.get("message") or payload.get("error") or "",
+            "error_category": payload.get("category") or payload.get("code") or ("http_%s" % status if status >= 400 else ""),
+        }
+        try:
+            trace = self.call("append_trace", record)
+        except Exception as exc:
+            payload.setdefault("trace_error", str(exc))
+            return payload
+        if isinstance(trace, dict):
+            payload.setdefault("trace_id", trace.get("trace_id"))
+            payload.setdefault("trace", {"trace_id": trace.get("trace_id"), "status": trace.get("status")})
+        return payload
+
     def get(self, path, query=None):
         query = query or {}
         if path == "/api/history":
@@ -46,7 +83,9 @@ class ConsoleApiHandler:
             payload = self.call("models_payload", refresh_catalog=False)
             payload["serverless_catalog"] = result
             payload["proxy_sync"] = self.call("proxy_sync_payload", force=True)
-            return True, 200 if result.get("ok") else 502, payload
+            status = 200 if result.get("ok") else 502
+            payload = self.trace_action("model_catalog.refresh", status, payload, {"provider": "digitalocean-serverless"})
+            return True, status, payload
         if path == "/api/model-access-key":
             return True, 200, {"key": self.call("active_model_access_key_info")}
         if path == "/api/proxy/status":
@@ -104,6 +143,7 @@ class ConsoleApiHandler:
     def post(self, path, data):
         if path == "/api/generate":
             status, payload = self.call("generate_images", data)
+            payload = self.trace_action("image.generate", status, payload, data)
             return self.result(status, payload, default_message="image generation failed")
         if path == "/api/chat":
             status, payload = self.call("chat_completion", data)
@@ -120,7 +160,8 @@ class ConsoleApiHandler:
         if path == "/api/proxy/sync":
             return True, 200, self.call("proxy_sync_payload", force=True)
         if path == "/api/model-access-audit":
-            return True, 200, self.call("audit_model_access_key")
+            payload = self.call("audit_model_access_key")
+            return True, 200, self.trace_action("model_access.audit", 200, payload, data)
         if path == "/api/dedicated/preflight":
             preflight = self.call("dedicated_preflight", data)
             payload = self.call("dedicated_status_payload", poll=False)
@@ -134,9 +175,11 @@ class ConsoleApiHandler:
             return True, 200, payload
         if path == "/api/dedicated/build":
             status, payload = self.call("dedicated_build", data)
+            payload = self.trace_action("dedicated.build", status, payload, data)
             return self.result(status, payload, default_message="Dedicated Inference build failed")
         if path == "/api/dedicated/teardown":
             status, payload = self.call("dedicated_teardown", data)
+            payload = self.trace_action("dedicated.teardown", status, payload, data)
             return self.result(status, payload, default_message="Dedicated Inference teardown failed")
         if path == "/api/dedicated/resume":
             status, payload = self.call("dedicated_build", data)
@@ -162,6 +205,7 @@ class ConsoleApiHandler:
             return True, 200, {"results": results}
         if path == "/api/tmux/start":
             status, payload = self.call("tmux_start", data)
+            payload = self.trace_action("tmux.start", status, payload, data)
             return self.result(status, payload, default_message="tmux session start failed")
         if path == "/api/tmux/capture":
             status, payload = self.call("tmux_capture", data.get("name"))

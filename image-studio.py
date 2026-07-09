@@ -1331,6 +1331,7 @@ def api_handler():
         active_model_access_key_info=active_model_access_key_info,
         cost_summary_payload=cost_summary_payload,
         read_traces=read_traces,
+        append_trace=append_trace,
         wallpaper_payload=wallpaper_payload,
         dedicated_status_payload=dedicated_status_payload,
         dedicated_events=dedicated_events,

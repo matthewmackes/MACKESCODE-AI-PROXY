@@ -746,6 +746,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added from product/platform review. Industry-leading LLM platforms expose request traces before evals and dashboards; the current usage log is useful but not trace-grade.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; trace records must be the authoritative proof for model routing, fallback, Dedicated state, cost, latency, and Show Detail surfaces.
 - 2026-07-08: Added `TraceService` JSONL persistence with privacy-safe message summaries, `/api/traces` search filters, Console Observability trace search, chat/serverless/Dedicated trace emission, response `trace_id` propagation into routing metadata, Show Detail trace IDs, and `docs/trace-redaction-policy.md`. `scripts/release-check.sh` passed with 175 tests.
+- 2026-07-08: Added API-boundary trace records for image generation, Serverless catalog refresh/model access audit, Dedicated build/teardown, and tmux launch. Added tests for operator action traces plus chat trace success, registry-blocked failure, and budget-blocked fallback paths.
 
 **Description:** Create a first-class trace model for every LLM, image, Dedicated, proxy, and Claude Code routing action. Traces should make it possible to debug model choice, provider failures, retries, token/cost math, tool calls, latency, and user-visible output.
 
@@ -767,12 +768,12 @@ The interface refactoring work consolidates previously separate components into 
 
 **Completion Criteria:**
 - [ ] Every chat/proxy/Dedicated request emits a trace record
-- [ ] Image generation, model access probes, Dedicated build/teardown, gateway fallback, and tmux launch actions emit trace/audit records or explicit non-LLM event records
+- [x] Image generation, model access probes, Dedicated build/teardown, gateway fallback, and tmux launch actions emit trace/audit records or explicit non-LLM event records
 - [x] Console exposes trace search/filter by model, session, status, and cost
 - [x] Message-level Show Detail links to trace ID
 - [ ] Show Detail exposes requested model, routed model, fallback reason, provider, endpoint mode, cost, tokens, latency, upstream id, and human-friendly error category where available
 - [x] Trace data redaction policy exists
-- [ ] Tests cover trace emission for success, fallback, and failure
+- [x] Tests cover trace emission for success, fallback, and failure
 
 **Dependencies:** INT-002 (Handler refactoring), INT-005 (Test suite)
 **Blocks:** INT-021 (Evaluation and model comparison workflows)

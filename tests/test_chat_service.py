@@ -24,7 +24,7 @@ class MemoryTraceService:
 
 
 class ChatRoutingServiceTests(unittest.TestCase):
-    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False, trace_service=None):
+    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False, trace_service=None, dedicated_response=None):
         started = []
         dedicated_polls = []
 
@@ -46,7 +46,7 @@ class ChatRoutingServiceTests(unittest.TestCase):
             },
             is_dedicated_model=lambda model: dedicated and model == "dedicated-a",
             dedicated_status_payload=lambda poll=True: dedicated_polls.append(poll),
-            dedicated_chat_completion=lambda data, cfg: (HTTPStatus.OK, {"text": "dedicated", "cfg": cfg}),
+            dedicated_chat_completion=lambda data, cfg: dedicated_response or (HTTPStatus.OK, {"text": "dedicated", "cfg": cfg}),
             load_dedicated_config=lambda: {"state": "active"},
             trace_service=trace_service,
         )
@@ -112,6 +112,23 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["routing"]["reason"], "registry_sync_blocked")
         self.assertEqual(called, [])
 
+    def test_registry_blocking_issue_emits_error_trace(self):
+        traces = MemoryTraceService()
+        issue = {"blocking": True, "message": "Proxy is stale"}
+        service, _, _ = self.service(
+            registry_issue=issue,
+            trace_service=traces,
+            request_json=lambda *args, **kwargs: self.fail("proxy should not be called"),
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hi"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.CONFLICT)
+        self.assertEqual(payload["trace_id"], "trace-memory")
+        self.assertEqual(traces.records[0]["status"], "error")
+        self.assertEqual(traces.records[0]["routing_reason"], "registry_sync_blocked")
+        self.assertEqual(traces.records[0]["error_category"], "http_409")
+
     def test_registry_warning_attaches_routing_detail(self):
         issue = {"blocking": False, "message": "Proxy sync warning"}
         service, _, _ = self.service(registry_issue=issue)
@@ -130,6 +147,28 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["text"], "dedicated")
         self.assertEqual(payload["cfg"], {"state": "active"})
         self.assertEqual(dedicated_polls, [True])
+
+    def test_dedicated_budget_fallback_trace_keeps_routing_reason(self):
+        traces = MemoryTraceService()
+        dedicated_response = (HTTPStatus.OK, {
+            "text": "serverless fallback",
+            "routing": {
+                "requested": "dedicated-a",
+                "used": "model-a",
+                "backend": "serverless",
+                "reason": "budget_blocked_fallback",
+            },
+        })
+        service, _, _ = self.service(dedicated=True, trace_service=traces, dedicated_response=dedicated_response)
+
+        status, payload = service.completion({"model": "dedicated-a", "messages": [{"role": "user", "content": "hi"}]})
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["trace_id"], "trace-memory")
+        self.assertEqual(payload["routing"]["reason"], "budget_blocked_fallback")
+        self.assertEqual(traces.records[0]["action"], "chat.dedicated")
+        self.assertEqual(traces.records[0]["endpoint_mode"], "serverless")
+        self.assertEqual(traces.records[0]["routing_reason"], "budget_blocked_fallback")
 
     def test_proxy_get_uses_get_request(self):
         requests = []
