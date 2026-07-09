@@ -17,6 +17,7 @@ DEFAULT_DO_BASE_URL = "https://inference.do-ai.run"
 DEFAULT_MODEL = "deepseek-3.2"
 DEFAULT_COST_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/usage.jsonl")
 DEFAULT_LOG_FILE = "/tmp/matts-value-set-proxy.jsonl"
+DEFAULT_TRACE_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/studio/traces.jsonl")
 DEFAULT_BUDGET_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/budgets.json")
 MATTS_VALUE_SET_MODELS = [
     "deepseek-3.2",
@@ -776,6 +777,80 @@ def _write_jsonl(path, record):
         pass
 
 
+def _summarize_messages(messages, limit=160):
+    rows = messages if isinstance(messages, list) else []
+    last_user = ""
+    for msg in rows:
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            last_user = _content_to_text(msg.get("content"), include_tool_markers=False)
+    preview = " ".join(str(last_user or "").split())[:limit]
+    return {
+        "message_count": len(rows),
+        "last_user_preview": preview,
+        "last_user_chars": len(str(last_user or "")),
+    }
+
+
+def _trace_request(
+    server,
+    *,
+    action,
+    status,
+    body=None,
+    requested_model=None,
+    routed_model=None,
+    endpoint_mode=None,
+    routing_reason="",
+    upstream_url="",
+    upstream_id="",
+    usage=None,
+    cost=None,
+    started_at=None,
+    error_category="",
+    human_message="",
+    extra=None,
+):
+    status = int(status)
+    cost = cost if isinstance(cost, dict) else {}
+    usage = usage if isinstance(usage, dict) else {}
+    record = {
+        "trace_id": "trace_" + uuid.uuid4().hex,
+        "timestamp": time.time(),
+        "action": action,
+        "status": "success" if status < 400 else "error",
+        "http_status": status,
+        "requested_model": requested_model,
+        "routed_model": routed_model,
+        "provider": getattr(server, "provider", "DigitalOcean"),
+        "endpoint_mode": endpoint_mode or "proxy",
+        "routing_reason": routing_reason or "",
+        "latency_ms": int((time.time() - started_at) * 1000) if started_at else 0,
+        "message_summary": _summarize_messages((body or {}).get("messages") if isinstance(body, dict) else []),
+        "usage": usage,
+        "cost": cost,
+        "cost_usd": cost.get("total_cost_usd"),
+        "upstream_id": upstream_id or "",
+        "upstream_url": upstream_url or "",
+        "error_category": error_category or ("http_%s" % status if status >= 400 else ""),
+        "human_message": human_message or "",
+    }
+    if isinstance(extra, dict):
+        record.update(extra)
+    _write_jsonl(getattr(server, "trace_file", ""), record)
+    return record
+
+
+def _attach_trace(payload, trace):
+    if not isinstance(payload, dict) or not isinstance(trace, dict):
+        return payload
+    payload["trace_id"] = trace.get("trace_id")
+    if isinstance(payload.get("error"), dict):
+        payload["error"]["trace_id"] = trace.get("trace_id")
+    if isinstance(payload.get("claude_do"), dict):
+        payload["claude_do"]["trace_id"] = trace.get("trace_id")
+    return payload
+
+
 def _read_json_file(path, default):
     if not path:
         return default
@@ -1070,6 +1145,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/v1/images/generations":
             body = self._read_json()
             model = _resolve_model(body.get("model", "stable-diffusion-3.5-large"), self.server.model_aliases)
+            requested_model = body.get("model", model)
             body["model"] = model
             started = time.time()
             try:
@@ -1091,7 +1167,22 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": str(exc),
                 })
-                return self._json(502, {"type": "error", "error": {"type": "api_error", "message": str(exc)}})
+                payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=502,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="serverless-image",
+                    routing_reason="upstream_exception",
+                    upstream_url=self.server.images_url,
+                    started_at=started,
+                    error_category="network_error",
+                    human_message=str(exc),
+                )
+                return self._json(502, _attach_trace(payload, trace))
             if resp.status_code >= 400:
                 _write_jsonl(self.server.log_file, {
                     "ts": time.time(),
@@ -1101,7 +1192,23 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": resp.text[:1000],
                 })
-                return self._json(resp.status_code, {"type": "error", "error": _friendly_error(resp.status_code, resp.text)})
+                friendly = _friendly_error(resp.status_code, resp.text)
+                payload = {"type": "error", "error": friendly}
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=resp.status_code,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="serverless-image",
+                    routing_reason="upstream_error",
+                    upstream_url=self.server.images_url,
+                    started_at=started,
+                    error_category=friendly.get("type") or "api_error",
+                    human_message=friendly.get("message") or "",
+                )
+                return self._json(resp.status_code, _attach_trace(payload, trace))
             data = resp.json()
             image_count = body.get("n") or len(data.get("data") or []) or 1
             cost = _cost_for_images(model, image_count, self.server.costs)
@@ -1117,26 +1224,68 @@ class Handler(BaseHTTPRequestHandler):
             }
             _write_jsonl(self.server.log_file, record)
             _write_jsonl(self.server.cost_file, record)
+            trace = _trace_request(
+                self.server,
+                action="proxy.image",
+                status=resp.status_code,
+                body=body,
+                requested_model=requested_model,
+                routed_model=model,
+                endpoint_mode="serverless-image",
+                upstream_url=self.server.images_url,
+                cost=cost,
+                started_at=started,
+            )
+            data.setdefault("claude_do", {})["trace_id"] = trace.get("trace_id")
             return self._json(200, data)
 
         if path != "/v1/messages":
             return self._json(404, {"type": "error", "error": {"type": "not_found_error", "message": "not found"}})
 
         body = self._read_json()
+        request_started = time.time()
         budget_error = _budget_error(self.server.cost_file, self.server.budget_file)
-        if budget_error:
-            return self._json(402, {"type": "error", "error": budget_error})
         requested_model = body.get("model", self.server.default_model)
         model = _resolve_model(requested_model, self.server.model_aliases)
+        if budget_error:
+            payload = {"type": "error", "error": budget_error}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=402,
+                body=body,
+                requested_model=requested_model,
+                routed_model=model,
+                endpoint_mode="budget",
+                routing_reason="budget_exceeded",
+                started_at=request_started,
+                error_category=budget_error.get("type") or "budget_exceeded",
+                human_message=budget_error.get("message") or "",
+            )
+            return self._json(402, _attach_trace(payload, trace))
         if model not in self.server.models:
-            return self._json(404, {
+            payload = {
                 "type": "error",
                 "error": {
                     "type": "not_found_error",
                     "message": "model is not configured for Matts Value Set",
                     "model": model,
                 },
-            })
+            }
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=404,
+                body=body,
+                requested_model=requested_model,
+                routed_model=model,
+                endpoint_mode="proxy",
+                routing_reason="model_not_configured",
+                started_at=request_started,
+                error_category="not_found_error",
+                human_message="model is not configured for Matts Value Set",
+            )
+            return self._json(404, _attach_trace(payload, trace))
         lifecycle = _dedicated_lifecycle(model)
         if lifecycle and not lifecycle.get("ready"):
             _write_jsonl(self.server.log_file, {
@@ -1148,7 +1297,22 @@ class Handler(BaseHTTPRequestHandler):
                 "error": lifecycle.get("next_step"),
                 "dedicated_lifecycle": lifecycle,
             })
-            return self._json(409, _dedicated_not_ready_error(model, lifecycle))
+            payload = _dedicated_not_ready_error(model, lifecycle)
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=409,
+                body=body,
+                requested_model=requested_model,
+                routed_model=model,
+                endpoint_mode="dedicated",
+                routing_reason="dedicated_not_ready",
+                started_at=request_started,
+                error_category="service_unavailable_error",
+                human_message=payload.get("error", {}).get("message", ""),
+                extra={"dedicated_lifecycle": lifecycle},
+            )
+            return self._json(409, _attach_trace(payload, trace))
         route = _dedicated_route(model)
         payload_model = route["model"] if route else model
         payload = _anthropic_to_openai(body, payload_model, self.server.capabilities)
@@ -1172,15 +1336,30 @@ class Handler(BaseHTTPRequestHandler):
             )
         except Exception as exc:
             _write_jsonl(self.server.log_file, {
-                    "ts": time.time(),
-                    "provider": self.server.provider,
-                    "model": payload.get("model"),
-                    "upstream_url": upstream_url,
-                    "status": 502,
-                    "latency_ms": int((time.time() - started) * 1000),
-                    "error": str(exc),
-                })
-            return self._json(502, {"type": "error", "error": {"type": "api_error", "message": str(exc)}})
+                "ts": time.time(),
+                "provider": self.server.provider,
+                "model": payload.get("model"),
+                "upstream_url": upstream_url,
+                "status": 502,
+                "latency_ms": int((time.time() - started) * 1000),
+                "error": str(exc),
+            })
+            payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=502,
+                body=body,
+                requested_model=requested_model,
+                routed_model=payload_model,
+                endpoint_mode="dedicated" if route else "serverless",
+                routing_reason="upstream_exception",
+                upstream_url=upstream_url,
+                started_at=started,
+                error_category="network_error",
+                human_message=str(exc),
+            )
+            return self._json(502, _attach_trace(payload, trace))
 
         if resp.status_code == 400 and route:
             retry_tokens = _context_retry_tokens(resp.text)
@@ -1225,7 +1404,22 @@ class Handler(BaseHTTPRequestHandler):
                             "latency_ms": int((time.time() - started) * 1000),
                             "error": str(exc),
                         })
-                    return self._json(502, {"type": "error", "error": {"type": "api_error", "message": str(exc)}})
+                    payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
+                    trace = _trace_request(
+                        self.server,
+                        action="proxy.chat",
+                        status=502,
+                        body=body,
+                        requested_model=requested_model,
+                        routed_model=retry_payload.get("model"),
+                        endpoint_mode="dedicated" if route else "serverless",
+                        routing_reason="context_retry_exception",
+                        upstream_url=upstream_url,
+                        started_at=started,
+                        error_category="network_error",
+                        human_message=str(exc),
+                    )
+                    return self._json(502, _attach_trace(payload, trace))
 
         if resp.status_code >= 400:
             _write_jsonl(self.server.log_file, {
@@ -1237,7 +1431,23 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": resp.text[:1000],
                 })
-            return self._json(resp.status_code, {"type": "error", "error": _friendly_error(resp.status_code, resp.text)})
+            friendly = _friendly_error(resp.status_code, resp.text)
+            payload = {"type": "error", "error": friendly}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=resp.status_code,
+                body=body,
+                requested_model=requested_model,
+                routed_model=payload_model,
+                endpoint_mode="dedicated" if route else "serverless",
+                routing_reason="upstream_error",
+                upstream_url=upstream_url,
+                started_at=started,
+                error_category=friendly.get("type") or "api_error",
+                human_message=friendly.get("message") or "",
+            )
+            return self._json(resp.status_code, _attach_trace(payload, trace))
 
         data = resp.json()
         choice = (data.get("choices") or [{}])[0]
@@ -1278,6 +1488,22 @@ class Handler(BaseHTTPRequestHandler):
             record["token_clamp"] = token_clamp
         _write_jsonl(self.server.log_file, record)
         _write_jsonl(self.server.cost_file, record)
+        trace = _trace_request(
+            self.server,
+            action="proxy.chat",
+            status=resp.status_code,
+            body=body,
+            requested_model=requested_model,
+            routed_model=payload.get("model"),
+            endpoint_mode="dedicated" if route else "serverless",
+            routing_reason=token_clamp.get("reason") if isinstance(token_clamp, dict) else "",
+            upstream_url=upstream_url,
+            upstream_id=data.get("id") or "",
+            usage=data.get("usage") or {},
+            cost=cost,
+            started_at=started,
+        )
+        _attach_trace(anthropic, trace)
 
         if body.get("stream"):
             self.send_response(200)
@@ -1306,6 +1532,7 @@ def main():
     parser.add_argument("--cost-file", default=os.environ.get("CLAUDE_DO_COST_FILE", DEFAULT_COST_FILE))
     parser.add_argument("--budget-file", default=os.environ.get("CLAUDE_DO_BUDGET_FILE", DEFAULT_BUDGET_FILE))
     parser.add_argument("--log-file", default=os.environ.get("CLAUDE_DO_LOG_FILE", DEFAULT_LOG_FILE))
+    parser.add_argument("--trace-file", default=os.environ.get("MATTS_TRACE_FILE", DEFAULT_TRACE_FILE))
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
@@ -1331,6 +1558,7 @@ def main():
     server.cost_file = args.cost_file
     server.budget_file = args.budget_file
     server.log_file = args.log_file
+    server.trace_file = args.trace_file
     server.base_url = args.base_url.rstrip("/")
     server.chat_url = _chat_url(args.base_url)
     server.images_url = _images_url(args.base_url)

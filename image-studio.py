@@ -559,6 +559,7 @@ def proxy_process_service(proxy_in_sync_func=None):
         cost_file=cost_file,
         budget_file=budget_file,
         log_file=log_file,
+        trace_file=trace_file,
         proxy_script=lambda: Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir() / STARTUP_CONFIG["proxy"]["script"])),
         executable=sys.executable,
         env=os.environ,

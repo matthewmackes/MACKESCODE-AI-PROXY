@@ -37,6 +37,7 @@ class ProxyProcessServiceTests(unittest.TestCase):
             "cost_file": lambda: root / "usage.jsonl",
             "budget_file": lambda: root / "budgets.json",
             "log_file": lambda: root / "proxy.jsonl",
+            "trace_file": lambda: root / "traces.jsonl",
             "proxy_script": lambda: root / "do-anthropic-proxy.py",
             "executable": "/python",
             "env": {},
@@ -130,6 +131,8 @@ class ProxyProcessServiceTests(unittest.TestCase):
         command = records["popen"][0][0]
         self.assertIn("--provider", command)
         self.assertIn("--models", command)
+        self.assertIn("--trace-file", command)
+        self.assertIn(str(Path(tmp) / "traces.jsonl"), command)
 
     def test_stop_kills_tmux_and_listener_pid(self):
         with tempfile.TemporaryDirectory() as tmp:

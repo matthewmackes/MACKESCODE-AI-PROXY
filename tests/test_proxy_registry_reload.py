@@ -188,6 +188,36 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertEqual({item["id"] for item in all_models["data"]}, {"routeable-model", "forbidden-model", "disabled-image", "primary"})
         self.assertEqual(unavailable["available_filter"], "unavailable")
 
+    def test_proxy_trace_request_persists_redacted_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace_file = Path(tmp) / "traces.jsonl"
+            server = SimpleNamespace(provider="matts-value-set", trace_file=str(trace_file))
+
+            trace = proxy._trace_request(
+                server,
+                action="proxy.chat",
+                status=200,
+                body={"messages": [{"role": "user", "content": "hello private prompt"}]},
+                requested_model="alias-a",
+                routed_model="model-a",
+                endpoint_mode="serverless",
+                upstream_url="https://inference.do-ai.run/v1/chat/completions",
+                upstream_id="chatcmpl-1",
+                usage={"prompt_tokens": 3, "completion_tokens": 4},
+                cost={"total_cost_usd": 0.00001},
+                started_at=time.time(),
+            )
+
+            rows = [json.loads(line) for line in trace_file.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(rows[0]["trace_id"], trace["trace_id"])
+        self.assertEqual(rows[0]["action"], "proxy.chat")
+        self.assertEqual(rows[0]["requested_model"], "alias-a")
+        self.assertEqual(rows[0]["routed_model"], "model-a")
+        self.assertEqual(rows[0]["message_summary"]["message_count"], 1)
+        self.assertEqual(rows[0]["message_summary"]["last_user_preview"], "hello private prompt")
+        self.assertEqual(rows[0]["cost_usd"], 0.00001)
+
 
 if __name__ == "__main__":
     unittest.main()
