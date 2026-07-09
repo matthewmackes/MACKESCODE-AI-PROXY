@@ -710,15 +710,17 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-019
 **Title:** Reconcile release documentation with current platform behavior
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
 **Estimated Duration:** 1 hour
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. README and SECURITY still describe older key behavior and should be brought back in sync with the cleaned launcher and current Console.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; release docs must explain model access audit, Serverless catalog behavior, Dedicated lifecycle/cost controls, and global routing proof.
+- 2026-07-09: Reconciled README, SECURITY, CLAUDE, CHANGELOG, install docs, RPM summary/spec text, package environment comments, and login profile copy with current registry-driven models, explicit access key handling, key audit, Serverless/Dedicated lifecycle, routing Show Detail, model hero cards, runtime-state boundaries, and DigitalOcean billing/Dedicated token expectations. Passed `./scripts/release-check.sh` with 198 tests and browser smoke; clean clone quickstart verified `./claude-DO.sh --list-models` returned 27 active models and template smoke tests passed.
 
 **Description:** Update the release documentation so setup, security, model registry behavior, Dedicated Inference lifecycle, cost reporting, and operational commands match the current code.
 
@@ -730,13 +732,13 @@ The interface refactoring work consolidates previously separate components into 
 - `CLAUDE.md`
 
 **Completion Criteria:**
-- [ ] No stale embedded-key documentation remains
-- [ ] Model registry and `--list-models` behavior documented accurately
-- [ ] Serverless and Dedicated Inference workflows documented
-- [ ] Cost, billing, and DigitalOcean token scopes documented
-- [ ] Model access key verification, allowed/forbidden model states, routing Show Detail fields, and global source-of-truth behavior documented
-- [ ] Release cleanup and runtime-state boundaries documented
-- [ ] Quickstart verified on a clean checkout
+- [x] No stale embedded-key documentation remains
+- [x] Model registry and `--list-models` behavior documented accurately
+- [x] Serverless and Dedicated Inference workflows documented
+- [x] Cost, billing, and DigitalOcean token scopes documented
+- [x] Model access key verification, allowed/forbidden model states, routing Show Detail fields, and global source-of-truth behavior documented
+- [x] Release cleanup and runtime-state boundaries documented
+- [x] Quickstart verified on a clean checkout
 
 **Dependencies:** INT-018 (Config/state separation) recommended
 **Blocks:** Public release readiness
