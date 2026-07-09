@@ -95,6 +95,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("prefers-color-scheme: dark", html)
         self.assertIn("function applyTheme", html)
         self.assertIn("themeStorageKey", html)
+        self.assertIn('data-console-view="analytics"', html)
+        self.assertIn('id="analytics"', html)
+        self.assertIn("function loadAnalytics", html)
+        self.assertIn("/api/analytics?days=", html)
+        self.assertIn("matts-analytics.csv", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

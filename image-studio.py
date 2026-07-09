@@ -29,6 +29,7 @@ from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
+from src.console.services.analytics import AnalyticsService
 from src.console.services.app_config import ConsoleConfigService
 from src.console.services.auth_session import AuthSessionService
 from src.console.services.audit import AuditService
@@ -1347,6 +1348,15 @@ def plugins_payload():
     return plugin_registry_service().payload()
 
 
+def analytics_payload(days=7):
+    return AnalyticsService(
+        read_traces=read_traces,
+        local_usage_report=usage_service().local_usage_report,
+        cost_summary_payload=cost_summary_payload,
+        clock=time.time,
+    ).payload(days=days)
+
+
 def websocket_protocol_service():
     return WebSocketProtocolService(
         select_func=select.select,
@@ -1503,6 +1513,7 @@ def api_handler():
         tmux_session_items=tmux_session_items,
         agentboard_payload=agentboard_payload,
         plugins_payload=plugins_payload,
+        analytics_payload=analytics_payload,
         models_payload=models_payload,
         active_auth_sessions=active_auth_sessions,
         model_info_payload=model_info_payload,

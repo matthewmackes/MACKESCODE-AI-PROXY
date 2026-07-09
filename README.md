@@ -157,6 +157,8 @@ Console plugins are manifest based and discovered from `plugins.directories` in 
 
 Theme defaults are configured in `config/console.json` under `theme`. The UI uses CSS variables, honors `prefers-color-scheme` when `theme.default` is `system`, and persists manual Light/Dark choices in localStorage.
 
+The Console Analytics tab aggregates recent traces and local usage into request, error, latency, model, daily cost, and CSV export views. It is backed by `GET /api/v1/analytics?days=7`.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

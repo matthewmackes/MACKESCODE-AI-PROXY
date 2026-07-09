@@ -1309,14 +1309,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-013
 **Title:** Add analytics dashboard
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 4 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started analytics dashboard using existing trace and local usage data, with summary metrics, model/day breakdowns, latency buckets, UI charting, and CSV export.
+- 2026-07-09: Added analytics aggregation service, `/api/analytics`, Console Analytics tab with summary metrics, model table, CSS bar visualizations, CSV export, diagnostics, README docs, and analytics/API/template tests. Passed `./scripts/release-check.sh` with 219 tests and browser smoke.
 
 **Description:** Create analytics dashboard for usage statistics and performance metrics.
 
@@ -1333,11 +1335,11 @@ The interface refactoring work consolidates previously separate components into 
 - Export utilities
 
 **Completion Criteria:**
-- [ ] Analytics collection
-- [ ] Dashboard UI
-- [ ] Chart visualizations
-- [ ] Export functionality
-- [ ] Documentation
+- [x] Analytics collection
+- [x] Dashboard UI
+- [x] Chart visualizations
+- [x] Export functionality
+- [x] Documentation
 
 **Dependencies:** INT-001 (Template separation), INT-004 (Configuration system)
 **Blocks:** None

@@ -83,6 +83,12 @@ class ConsoleApiHandler:
             return True, 200, self.call("agentboard_payload")
         if path == "/api/plugins":
             return True, 200, self.call("plugins_payload")
+        if path == "/api/analytics":
+            try:
+                days = int((query.get("days") or ["7"])[0] or 7)
+            except (TypeError, ValueError):
+                days = 7
+            return True, 200, self.call("analytics_payload", days=days)
         if path == "/api/models":
             return True, 200, self.call("models_payload")
         if path == "/api/auth/sessions":
