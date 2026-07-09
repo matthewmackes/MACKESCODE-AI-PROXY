@@ -273,6 +273,8 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual(options["openai-cheap-new"]["brand"], "OpenAI")
         self.assertIn("Training origin: United States", options["openai-cheap-new"]["label"])
         self.assertIn("$0.4 output / 1M tokens", options["openai-cheap-new"]["cost_label"])
+        self.assertIn("style", options["openai-cheap-new"])
+        self.assertIn("new_until", options["openai-cheap-new"])
         self.assertNotIn("openai-cheap-new", active_ids)
 
     def test_serverless_registry_entry_prefers_catalog_pricing_then_existing_registry(self):

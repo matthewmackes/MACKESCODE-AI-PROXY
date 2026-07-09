@@ -355,6 +355,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Extracted Bing wallpaper metadata, fallback payload, and cached same-origin wallpaper image proxy behavior into `src.console.services.WallpaperService` with focused regression tests.
 - 2026-07-09: Added Create cursor-reactive light, desktop drifting motes, weather/time mood pill using browser geolocation plus Open-Meteo with graceful time-only fallback, and mood-based wallpaper tone adjustments while keeping mobile atmospheric effects disabled.
 - 2026-07-09: Added "Continue with this model" actions to Create comparison reply cards so a saved comparison can continue as a normal single-model conversation.
+- 2026-07-09: Added registry-backed generated model styles plus seven-day global "new" sparkle metadata for DigitalOcean catalog additions, and rendered those accents in model cards and Serverless model management.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -389,7 +390,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
 - [x] Mobile disables atmospheric effects for performance
 - [x] New assistant replies trigger model-specific sparkle/ripple motion
-- [ ] Newly discovered models use generated styles and 7-day global sparkle
+- [x] Newly discovered models use generated styles and 7-day global sparkle
 - [x] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
 - [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
 - [x] Create supports text-model comparison for up to five selected models

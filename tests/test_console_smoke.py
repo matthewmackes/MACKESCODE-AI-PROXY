@@ -73,6 +73,10 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("function loadCreateMood", html)
         self.assertIn("function updateCursorLight", html)
         self.assertIn("createMotes", html)
+        self.assertIn("function modelStyleVars", html)
+        self.assertIn("function applyModelStyle", html)
+        self.assertIn("new_until", html)
+        self.assertIn("model-generated", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

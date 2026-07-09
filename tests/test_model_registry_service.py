@@ -1,4 +1,5 @@
 import tempfile
+from unittest.mock import patch
 import unittest
 from pathlib import Path
 
@@ -59,6 +60,25 @@ class ModelRegistryServiceTests(unittest.TestCase):
         self.assertIn("$0.05 input / 1M tokens", option["cost_label"])
         self.assertFalse(option["disabled"])
         self.assertIn("Fast, economical", option["use_case"])
+        self.assertEqual(option["style"]["source"], "generated")
+        self.assertTrue(option["style"]["accent"].startswith("#"))
+
+    def test_recent_catalog_models_are_marked_new_for_seven_days(self):
+        with patch("src.console.services.model_registry.time.time", return_value=1_800_000_000):
+            option = self.service().enriched_option({
+                "id": "qwen-new-arrival",
+                "display_name": "Qwen New Arrival",
+                "type": "text",
+                "enabled": True,
+                "serverless": True,
+                "access_status": "ok",
+                "created": 1_800_000_000 - 60,
+                "pricing": {"input": 0.05},
+            })
+
+        self.assertTrue(option["is_new"])
+        self.assertEqual(option["new_until"], 1_800_000_000 - 60 + 7 * 24 * 60 * 60)
+        self.assertEqual(option["style"]["glyph"], "Q")
 
     def test_disabled_managed_dedicated_option_is_rebuildable(self):
         option = self.service().enriched_option({

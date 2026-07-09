@@ -1,5 +1,11 @@
 """Model registry normalization, routing policy, and selector metadata."""
+import colorsys
+import hashlib
 import json
+import time
+
+
+NEW_MODEL_SECONDS = 7 * 24 * 60 * 60
 
 
 DEFAULT_BRAND_PROFILES = [
@@ -223,6 +229,42 @@ class ModelRegistryService:
             parts.append("$%.2f / hour" % float(pricing.get("hourly")))
         return " ; ".join(parts) if parts else "Pricing unavailable"
 
+    def model_new_until(self, model):
+        try:
+            created = float((model or {}).get("created") or 0)
+        except (TypeError, ValueError):
+            return 0
+        if created <= 0:
+            return 0
+        now = time.time()
+        if created > now + 24 * 60 * 60:
+            return 0
+        until = created + NEW_MODEL_SECONDS
+        return int(until) if until > now else 0
+
+    def generated_style(self, model, profile):
+        seed = "%s|%s|%s" % (
+            (model or {}).get("id") or "",
+            profile.get("brand") or "",
+            profile.get("family") or "",
+        )
+        digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+        hue = int(digest[:4], 16) % 360
+        sat = 0.56 + (int(digest[4:6], 16) % 18) / 100.0
+        accent_light = 0.42 + (int(digest[6:8], 16) % 12) / 100.0
+
+        def hex_from_hls(light, saturation):
+            r, g, b = colorsys.hls_to_rgb(hue / 360.0, light, saturation)
+            return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+        return {
+            "accent": hex_from_hls(accent_light, sat),
+            "accent_soft": hex_from_hls(0.88, min(0.42, sat)),
+            "surface": hex_from_hls(0.96, min(0.28, sat)),
+            "glyph": (profile.get("family") or (model or {}).get("display_name") or (model or {}).get("id") or "M")[:1].upper(),
+            "source": "generated",
+        }
+
     def use_case(self, model, profile):
         model_id = str((model or {}).get("id") or "").lower()
         model_type = str((model or {}).get("type") or "text")
@@ -299,6 +341,7 @@ class ModelRegistryService:
         if disabled:
             label += " - " + status
         use_case = self.use_case(model, profile)
+        new_until = self.model_new_until(model)
         return {
             "id": (model or {}).get("id") or "",
             "label": label,
@@ -315,6 +358,10 @@ class ModelRegistryService:
             "access_status": (model or {}).get("access_status") or "not_checked",
             "use_case": use_case,
             "comparison": use_case,
+            "created": (model or {}).get("created") or 0,
+            "is_new": bool(new_until),
+            "new_until": new_until,
+            "style": self.generated_style(model, profile),
             "pricing": dict((model or {}).get("pricing") or {}),
             "dedicated": dict(dedicated),
             "dedicated_rebuildable": bool(disabled and dedicated.get("managed")),
