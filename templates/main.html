@@ -166,12 +166,20 @@ body.dark .model-mistral .answer-body blockquote,body.dark .model-glm .answer-bo
 .create-wallpaper{position:absolute;inset:-24px;background-position:center;background-size:cover;background-repeat:no-repeat;opacity:0;transform:translate3d(var(--wallpaper-x,0),var(--wallpaper-y,0),0) scale(1.04);transition:opacity 1200ms ease,transform 2200ms ease;filter:saturate(1.08) contrast(1.02)}
 .create-wallpaper.active{opacity:1}
 .create-effects{position:absolute;inset:0;mix-blend-mode:screen;opacity:.52;background:linear-gradient(115deg,transparent 0 34%,rgba(255,255,255,.16) 44%,transparent 54% 100%),linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:220% 100%,64px 64px,64px 64px;animation:createSweep 18s ease-in-out infinite}
+.create-effects:before,.create-effects:after{content:"";position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.44) 0 1px,transparent 2px),radial-gradient(circle,rgba(255,218,169,.30) 0 1px,transparent 2px);background-size:120px 120px,180px 180px;background-position:0 0,40px 70px;animation:createMotes 28s linear infinite;opacity:.75}
+.create-effects:after{filter:blur(.5px);animation-duration:38s;animation-direction:reverse;opacity:.48}
 .create-view:before{z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(5,12,18,.16),rgba(5,12,18,.82)),radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.13),transparent 46%);transform:none}
+.create-view:after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(360px circle at var(--cursor-x,50%) var(--cursor-y,38%),rgba(255,255,255,.22),rgba(255,255,255,.08) 28%,transparent 62%);mix-blend-mode:screen;opacity:.72;transition:opacity .25s ease}
+.create-view[data-mood="night"] .create-wallpaper{filter:saturate(.92) contrast(1.04) brightness(.74)}
+.create-view[data-mood="rain"] .create-wallpaper{filter:saturate(.82) contrast(1.08) brightness(.82)}
+.create-view[data-mood="sun"] .create-wallpaper{filter:saturate(1.16) contrast(1.03) brightness(1.04)}
 .create-shell{z-index:2}
 .create-caption{position:absolute;left:clamp(16px,4vw,64px);right:clamp(16px,4vw,64px);bottom:16px;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:12px;color:rgba(255,255,255,.82);font-size:12px;text-shadow:0 1px 10px rgba(0,0,0,.6);pointer-events:auto}
 .create-caption span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .create-caption .create-chip{min-height:30px;padding:0 12px;background:rgba(8,16,24,.42);border-color:rgba(255,255,255,.24)}
+.create-mood{display:inline-flex;align-items:center;gap:8px;min-height:30px;padding:0 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(8,16,24,.42);backdrop-filter:blur(12px);white-space:nowrap}.create-mood b{font-weight:800;color:#fff}.create-mood em{font-style:normal;color:rgba(255,255,255,.72)}
 @keyframes createSweep{0%,100%{background-position:-70% 0,0 0,0 0;opacity:.42}50%{background-position:140% 0,18px 24px,24px 18px;opacity:.62}}
+@keyframes createMotes{from{transform:translate3d(0,0,0)}to{transform:translate3d(54px,-92px,0)}}
 /* Create chat floats over the wallpaper instead of sitting inside a white panel. */
 .create-pane#chat .two{grid-template-columns:minmax(0,1fr);max-width:min(1080px,100%);gap:12px}
 .create-pane#chat section.panel{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;padding:0}
@@ -195,7 +203,7 @@ body.dark .create-pane#chat .answer-card{background:rgba(13,19,28,.68);border-co
 body.dark .create-pane#chat .answer-meta,body.dark .create-pane#chat .answer-actions{background:rgba(10,16,24,.52);border-color:rgba(238,244,255,.10)}
 body.dark .create-pane#chat .answer-body,body.dark .create-pane#chat .model-deepseek .answer-body,body.dark .create-pane#chat .model-codex .answer-body{background:rgba(14,21,31,.58);color:#eef4ff}
 @keyframes chatFloat{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-3px,0)}}
-@media(max-width:760px),(pointer:coarse){.create-effects{display:none}.create-wallpaper{transform:scale(1.02)!important;transition:opacity 600ms ease}}
+@media(max-width:760px),(pointer:coarse){.create-effects,.create-view:after{display:none}.create-wallpaper{transform:scale(1.02)!important;transition:opacity 600ms ease}.create-mood{width:100%;justify-content:center}.create-caption{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.create-wallpaper,.create-effects{transition:none!important;animation:none!important;transform:scale(1.02)!important}.model-glyph,.answer-card:before,.answer-card.revealing:after,.thinking-dot,.model-new-sparkle,.model-new-sparkle:before,.create-pane#chat .msg{animation:none!important}}
 /* Compact Coding console header so the terminal starts near the top. */
 #claude.active .claude-workbench{padding:0;grid-template-rows:auto minmax(0,1fr) auto}
@@ -379,7 +387,7 @@ body.dark .global-alert{background:#2d1c12;color:#fed7aa;border-color:#fb923c}bo
       </div>
       <div class="create-suggestions"><button class="create-chip" data-suggestion="News in last 6 Hours">News in last 6 Hours</button><button class="create-chip" data-suggestion="Weather Report">Weather Report</button><button class="create-chip" data-suggestion="Design a cinematic product concept">Cinematic product concept</button></div>
     </div>
-    <div class="create-caption"><span id="wallpaper-caption">Loading wallpaper...</span><button class="create-chip" id="wallpaper-refresh">Refresh</button></div>
+    <div class="create-caption"><span id="wallpaper-caption">Loading wallpaper...</span><div class="toolbar"><span class="create-mood" id="create-mood"><b>Local mood</b><em>Checking time and weather</em></span><button class="create-chip" id="wallpaper-refresh">Refresh</button></div></div>
     <div class="create-panels">
 <div class="create-pane active" id="chat">
   <div class="two">
@@ -673,9 +681,16 @@ document.querySelectorAll('.create-chip').forEach(btn=>btn.onclick=()=>{$('creat
 let wallpaperLayer=0,wallpaperTimer=null;
 function wallpaperUrl(url){if(!url)return '';return url+(url.includes('?')?'&':'?')+'token='+encodeURIComponent(AUTH_TOKEN)}
 function setWallpaperMotion(x,y){$('create').style.setProperty('--wallpaper-x',x+'px');$('create').style.setProperty('--wallpaper-y',y+'px')}
+function updateCursorLight(ev){let r=$('create').getBoundingClientRect();$('create').style.setProperty('--cursor-x',Math.max(0,ev.clientX-r.left)+'px');$('create').style.setProperty('--cursor-y',Math.max(0,ev.clientY-r.top)+'px');setWallpaperMotion(((ev.clientX-r.left)/Math.max(1,r.width)-.5)*10,((ev.clientY-r.top)/Math.max(1,r.height)-.5)*8)}
+function timeMood(){let h=new Date().getHours();if(h<6||h>=20)return {mood:'night',label:'Night focus',detail:'Weather optional'};if(h>=6&&h<11)return {mood:'sun',label:'Morning light',detail:'Weather optional'};if(h>=17)return {mood:'sun',label:'Evening glow',detail:'Weather optional'};return {mood:'day',label:'Daylight',detail:'Weather optional'}}
+function weatherMoodCode(code){code=Number(code);if([51,53,55,61,63,65,80,81,82,95,96,99].includes(code))return 'rain';if([0,1].includes(code))return 'sun';return timeMood().mood}
+function renderCreateMood(label,detail,mood){let el=$('create-mood');if(!el)return;$('create').dataset.mood=mood||timeMood().mood;el.innerHTML=`<b>${esc(label)}</b><em>${esc(detail)}</em>`}
+async function loadCreateMood(){let fallback=timeMood();renderCreateMood(fallback.label,fallback.detail,fallback.mood);if(!navigator.geolocation)return;try{navigator.geolocation.getCurrentPosition(async pos=>{try{let lat=pos.coords.latitude.toFixed(3),lon=pos.coords.longitude.toFixed(3),r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`,{cache:'no-store'}),data=await r.json(),cur=data.current||{},temp=cur.temperature_2m!==undefined?Math.round(cur.temperature_2m)+'°F':'weather';renderCreateMood(fallback.label,temp,weatherMoodCode(cur.weather_code))}catch(e){renderCreateMood(fallback.label,'Weather unavailable',fallback.mood)}},()=>renderCreateMood(fallback.label,'Weather unavailable',fallback.mood),{timeout:3500,maximumAge:900000})}catch(e){renderCreateMood(fallback.label,'Weather unavailable',fallback.mood)}}
 async function loadWallpaper(random=false){try{let r=await authFetch('/api/wallpaper'+(random?'?random=1':''));let data=await r.json();if(!r.ok)throw new Error(data.message||data.error||'Wallpaper unavailable');let next=wallpaperLayer?$('wallpaper-a'):$('wallpaper-b'),prev=wallpaperLayer?$('wallpaper-b'):$('wallpaper-a');next.style.backgroundImage=`url("${wallpaperUrl(data.url)}")`;next.classList.add('active');prev.classList.remove('active');wallpaperLayer=1-wallpaperLayer;$('wallpaper-caption').textContent=data.caption||data.title||'Daily scenic wallpaper';$('wallpaper-caption').title=[data.title,data.copyright].filter(Boolean).join(' - ')}catch(e){$('wallpaper-caption').textContent='Wallpaper unavailable';$('wallpaper-caption').title=e.message}}
 function startWallpaperRotation(){clearInterval(wallpaperTimer);loadWallpaper(false);wallpaperTimer=setInterval(()=>loadWallpaper(true),90000)}
 $('wallpaper-refresh').onclick=()=>loadWallpaper(true);
+if(matchMedia('(pointer:fine)').matches)$('create').addEventListener('pointermove',updateCursorLight,{passive:true});
+loadCreateMood();
 $('create').addEventListener('pointermove',ev=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;let r=$('create').getBoundingClientRect();setWallpaperMotion(((ev.clientX-r.left)/r.width-.5)*18,((ev.clientY-r.top)/r.height-.5)*12)});
 $('create').addEventListener('pointerleave',()=>setWallpaperMotion(0,0));
 document.querySelectorAll('.console-tab').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.console-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.console-pane').forEach(p=>p.classList.remove('active'));$(btn.dataset.consoleView).classList.add('active');hardScrollTop()});

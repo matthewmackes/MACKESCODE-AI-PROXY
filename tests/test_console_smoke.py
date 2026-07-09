@@ -66,6 +66,10 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("/api/chat/compare", html)
         self.assertIn("function runEval", html)
         self.assertIn("/api/evals/run", html)
+        self.assertIn('id="create-mood"', html)
+        self.assertIn("function loadCreateMood", html)
+        self.assertIn("function updateCursorLight", html)
+        self.assertIn("createMotes", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

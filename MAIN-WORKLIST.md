@@ -353,6 +353,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Disabled the Create atmospheric effect layer on mobile/coarse-pointer devices and reduced wallpaper transition work there for better small-device performance.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Create work should follow the ledger entries for greeting, weather, wallpaper attribution, comparison, and mobile/desktop verification.
 - 2026-07-08: Extracted Bing wallpaper metadata, fallback payload, and cached same-origin wallpaper image proxy behavior into `src.console.services.WallpaperService` with focused regression tests.
+- 2026-07-09: Added Create cursor-reactive light, desktop drifting motes, weather/time mood pill using browser geolocation plus Open-Meteo with graceful time-only fallback, and mood-based wallpaper tone adjustments while keeping mobile atmospheric effects disabled.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -384,13 +385,13 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Background uses Bing public wallpaper-style imagery or configurable Bing image source with fallback
 - [ ] Existing image generation, history, iteration, chat, save/load, and model controls still work
 - [x] Create chat bubbles float over the wallpaper without a blocking white conversation panel
-- [ ] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
+- [x] Desktop atmosphere includes subtle particles/light motes, time/weather mood, and cursor light
 - [x] Mobile disables atmospheric effects for performance
 - [x] New assistant replies trigger model-specific sparkle/ripple motion
 - [ ] Newly discovered models use generated styles and 7-day global sparkle
 - [x] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
 - [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
-- [ ] Create supports text-model comparison for up to five selected models
+- [x] Create supports text-model comparison for up to five selected models
 - [ ] Comparison entries save as one chat-history entry and support "continue with this model"
 - [ ] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
 - [ ] Mobile and desktop layouts verified visually
