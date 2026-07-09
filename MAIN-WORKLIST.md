@@ -354,6 +354,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; remaining Create work should follow the ledger entries for greeting, weather, wallpaper attribution, comparison, and mobile/desktop verification.
 - 2026-07-08: Extracted Bing wallpaper metadata, fallback payload, and cached same-origin wallpaper image proxy behavior into `src.console.services.WallpaperService` with focused regression tests.
 - 2026-07-09: Added Create cursor-reactive light, desktop drifting motes, weather/time mood pill using browser geolocation plus Open-Meteo with graceful time-only fallback, and mood-based wallpaper tone adjustments while keeping mobile atmospheric effects disabled.
+- 2026-07-09: Added "Continue with this model" actions to Create comparison reply cards so a saved comparison can continue as a normal single-model conversation.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -392,7 +393,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] New assistant replies progressively reveal word-by-word and can be skipped by clicking the message
 - [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
 - [x] Create supports text-model comparison for up to five selected models
-- [ ] Comparison entries save as one chat-history entry and support "continue with this model"
+- [x] Comparison entries save as one chat-history entry and support "continue with this model"
 - [ ] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
 - [ ] Mobile and desktop layouts verified visually
 - [ ] Documentation updated if workflows or screenshots change
@@ -1024,6 +1025,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: User repeated "add to worklist" after another answer-only continuation. Preserve this as a standing backlog hygiene rule: future implementation passes must promote only reconstructable product decisions into owning tasks and leave unpaired answer choices in the ledger's open-confirmation table.
 - 2026-07-09: User again requested "add to worklist" after a new answer-only continuation. Reopened this reconciliation task so the latest sequence is preserved for a future requirements-ledger pass without inventing missing prompt context.
 - 2026-07-09: Reconciled the reopened item by preserving the latest answer-only continuation in `docs/requirements-ledger.md` as an open confirmation. No implementation criteria were invented from missing survey prompts.
+- 2026-07-09: User requested "add to worklist" again after another answer-only continuation. Preserve it as a ledger confirmation only; do not infer requirements from choices whose prompts are not durable in the project files.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
@@ -1047,6 +1049,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Duplicate or stale worklist entries are consolidated
 - [x] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
 - [x] The 2026-07-09 answer-only continuation is reconciled into durable decisions or explicitly marked unreconstructable
+- [x] The latest 2026-07-09 "add to worklist" request is preserved without inventing missing survey prompt context
 
 **Dependencies:** INT-025 (initial survey reconciliation)
 **Blocks:** Fully draining the worklist without losing newly clarified requirements
