@@ -4,8 +4,27 @@ from http import HTTPStatus
 from src.console.services.chat import ChatRoutingService
 
 
+class MemoryTraceService:
+    def __init__(self):
+        self.records = []
+
+    def summarize_messages(self, messages):
+        rows = messages if isinstance(messages, list) else []
+        last = ""
+        for msg in rows:
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                last = msg.get("content") or ""
+        return {"message_count": len(rows), "last_user_preview": last[:160], "last_user_chars": len(last)}
+
+    def append(self, record):
+        record = dict(record)
+        record.setdefault("trace_id", "trace-memory")
+        self.records.append(record)
+        return record
+
+
 class ChatRoutingServiceTests(unittest.TestCase):
-    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False):
+    def service(self, request_json=None, text_models=None, registry_issue=None, dedicated=False, trace_service=None):
         started = []
         dedicated_polls = []
 
@@ -29,6 +48,7 @@ class ChatRoutingServiceTests(unittest.TestCase):
             dedicated_status_payload=lambda poll=True: dedicated_polls.append(poll),
             dedicated_chat_completion=lambda data, cfg: (HTTPStatus.OK, {"text": "dedicated", "cfg": cfg}),
             load_dedicated_config=lambda: {"state": "active"},
+            trace_service=trace_service,
         )
         return service, started, dedicated_polls
 
@@ -55,6 +75,19 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["routing"], {"requested": "model-a", "used": "model-a", "backend": "serverless"})
         self.assertEqual(payload["cost"]["input"], "hello")
         self.assertEqual(payload["cost"]["output"], "Hi there")
+
+    def test_serverless_success_emits_trace_and_response_trace_id(self):
+        traces = MemoryTraceService()
+        service, _, _ = self.service(trace_service=traces)
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hello"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["trace_id"], "trace-memory")
+        self.assertEqual(payload["routing"]["trace_id"], "trace-memory")
+        self.assertEqual(traces.records[0]["requested_model"], "model-a")
+        self.assertEqual(traces.records[0]["routed_model"], "model-a")
+        self.assertEqual(traces.records[0]["message_summary"]["last_user_preview"], "hello")
 
     def test_serverless_rejects_unknown_model_and_missing_messages(self):
         service, started, _ = self.service()

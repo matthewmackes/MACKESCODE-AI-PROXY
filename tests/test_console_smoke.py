@@ -47,6 +47,10 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("dedicatedBuildAgainHtml", html)
         self.assertIn("buildDedicatedFromModel", html)
         self.assertIn("dedicated-build-again", html)
+        self.assertIn('data-console-view="traces"', html)
+        self.assertIn('id="traces-results"', html)
+        self.assertIn("function loadTraces", html)
+        self.assertIn("trace_id", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

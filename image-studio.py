@@ -42,6 +42,7 @@ from src.console.services.serverless_catalog import ServerlessCatalogService
 from src.console.services.session import SessionService
 from src.console.services.terminal import TerminalSessionService
 from src.console.services.tmux_control import TmuxControlService
+from src.console.services.traces import TraceService
 from src.console.services.usage import UsageService
 from src.console.services.wallpaper import WallpaperService
 from src.console.services.websocket import WebSocketProtocolService
@@ -148,6 +149,10 @@ def legacy_dedicated_config_file():
 
 def dedicated_events_file():
     return configured_path("dedicated_events_file", "dedicated-events.jsonl", "MATTS_DEDICATED_EVENTS_FILE", app_dir())
+
+
+def trace_file():
+    return configured_path("trace_file", "traces.jsonl", "MATTS_TRACE_FILE", app_dir())
 
 
 def tmux_session_registry_file():
@@ -590,6 +595,18 @@ def request_json(url, payload=None, timeout=240, method="POST"):
     return http_json_service().request_json(url, payload=payload, timeout=timeout, method=method)
 
 
+def trace_service():
+    return TraceService(trace_file=trace_file, clock=time.time)
+
+
+def append_trace(record):
+    return trace_service().append(record)
+
+
+def read_traces(limit=200, model=None, status=None, session=None, min_cost=None):
+    return trace_service().read(limit=limit, model=model, status=status, session=session, min_cost=min_cost)
+
+
 def do_get(path, token, query=None, timeout=30):
     return http_json_service().do_get(path, token, query=query, timeout=timeout)
 
@@ -864,6 +881,7 @@ def chat_routing_service():
         dedicated_status_payload=dedicated_status_payload,
         dedicated_chat_completion=dedicated_chat_completion,
         load_dedicated_config=load_dedicated_config,
+        trace_service=trace_service(),
     )
 
 
@@ -1312,6 +1330,7 @@ def api_handler():
         proxy_sync_payload=proxy_sync_payload,
         active_model_access_key_info=active_model_access_key_info,
         cost_summary_payload=cost_summary_payload,
+        read_traces=read_traces,
         wallpaper_payload=wallpaper_payload,
         dedicated_status_payload=dedicated_status_payload,
         dedicated_events=dedicated_events,

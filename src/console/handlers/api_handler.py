@@ -53,6 +53,21 @@ class ConsoleApiHandler:
             return True, 200, self.call("proxy_sync_payload", force=False)
         if path == "/api/cost-summary":
             return True, 200, self.call("cost_summary_payload")
+        if path == "/api/traces":
+            try:
+                limit = int((query.get("limit") or ["200"])[0] or 200)
+            except (TypeError, ValueError):
+                limit = 200
+            return True, 200, {
+                "traces": self.call(
+                    "read_traces",
+                    limit=limit,
+                    model=(query.get("model") or [""])[0] or None,
+                    status=(query.get("status") or [""])[0] or None,
+                    session=(query.get("session") or [""])[0] or None,
+                    min_cost=(query.get("min_cost") or [""])[0] or None,
+                )
+            }
         if path == "/api/wallpaper":
             return True, 200, self.call("wallpaper_payload", randomize=(query.get("random") or ["0"])[0] == "1")
         if path == "/api/dedicated/status":

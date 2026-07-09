@@ -1,4 +1,5 @@
 """Chat routing helpers for serverless and Dedicated requests."""
+import time
 from http import HTTPStatus
 
 
@@ -18,6 +19,7 @@ class ChatRoutingService:
         dedicated_status_payload,
         dedicated_chat_completion,
         load_dedicated_config,
+        trace_service=None,
     ):
         self.start_proxy_if_needed = start_proxy_if_needed
         self.request_json = request_json
@@ -30,25 +32,70 @@ class ChatRoutingService:
         self.dedicated_status_payload = dedicated_status_payload
         self.dedicated_chat_completion = dedicated_chat_completion
         self.load_dedicated_config = load_dedicated_config
+        self.trace_service = trace_service
 
     def active_text_models(self):
         return list(self.text_models() if callable(self.text_models) else self.text_models)
 
+    def trace(self, record):
+        if not self.trace_service:
+            return None
+        return self.trace_service.append(record)
+
+    def trace_record(self, action, data, model, started_at, status, payload=None, backend=None, reason=None):
+        payload = payload if isinstance(payload, dict) else {}
+        routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
+        cost = payload.get("cost") if isinstance(payload.get("cost"), dict) else {}
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+        raw = payload.get("raw") if isinstance(payload.get("raw"), dict) else {}
+        upstream_id = payload.get("id") or raw.get("id")
+        status_text = "success" if int(status) < 400 else "error"
+        record = {
+            "action": action,
+            "status": status_text,
+            "http_status": int(status),
+            "requested_model": model,
+            "routed_model": routing.get("used") or (model if int(status) < 400 else None),
+            "provider": "DigitalOcean",
+            "endpoint_mode": routing.get("backend") or backend or "serverless",
+            "routing_reason": routing.get("reason") or reason or "",
+            "latency_ms": int((time.time() - started_at) * 1000),
+            "message_summary": self.trace_service.summarize_messages(data.get("messages") if isinstance(data, dict) else []) if self.trace_service else {},
+            "usage": usage,
+            "cost": cost,
+            "cost_usd": cost.get("total_cost_usd"),
+            "upstream_id": upstream_id,
+            "error_category": payload.get("category") or payload.get("code") or ("http_%s" % int(status) if int(status) >= 400 else ""),
+            "human_message": payload.get("message") or payload.get("error") or "",
+        }
+        trace = self.trace(record)
+        if trace is not None:
+            payload["trace_id"] = trace["trace_id"]
+            payload["trace"] = {"trace_id": trace["trace_id"], "latency_ms": trace.get("latency_ms"), "status": trace.get("status")}
+            routing = dict(routing)
+            routing["trace_id"] = trace["trace_id"]
+            payload["routing"] = routing
+        return payload
+
     def serverless_completion(self, data, model, allow_unregistered=False):
+        started_at = time.time()
         self.start_proxy_if_needed()
         if not allow_unregistered and model not in self.active_text_models():
-            return HTTPStatus.BAD_REQUEST, {"error": "unknown text model"}
+            payload = {"error": "unknown text model", "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "unknown_model"}}
+            return HTTPStatus.BAD_REQUEST, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.BAD_REQUEST, payload, backend="serverless", reason="unknown_model")
         registry_issue = self.registry_sync_issue_for_model(model)
         if registry_issue and registry_issue.get("blocking"):
-            return HTTPStatus.CONFLICT, {
+            payload = {
                 "error": registry_issue["message"],
                 "message": registry_issue["message"],
                 "registry_sync": registry_issue,
                 "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "registry_sync_blocked"},
             }
+            return HTTPStatus.CONFLICT, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.CONFLICT, payload, backend="serverless", reason="registry_sync_blocked")
         messages = data.get("messages") if isinstance(data.get("messages"), list) else []
         if not messages:
-            return HTTPStatus.BAD_REQUEST, {"error": "message is required"}
+            payload = {"error": "message is required", "routing": {"requested": model, "used": None, "backend": "serverless", "reason": "missing_message"}}
+            return HTTPStatus.BAD_REQUEST, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.BAD_REQUEST, payload, backend="serverless", reason="missing_message")
         payload = {
             "model": model,
             "messages": messages,
@@ -59,29 +106,35 @@ class ChatRoutingService:
             payload["temperature"] = float(data["temperature"])
         status, response = self.request_json(self.proxy_url("/v1/messages"), payload, timeout=240)
         if status >= 400:
-            return status, response
+            if isinstance(response, dict):
+                response.setdefault("routing", {"requested": model, "used": None, "backend": "serverless", "reason": "upstream_error"})
+            return status, self.trace_record("chat.serverless", data, model, started_at, status, response if isinstance(response, dict) else {"error": str(response)}, backend="serverless", reason="upstream_error")
         text = "".join(part.get("text", "") for part in response.get("content", []) if isinstance(part, dict))
         input_text = "\n".join(str(msg.get("content") or "") for msg in messages if isinstance(msg, dict))
         routing = {"requested": model, "used": model, "backend": "serverless"}
         if registry_issue:
             routing["reason"] = "registry_sync_warning"
             routing["registry_sync"] = registry_issue
-        return HTTPStatus.OK, {
+        payload = {
             "text": text,
             "raw": response,
             "usage": response.get("usage") or {},
             "cost": self.chat_cost_usd(model, input_text, text),
             "routing": routing,
         }
+        return HTTPStatus.OK, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.OK, payload, backend="serverless")
 
     def completion(self, data):
+        started_at = time.time()
         model = data.get("model") or self.default_text_model()
         messages = data.get("messages") if isinstance(data.get("messages"), list) else []
         if not messages:
-            return HTTPStatus.BAD_REQUEST, {"error": "message is required"}
+            payload = {"error": "message is required", "routing": {"requested": model, "used": None, "backend": "chat", "reason": "missing_message"}}
+            return HTTPStatus.BAD_REQUEST, self.trace_record("chat", data, model, started_at, HTTPStatus.BAD_REQUEST, payload, backend="chat", reason="missing_message")
         if self.is_dedicated_model(model):
             self.dedicated_status_payload(poll=True)
-            return self.dedicated_chat_completion(data, self.load_dedicated_config())
+            status, payload = self.dedicated_chat_completion(data, self.load_dedicated_config())
+            return status, self.trace_record("chat.dedicated", data, model, started_at, status, payload, backend="dedicated")
         return self.serverless_completion(data, model)
 
     def proxy_get(self, path):

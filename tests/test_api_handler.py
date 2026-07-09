@@ -24,6 +24,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "proxy_sync_payload": lambda **kwargs: {"in_sync": True, "kwargs": kwargs},
             "active_model_access_key_info": record("active_model_access_key_info", {"configured": True}),
             "cost_summary_payload": record("cost_summary_payload", {"cost": 1}),
+            "read_traces": lambda **kwargs: [{"trace_id": "trace-a", "kwargs": kwargs}],
             "wallpaper_payload": lambda randomize=False: {"randomize": randomize},
             "dedicated_status_payload": lambda poll=True: {"poll": poll},
             "dedicated_events": record("dedicated_events", [{"state": "ready"}]),
@@ -104,6 +105,13 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertTrue(payload["proxy_listening"])
         self.assertEqual(payload["proxy"], "http://127.0.0.1:18081")
         self.assertEqual(payload["models"], {"path": "/v1/models"})
+
+        handled, status, payload = handler.get("/api/traces", {"model": ["model-a"], "limit": ["5"]})
+        self.assertTrue(handled)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["traces"][0]["trace_id"], "trace-a")
+        self.assertEqual(payload["traces"][0]["kwargs"]["model"], "model-a")
+        self.assertEqual(payload["traces"][0]["kwargs"]["limit"], 5)
 
         self.assertEqual(handler.get("/not-found"), (False, 404, {}))
 
