@@ -357,6 +357,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-09: Added "Continue with this model" actions to Create comparison reply cards so a saved comparison can continue as a normal single-model conversation.
 - 2026-07-09: Added registry-backed generated model styles plus seven-day global "new" sparkle metadata for DigitalOcean catalog additions, and rendered those accents in model cards and Serverless model management.
 - 2026-07-09: Added Create first-view greeting with typewriter replay, model/weather-aware copy, dimmed suggestions while typing, and wallpaper Info control that reports attribution or fallback status.
+- 2026-07-09: Documented the Create first view, wallpaper controls, text comparison, image workflow, model styling, and graceful fallback behavior in `docs/create-experience.md`.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -398,7 +399,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Comparison entries save as one chat-history entry and support "continue with this model"
 - [x] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
 - [ ] Mobile and desktop layouts verified visually
-- [ ] Documentation updated if workflows or screenshots change
+- [x] Documentation updated if workflows or screenshots change
 
 **Dependencies:** INT-001 (Template separation recommended; can be done in current HTML if prioritized)
 **Blocks:** INT-012 (Theming system)
