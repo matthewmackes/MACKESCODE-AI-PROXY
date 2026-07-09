@@ -155,6 +155,8 @@ Authenticated clients can mint JWT sessions with `POST /api/v1/auth/session`, re
 
 Console plugins are manifest based and discovered from `plugins.directories` in `config/console.json`. `GET /api/v1/plugins` reports enabled, disabled, and invalid plugin manifests plus supported extension points. The manifest contract is documented in `docs/plugins.md`.
 
+Theme defaults are configured in `config/console.json` under `theme`. The UI uses CSS variables, honors `prefers-color-scheme` when `theme.default` is `system`, and persists manual Light/Dark choices in localStorage.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

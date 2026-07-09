@@ -91,6 +91,10 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("/api/model-info", html)
         self.assertIn("data-model-info", html)
         self.assertIn("Model Info", html)
+        self.assertIn("themeConfig", html)
+        self.assertIn("prefers-color-scheme: dark", html)
+        self.assertIn("function applyTheme", html)
+        self.assertIn("themeStorageKey", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(
@@ -98,10 +102,12 @@ class TemplateSmokeTests(unittest.TestCase):
             {
                 "SCRIPT_DIR": "/tmp/example-project",
                 "TEXT_MODELS": ["model-a"],
+                "THEME_CONFIG": {"default": "system"},
             },
         )
         self.assertIn("/tmp/example-project", html)
         self.assertIn('["model-a"]', html)
+        self.assertIn('"default": "system"', html)
         self.assertNotIn("__SCRIPT_DIR__", html)
 
 

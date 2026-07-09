@@ -1270,14 +1270,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-012
 **Title:** Add theming system
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 3 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started theme closure pass; existing CSS variables, dark-mode styles, toggle, and persistence are present, so this pass adds config defaults, system preference support, docs, and smoke assertions.
+- 2026-07-09: Added `theme` config defaults, template injection, system/browser preference detection, configurable localStorage key, toggle visibility control, persisted manual overrides, README docs, and template smoke assertions. Passed `./scripts/release-check.sh` with 218 tests and browser smoke.
 
 **Description:** Implement theming system with light/dark mode support.
 
@@ -1294,11 +1296,11 @@ The interface refactoring work consolidates previously separate components into 
 - Theme storage
 
 **Completion Criteria:**
-- [ ] Theme switching working
-- [ ] CSS variable system
-- [ ] Theme persistence
-- [ ] Browser preferences respected
-- [ ] Documentation
+- [x] Theme switching working
+- [x] CSS variable system
+- [x] Theme persistence
+- [x] Browser preferences respected
+- [x] Documentation
 
 **Dependencies:** INT-001 (Template separation)
 **Blocks:** None

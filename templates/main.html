@@ -627,21 +627,26 @@ body.dark .global-alert{background:#2d1c12;color:#fed7aa;border-color:#fb923c}bo
 </div>
 </main>
 <script>
-const textModels=__TEXT_MODELS__, activeTextModels=__ACTIVE_TEXT_MODELS__, imageModels=__IMAGE_MODELS__, sizes=__SIZES__, styles=__STYLES__;
+const textModels=__TEXT_MODELS__, activeTextModels=__ACTIVE_TEXT_MODELS__, imageModels=__IMAGE_MODELS__, sizes=__SIZES__, styles=__STYLES__, themeConfig=__THEME_CONFIG__;
 let textModelOptions=__TEXT_MODEL_OPTIONS__, imageModelOptions=__IMAGE_MODEL_OPTIONS__, modelMeta=__MODEL_META__;
 if('scrollRestoration' in history)history.scrollRestoration='manual';
 const AUTH_TOKEN=new URLSearchParams(location.search).get('token')||localStorage.getItem('mattsConsoleToken')||'';
 if(AUTH_TOKEN)localStorage.setItem('mattsConsoleToken',AUTH_TOKEN);
-const savedTheme=localStorage.getItem('mattsConsoleTheme')||'light';
-if(savedTheme==='dark')document.body.classList.add('dark');
+const themeStorageKey=themeConfig.storage_key||'mattsConsoleTheme';
+function systemTheme(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+function configuredTheme(){let value=String(themeConfig.default||'system');return value==='system'?systemTheme():(value==='dark'?'dark':'light')}
+function currentTheme(){return localStorage.getItem(themeStorageKey)||configuredTheme()}
+function applyTheme(value,persist=false){document.body.classList.toggle('dark',value==='dark');if(persist)localStorage.setItem(themeStorageKey,value);syncThemeToggle()}
+applyTheme(currentTheme(),false);
 let selected=null,itemStore={},chatMessages=[],chatId=null,chatTitle='',chatTotalCost=0,tmuxName='matts-claude',termTimer=null,lastTermOutputAt=0,lastTermError='',modelHeroCache={};
 let chatRevealTimers={},chatPendingTimer=null;
 let seenModelIds=new Set(JSON.parse(localStorage.getItem('mattsSeenModelIds')||'null')||[...activeTextModels,...imageModels]);
 let tmuxSessionItems=[],seenSessionNames=new Set(JSON.parse(localStorage.getItem('mattsSeenSessionNames')||'null')||[]);
 let wizardStepOrder=['session','model','permissions','run','safety','review'],wizardStep='session';
 function $(id){return document.getElementById(id)}function setStatus(s){$('status').textContent=s}
-function syncThemeToggle(){let b=$('theme-toggle');if(b)b.textContent=document.body.classList.contains('dark')?'Light':'Dark'}
-function toggleTheme(){document.body.classList.toggle('dark');localStorage.setItem('mattsConsoleTheme',document.body.classList.contains('dark')?'dark':'light');syncThemeToggle()}
+function syncThemeToggle(){let b=$('theme-toggle');if(b){b.textContent=document.body.classList.contains('dark')?'Light':'Dark';b.hidden=themeConfig.allow_user_toggle===false}}
+function toggleTheme(){applyTheme(document.body.classList.contains('dark')?'light':'dark',true)}
+if(window.matchMedia){let themeMedia=window.matchMedia('(prefers-color-scheme: dark)');themeMedia.addEventListener&&themeMedia.addEventListener('change',()=>{if(!localStorage.getItem(themeStorageKey)&&String(themeConfig.default||'system')==='system')applyTheme(systemTheme(),false)})}
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function modelIsNew(m){let id=typeof m==='string'?m:(m&&m.id),o=modelOption(id),now=Date.now()/1000,until=Number((m&&m.new_until)||o.new_until||0),created=Number((m&&m.created)||o.created||0);if(until&&now<until)return true;if(created&&created<=now+86400&&created+604800>now)return true;return !!(id&&!seenModelIds.has(id))}
 function rememberSeenModels(models){let changed=false;(models||[]).forEach(m=>{if(m&&m.id&&!seenModelIds.has(m.id)){seenModelIds.add(m.id);changed=true}});if(changed)localStorage.setItem('mattsSeenModelIds',JSON.stringify([...seenModelIds]))}

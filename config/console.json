@@ -12,6 +12,11 @@
   "logging": {
     "level": "INFO"
   },
+  "theme": {
+    "default": "system",
+    "storage_key": "mattsConsoleTheme",
+    "allow_user_toggle": true
+  },
   "models": {
     "auto_enable_max_usd": 0.45
   },

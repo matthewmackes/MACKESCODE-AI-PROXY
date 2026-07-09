@@ -1671,6 +1671,7 @@ class StudioHandler(BaseHTTPRequestHandler):
                 "IMAGE_MODELS": IMAGE_MODELS,
                 "IMAGE_MODEL_OPTIONS": model_options("image", include_disabled=True),
                 "MODEL_META": model_metadata_map(),
+                "THEME_CONFIG": STARTUP_CONFIG.get("theme", {}),
                 "SIZES": SIZES,
                 "STYLES": STYLES,
                 "SCRIPT_DIR": str(script_dir()),
