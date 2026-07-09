@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import urlopen
 
 from src.console.handlers.api_handler import ConsoleApiHandler
+from src.console.handlers.api_versioning import api_version_headers, api_version_info
 from src.console.handlers.auth_handler import AuthHandler
 from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
@@ -1496,12 +1497,14 @@ class StudioHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("%s - %s" % (self.log_date_time_string(), fmt % args), flush=True)
 
-    def send_json(self, status, payload):
+    def send_json(self, status, payload, headers=None):
         if int(status) >= 400:
             log_error_response(getattr(self, "command", ""), urlparse(self.path).path, status, payload)
         data = json.dumps(payload).encode("utf-8")
         self.send_response(int(status))
         self.send_header("content-type", "application/json")
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -1554,7 +1557,9 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         REQUEST_COUNTS["GET"] += 1
-        path = urlparse(self.path).path
+        raw_path = urlparse(self.path).path
+        version_info = api_version_info(raw_path, self.headers)
+        path = version_info["path"]
         if path == "/ws/tmux":
             return self.do_websocket_tmux()
         if path == "/health":
@@ -1569,6 +1574,9 @@ class StudioHandler(BaseHTTPRequestHandler):
             return self.send_text(200, console_metrics_text(), "text/plain; version=0.0.4; charset=utf-8")
         if not self.authorized():
             return self.send_unauthorized()
+        version_headers = api_version_headers(version_info)
+        if version_info.get("unsupported"):
+            return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
         if path == "/":
             html = render_template("main.html", {
                 "TEXT_MODELS": selectable_text_models(),
@@ -1589,8 +1597,8 @@ class StudioHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/") and path != "/api/wallpaper/image":
             handled, status, payload = api_handler().get(path, parse_qs(urlparse(self.path).query))
             if handled:
-                return self.send_json(status, payload)
-            return self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}))
+                return self.send_json(status, payload, headers=version_headers)
+            return self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=version_headers)
         if path == "/api/wallpaper/image":
             query = parse_qs(urlparse(self.path).query)
             remote = (query.get("remote") or [""])[0]
@@ -1598,9 +1606,11 @@ class StudioHandler(BaseHTTPRequestHandler):
             try:
                 status, data, content_type = wallpaper_image_response(remote, image_id)
             except Exception as exc:
-                return self.send_json(502, error_payload("wallpaper image fetch failed", 502, code="wallpaper_image_fetch_failed", details={"reason": str(exc)}))
+                return self.send_json(502, error_payload("wallpaper image fetch failed", 502, code="wallpaper_image_fetch_failed", details={"reason": str(exc)}), headers=version_headers)
             self.send_response(int(status))
             self.send_header("content-type", content_type)
+            for key, value in version_headers.items():
+                self.send_header(key, value)
             self.send_header("cache-control", "public, max-age=86400")
             self.send_header("content-length", str(len(data)))
             self.end_headers()
@@ -1622,20 +1632,25 @@ class StudioHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         REQUEST_COUNTS["POST"] += 1
-        path = urlparse(self.path).path
+        raw_path = urlparse(self.path).path
+        version_info = api_version_info(raw_path, self.headers)
+        path = version_info["path"]
         if not self.authorized():
             return self.send_unauthorized()
+        version_headers = api_version_headers(version_info)
+        if version_info.get("unsupported"):
+            return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
         actor = self.identity()
         permission_action = auth_handler().permission_for("POST", path)
         if permission_action:
             permission, action = permission_action
             if not auth_handler().has_permission(actor, permission):
                 append_audit(action, actor=actor, outcome="denied", permission=permission, request={"path": path}, status=403)
-                return self.send_json(403, error_payload("permission denied", 403, code="permission_denied", details={"permission": permission, "actor": actor.get("id")}))
+                return self.send_json(403, error_payload("permission denied", 403, code="permission_denied", details={"permission": permission, "actor": actor.get("id")}), headers=version_headers)
         try:
             data = self.read_json()
         except ValueError as exc:
-            return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}))
+            return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}), headers=version_headers)
         if isinstance(data, dict):
             data.setdefault("actor", actor)
             data.setdefault("session_id", actor.get("id"))
@@ -1649,8 +1664,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             permission, action = permission_action
             append_audit(action, actor=actor, outcome="completed" if int(status) < 400 else "failed", permission=permission, request={"path": path}, status=status)
         if handled:
-            return self.send_json(status, payload)
-        self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}))
+            return self.send_json(status, payload, headers=version_headers)
+        self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=version_headers)
 
 
 def main():

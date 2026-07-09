@@ -1,7 +1,12 @@
 import importlib.util
 import io
+import json
+import threading
 import time
 import unittest
+import urllib.error
+import urllib.request
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -152,6 +157,54 @@ class RequestParsingTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "invalid JSON request body"):
             handler.read_json()
+
+
+class ApiVersionHttpSmokeTests(unittest.TestCase):
+    def with_server(self, callback):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), studio.StudioHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        with patch.object(studio, "auth_enabled", return_value=False), \
+             patch.object(studio, "models_payload", return_value={"models": [{"id": "model-a"}]}):
+            thread.start()
+            try:
+                callback("http://127.0.0.1:%d" % server.server_address[1])
+            finally:
+                server.shutdown()
+                server.server_close()
+
+    def read_json(self, url, headers=None):
+        request = urllib.request.Request(url, headers=headers or {})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response, json.loads(response.read().decode("utf-8"))
+
+    def test_v1_api_path_and_legacy_deprecation_headers(self):
+        def run(base_url):
+            versioned, versioned_body = self.read_json(base_url + "/api/v1/models")
+            legacy, legacy_body = self.read_json(base_url + "/api/models")
+
+            self.assertEqual(versioned.status, 200)
+            self.assertEqual(versioned.headers["x-matts-api-version"], "v1")
+            self.assertNotIn("deprecation", versioned.headers)
+            self.assertEqual(versioned_body["models"][0]["id"], "model-a")
+            self.assertEqual(legacy.status, 200)
+            self.assertEqual(legacy.headers["x-matts-api-version"], "v1")
+            self.assertEqual(legacy.headers["deprecation"], "true")
+            self.assertEqual(legacy_body["models"][0]["id"], "model-a")
+
+        self.with_server(run)
+
+    def test_unsupported_api_version_returns_structured_error(self):
+        def run(base_url):
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                self.read_json(base_url + "/api/v2/models")
+            body = json.loads(ctx.exception.read().decode("utf-8"))
+
+            self.assertEqual(ctx.exception.code, 400)
+            self.assertEqual(ctx.exception.headers["x-matts-api-version"], "v2")
+            self.assertEqual(body["code"], "unsupported_api_version")
+            self.assertEqual(body["details"]["requested_version"], "v2")
+
+        self.with_server(run)
 
 
 if __name__ == "__main__":

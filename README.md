@@ -146,6 +146,8 @@ Console JSON API failures use a standard error shape:
 
 The `error` field remains a plain string for older clients. New UI and diagnostics should prefer `code`, `category`, `status`, and optional `details`. JSON error responses are also logged as sanitized structured warning records with request method, path, status, code, category, message, and detail keys only.
 
+Console JSON API v1 is available under `/api/v1/*`. Legacy `/api/*` paths remain compatible and include deprecation headers; migration details are in `docs/api-versioning.md`.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

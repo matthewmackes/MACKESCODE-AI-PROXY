@@ -1115,14 +1115,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-008
 **Title:** Add API versioning
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 1.5 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started API versioning pass with `/api/v1/*` path aliases, legacy `/api/*` compatibility, deprecation headers, and version negotiation tests.
+- 2026-07-09: Added API version middleware, explicit `/api/v1/*` routing, legacy `/api/*` deprecation/warning headers, `x-matts-api-version` and vendor `Accept` negotiation, structured unsupported-version errors, migration docs, HTTP smoke tests, and release syntax coverage. Passed `./scripts/release-check.sh` with 209 tests and browser smoke.
 
 **Description:** Implement API versioning with backward compatibility support.
 
@@ -1138,11 +1140,11 @@ The interface refactoring work consolidates previously separate components into 
 - Update documentation
 
 **Completion Criteria:**
-- [ ] Versioned API endpoints
-- [ ] Backward compatibility
-- [ ] Deprecation system
-- [ ] Migration guide
-- [ ] Tests updated
+- [x] Versioned API endpoints
+- [x] Backward compatibility
+- [x] Deprecation system
+- [x] Migration guide
+- [x] Tests updated
 
 **Dependencies:** INT-002 (Handler refactoring)
 **Blocks:** None
