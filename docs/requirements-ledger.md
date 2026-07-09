@@ -2,7 +2,7 @@
 
 **Purpose:** Durable product decisions extracted from the completed worklist and interface surveys.
 
-**Last updated:** 2026-07-08
+**Last updated:** 2026-07-09
 
 This ledger keeps survey decisions executable after chat compaction. It is not a transcript. Each item is mapped to an owning worklist task and uses one of these evidence levels:
 
@@ -112,18 +112,20 @@ These items were requested through survey flow, but the specific answer content 
 | Exact 100-question answer mapping by question number. | Chat compaction preserved many selected options but not all original question prompts. | `INT-025` follow-up note only; do not block implementation. |
 | Latest follow-up answer-only sequence ending with "add to worklist". | Reconciled on 2026-07-08. Reconstructable decisions were promoted above; any remaining raw answer choices lack their prompts and should stay unreconstructable until the user restates the product decision. | `INT-026` |
 | Additional post-reconciliation "add to worklist" confirmation. | User repeated the instruction after another answer-only continuation. Treat it as confirmation to preserve backlog hygiene, not as permission to guess missing survey prompts. | `INT-026` |
+| 2026-07-09 answer-only continuation ending with "add to worklist". | User requested worklist preservation after another answer sequence, but the compacted context does not preserve enough prompt text to promote each answer safely. Reconcile only reconstructable decisions during the next ledger pass. | `INT-026` |
 | Preferred weather provider and whether browser geolocation may be stored as a default. | Requirements say geolocation first and graceful fallback, but provider/privacy preference is not durable. | `INT-014`, `INT-018` |
 | Exact default Code wizard profile ordering and permission defaults beyond the current local implementation. | Preserved answers confirm wizard behavior, but not all profile policy details. | `INT-007`, `INT-023` |
 | Final public release name/versioning policy. | GitHub repository name is known; semantic version and release cadence are not. | `INT-024` |
 
 ## Priority Order
 
-Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-020`, `INT-025`, and `INT-026`.
+Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-020`, and `INT-025`.
 
 1. `INT-022` add gateway policy controls.
-2. `INT-021` add eval/model comparison workflows.
-3. `INT-014` finish the remaining Create/Image visual workflow gaps.
-4. `INT-017` complete detailed model hero cards.
-5. `INT-019` reconcile documentation.
-6. `INT-024` finish packaging, upgrade, rollback, and release checklist.
-7. `INT-023` add governance, RBAC, and audit hardening.
+2. `INT-026` reconcile the latest answer-only continuation without guessing missing prompts.
+3. `INT-021` add eval/model comparison workflows.
+4. `INT-014` finish the remaining Create/Image visual workflow gaps.
+5. `INT-017` complete detailed model hero cards.
+6. `INT-019` reconcile documentation.
+7. `INT-024` finish packaging, upgrade, rollback, and release checklist.
+8. `INT-023` add governance, RBAC, and audit hardening.
