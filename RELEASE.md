@@ -48,6 +48,7 @@ The default archive includes:
 - active model registry
 - gateway policy
 - Dedicated Inference runtime state and lifecycle events
+- audit log
 - Serverless catalog cache
 - trace log
 - tmux session registry

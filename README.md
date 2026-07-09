@@ -110,6 +110,8 @@ The active model registry is `config/models.json`. `./claude-DO.sh --list-models
 
 Use Console > LLM Management > key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
 
+Console auth supports the generated owner token plus optional scoped role/session tokens. Sensitive model, Dedicated, budget, billing, tmux, and terminal actions are permission-checked and written to `$HOME/.cache/matts-value-set/studio/audit.jsonl`. Role-token setup is documented in `SECURITY.md`.
+
 Dedicated Inference live state is runtime data. The default state file is under the console app cache, and `config/dedicated-inference.example.json` is the publishable template. Do not commit live Dedicated endpoint metadata, access tokens, CA certificates, or raw DigitalOcean resource payloads.
 
 Release config and runtime state are intentionally separate:
@@ -121,6 +123,7 @@ Release config and runtime state are intentionally separate:
 | Active model registry | `config/models.json` | Operator-edited source of truth; schema_version `1` |
 | Dedicated Inference | `config/dedicated-inference.example.json` | `$HOME/.cache/matts-value-set/studio/dedicated-inference.json` |
 | Serverless catalog cache | none | `$HOME/.cache/matts-value-set/studio/serverless-model-catalog.json` |
+| Audit log | none | `$HOME/.cache/matts-value-set/studio/audit.jsonl` |
 | Wallpaper cache | none | `$HOME/.cache/matts-value-set/wallpapers/` |
 | Weather defaults/cache | none | Browser/runtime fallback state only |
 | Usage, budget, and traces | none | `$HOME/.cache/matts-value-set/usage.jsonl`, budgets, and trace files |

@@ -891,15 +891,17 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-023
 **Title:** Add enterprise identity, RBAC, and audit governance
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 4 hours
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Token auth is acceptable for private single-operator use, but team or enterprise use needs identity and authorization boundaries.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; budget overrides, model admin, Dedicated build/teardown, tmux actions, and key verification need identity/audit context.
+- 2026-07-09: Added scoped role tokens, RBAC permission checks for sensitive Console POST actions, JSONL audit logging with secret redaction, actor/session attribution for traces and operator requests, security/release docs, runtime-state audit backup coverage, and auth/audit tests. Passed `./scripts/release-check.sh` with 201 tests and browser smoke.
 
 **Description:** Replace single shared console-token semantics with user/session identity, scoped permissions, and audit logging suitable for a trusted team deployment.
 
@@ -920,13 +922,13 @@ The interface refactoring work consolidates previously separate components into 
 - `SECURITY.md`
 
 **Completion Criteria:**
-- [ ] RBAC roles and permissions defined
-- [ ] Sensitive actions are authorization checked
-- [ ] Audit log records model/admin/tmux/Dedicated actions
-- [ ] Budget overrides, key access audits, model enablement changes, Dedicated build/rebuild/teardown, and tmux kill/send actions include actor/session attribution
-- [ ] Token/session rotation is documented
-- [ ] Login UX supports user sessions
-- [ ] Security tests cover denied actions
+- [x] RBAC roles and permissions defined
+- [x] Sensitive actions are authorization checked
+- [x] Audit log records model/admin/tmux/Dedicated actions
+- [x] Budget overrides, key access audits, model enablement changes, Dedicated build/rebuild/teardown, and tmux kill/send actions include actor/session attribution
+- [x] Token/session rotation is documented
+- [x] Login UX supports user sessions
+- [x] Security tests cover denied actions
 
 **Dependencies:** INT-010 (Improve authentication), INT-020 (Trace-first observability)
 **Blocks:** Multi-user deployment

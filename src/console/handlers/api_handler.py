@@ -30,6 +30,7 @@ class ConsoleApiHandler:
         if not isinstance(payload, dict):
             payload = {"result": payload}
         request = request if isinstance(request, dict) else {}
+        actor = request.get("actor") if isinstance(request.get("actor"), dict) else {}
         routing = payload.get("routing") if isinstance(payload.get("routing"), dict) else {}
         cost = payload.get("cost") if isinstance(payload.get("cost"), dict) else {}
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
@@ -43,6 +44,8 @@ class ConsoleApiHandler:
             "endpoint_mode": routing.get("backend") or action.split(".")[0],
             "routing_reason": routing.get("reason") or "",
             "session_id": request.get("session_id") or request.get("id") or request.get("name") or payload.get("session_id"),
+            "actor_id": actor.get("id") or request.get("operator") or request.get("session_id") or "",
+            "actor_roles": actor.get("roles") or [],
             "cost": cost,
             "usage": usage,
             "cost_usd": cost.get("total_cost_usd") if isinstance(cost, dict) else None,

@@ -28,6 +28,7 @@ from src.console.handlers.template_handler import TemplateHandler
 from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
 from src.console.services.app_config import ConsoleConfigService
+from src.console.services.audit import AuditService
 from src.console.services.chat import ChatRoutingService
 from src.console.services.evals import EvalService
 from src.console.services.health import ConsoleHealthService
@@ -167,6 +168,10 @@ def trace_file():
 
 def tmux_session_registry_file():
     return configured_path("tmux_session_registry_file", "tmux-sessions.json", "MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir())
+
+
+def audit_file():
+    return configured_path("audit_file", "audit.jsonl", "MATTS_AUDIT_FILE", app_dir())
 
 
 def wallpaper_cache_dir():
@@ -1381,7 +1386,28 @@ def static_images_handler():
 
 
 def auth_handler():
-    return AuthHandler(auth_enabled=auth_enabled, auth_token=auth_token)
+    return AuthHandler(auth_enabled=auth_enabled, auth_token=auth_token, role_tokens=auth_role_tokens)
+
+
+def auth_role_tokens():
+    raw = os.environ.get("MATTS_CONSOLE_ROLE_TOKENS_JSON", "").strip()
+    if raw:
+        return raw
+    path = os.environ.get("MATTS_CONSOLE_ROLE_TOKENS_FILE", "").strip()
+    if path:
+        try:
+            return Path(path).read_text(encoding="utf-8")
+        except OSError:
+            return {}
+    return STARTUP_CONFIG.get("auth", {}).get("role_tokens", {})
+
+
+def audit_service():
+    return AuditService(audit_file=audit_file, clock=time.time)
+
+
+def append_audit(action, actor=None, outcome="allowed", permission="", request=None, status=None):
+    return audit_service().append(action, actor=actor, outcome=outcome, permission=permission, request=request, status=status)
 
 
 def tmux_websocket_handler(authorized):
@@ -1498,6 +1524,9 @@ class StudioHandler(BaseHTTPRequestHandler):
     def authorized(self):
         return auth_handler().authorized(self.path, self.headers)
 
+    def identity(self):
+        return auth_handler().identity(self.path, self.headers)
+
     def send_html(self, html):
         data = html.encode("utf-8")
         self.send_response(200)
@@ -1591,11 +1620,29 @@ class StudioHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not self.authorized():
             return self.send_unauthorized()
+        actor = self.identity()
+        permission_action = auth_handler().permission_for("POST", path)
+        if permission_action:
+            permission, action = permission_action
+            if not auth_handler().has_permission(actor, permission):
+                append_audit(action, actor=actor, outcome="denied", permission=permission, request={"path": path}, status=403)
+                return self.send_json(403, error_payload("permission denied", 403, code="permission_denied", details={"permission": permission, "actor": actor.get("id")}))
         try:
             data = self.read_json()
         except ValueError as exc:
             return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}))
+        if isinstance(data, dict):
+            data.setdefault("actor", actor)
+            data.setdefault("session_id", actor.get("id"))
+            if permission_action and not data.get("operator"):
+                data["operator"] = actor.get("id")
+        if permission_action:
+            permission, action = permission_action
+            append_audit(action, actor=actor, outcome="allowed", permission=permission, request={"path": path, "body": data}, status=0)
         handled, status, payload = api_handler().post(path, data)
+        if permission_action:
+            permission, action = permission_action
+            append_audit(action, actor=actor, outcome="completed" if int(status) < 400 else "failed", permission=permission, request={"path": path}, status=status)
         if handled:
             return self.send_json(status, payload)
         self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}))

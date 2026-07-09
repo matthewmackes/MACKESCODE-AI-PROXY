@@ -4,7 +4,8 @@
     "port": 18181
   },
   "auth": {
-    "enabled": true
+    "enabled": true,
+    "role_tokens": {}
   },
   "logging": {
     "level": "INFO"
@@ -30,6 +31,7 @@
     "dedicated_config_file": "dedicated-inference.json",
     "serverless_catalog_cache_file": "serverless-model-catalog.json",
     "dedicated_events_file": "dedicated-events.jsonl",
+    "audit_file": "audit.jsonl",
     "tmux_session_registry_file": "tmux-sessions.json",
     "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
     "auth_token_file": "console-auth-token",

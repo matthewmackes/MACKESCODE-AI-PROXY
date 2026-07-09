@@ -41,6 +41,7 @@ Treat these as sensitive:
 - Dedicated Inference state file: `$HOME/.cache/matts-value-set/studio/dedicated-inference.json`
 - Dedicated Inference publishable template: `config/dedicated-inference.example.json`
 - Active model registry schema: `schema_version` `1`
+- Audit log: `$HOME/.cache/matts-value-set/studio/audit.jsonl`
 
 The repository should contain schemas, defaults, and examples. Runtime state belongs under `$HOME/.cache/matts-value-set/` or an explicit operator-provided path. Do not commit live cloud resource metadata, endpoint credentials, generated auth tokens, traces, usage logs, wallpaper cache files, or tmux session registries.
 
@@ -57,3 +58,29 @@ $HOME/.cache/matts-value-set/studio/console-auth-token
 ```
 
 Model registry entries can reveal which models a key is allowed to use. Treat `access_status`, Dedicated routing state, and model audit output as operational metadata even when no raw token is present.
+
+## Console Roles
+
+The generated console token is an owner token. Optional scoped role tokens can be supplied with `MATTS_CONSOLE_ROLE_TOKENS_JSON`, `MATTS_CONSOLE_ROLE_TOKENS_FILE`, or the `auth.role_tokens` object in `config/console.json`.
+
+Example role-token file:
+
+```json
+{
+  "token-value-here": {"id": "operator-a", "roles": ["operator"]},
+  "infra-token-here": {"id": "infra-a", "roles": ["infra_admin"]}
+}
+```
+
+Built-in roles:
+
+- `viewer`: read console, trace, and billing views
+- `operator`: viewer plus model use, eval runs, and tmux control
+- `model_admin`: operator plus model registry, proxy sync, and key audit
+- `billing_admin`: billing views and budget updates
+- `infra_admin`: operator plus Dedicated Inference and budget administration
+- `owner` / `admin`: all permissions
+
+Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, and terminal writes.
+
+Rotate scoped role tokens by replacing the JSON/file/config entry, restarting the console, and removing the old token from the configured role-token source.
