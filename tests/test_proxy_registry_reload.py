@@ -350,6 +350,82 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertIsNotNone(proxy._gateway_cache_get(server, "chat", "model-a", request, now=1004))
         self.assertIsNone(proxy._gateway_cache_get(server, "chat", "model-a", request, now=1006))
 
+    def test_gateway_circuit_breaker_opens_after_threshold(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "circuit_breakers": {
+                    "enabled": True,
+                    "failure_window_seconds": 60,
+                    "failure_threshold": 2,
+                    "cooldown_seconds": 30,
+                    "tracked_statuses": [502],
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_circuit_state={},
+        )
+
+        proxy._gateway_record_circuit_result(server, "chat", "model-a", 502, now=1000)
+        self.assertIsNone(proxy._gateway_circuit_open_error(server, "chat", "model-a", now=1001))
+        opened = proxy._gateway_record_circuit_result(server, "chat", "model-a", 502, now=1002)
+        error = proxy._gateway_circuit_open_error(server, "chat", "model-a", now=1003)
+
+        self.assertEqual(opened["open_until"], 1032)
+        self.assertEqual(error["type"], "circuit_open")
+        self.assertEqual(error["retry_after_seconds"], 29)
+        self.assertIsNone(proxy._gateway_circuit_open_error(server, "chat", "model-a", now=1033))
+
+    def test_gateway_circuit_success_clears_failures(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "circuit_breakers": {
+                    "enabled": True,
+                    "failure_window_seconds": 60,
+                    "failure_threshold": 2,
+                    "cooldown_seconds": 30,
+                    "tracked_statuses": [502],
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_circuit_state={},
+        )
+
+        proxy._gateway_record_circuit_result(server, "images", "image-a", 502, now=1000)
+        cleared = proxy._gateway_record_circuit_result(server, "images", "image-a", 200, now=1001)
+        proxy._gateway_record_circuit_result(server, "images", "image-a", 502, now=1002)
+
+        self.assertEqual(cleared["failures"], [])
+        self.assertIsNone(proxy._gateway_circuit_open_error(server, "images", "image-a", now=1003))
+
+    def test_gateway_failover_policy_selects_next_text_model(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "failover": {"enabled": True, "serverless_fallback": True},
+                "retries": {"retry_statuses": [429, 500, 502]},
+            },
+            models=["model-a", "stable-diffusion-3.5-large", "model-b"],
+        )
+
+        self.assertTrue(proxy._gateway_should_failover(server, 502))
+        self.assertFalse(proxy._gateway_should_failover(server, 403))
+        self.assertEqual(proxy._gateway_text_failover_model(server, "model-a"), "model-b")
+        self.assertIsNone(proxy._gateway_text_failover_model(server, "model-a", attempted={"model-a", "model-b"}))
+
+    def test_gateway_failover_policy_can_be_disabled(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "failover": {"enabled": False, "serverless_fallback": True},
+                "retries": {"retry_statuses": [502]},
+            },
+            models=["model-a", "model-b"],
+        )
+
+        self.assertFalse(proxy._gateway_should_failover(server, 502))
+
 
 if __name__ == "__main__":
     unittest.main()

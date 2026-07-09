@@ -1111,6 +1111,116 @@ def _gateway_cache_store(server, route_type, model, request_payload, response_pa
     return True
 
 
+def _gateway_circuit_policy(server):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    if not policy.get("enabled", True):
+        return None
+    circuit = policy.get("circuit_breakers") if isinstance(policy.get("circuit_breakers"), dict) else {}
+    if not circuit.get("enabled"):
+        return None
+    return {
+        "failure_window_seconds": _positive_int(circuit.get("failure_window_seconds")) or 300,
+        "failure_threshold": _positive_int(circuit.get("failure_threshold")) or 5,
+        "cooldown_seconds": _positive_int(circuit.get("cooldown_seconds")) or 120,
+        "tracked_statuses": {int(status) for status in circuit.get("tracked_statuses") or []},
+        "source": getattr(server, "gateway_policy_file", ""),
+    }
+
+
+def _gateway_circuit_key(route_type, model):
+    return "%s:%s" % (route_type, model)
+
+
+def _gateway_circuit_open_error(server, route_type, model, now=None):
+    policy = _gateway_circuit_policy(server)
+    if not policy:
+        return None
+    now = time.time() if now is None else float(now)
+    circuits = getattr(server, "gateway_circuit_state", None)
+    if circuits is None:
+        circuits = {}
+        server.gateway_circuit_state = circuits
+    key = _gateway_circuit_key(route_type, model)
+    state = circuits.get(key) or {}
+    open_until = float(state.get("open_until") or 0)
+    if open_until <= now:
+        return None
+    retry_after = max(1, int(open_until - now))
+    return {
+        "type": "circuit_open",
+        "message": "Gateway circuit is open for %s on %s; retry in %d seconds" % (model, route_type, retry_after),
+        "route": route_type,
+        "model": model,
+        "open_until": open_until,
+        "retry_after_seconds": retry_after,
+        "failures": len(state.get("failures") or []),
+        "policy": {"source": policy["source"], "cooldown_seconds": policy["cooldown_seconds"]},
+    }
+
+
+def _gateway_record_circuit_result(server, route_type, model, status, now=None):
+    policy = _gateway_circuit_policy(server)
+    if not policy:
+        return None
+    now = time.time() if now is None else float(now)
+    circuits = getattr(server, "gateway_circuit_state", None)
+    if circuits is None:
+        circuits = {}
+        server.gateway_circuit_state = circuits
+    key = _gateway_circuit_key(route_type, model)
+    state = circuits.get(key) or {"failures": [], "open_until": 0}
+    status = int(status)
+    if status < 400:
+        circuits[key] = {"failures": [], "open_until": 0, "last_status": status, "last_updated": now}
+        return circuits[key]
+    if status not in policy["tracked_statuses"]:
+        return state
+    failures = [float(ts) for ts in state.get("failures") or [] if now - float(ts) < policy["failure_window_seconds"]]
+    failures.append(now)
+    open_until = float(state.get("open_until") or 0)
+    if len(failures) >= policy["failure_threshold"]:
+        open_until = now + policy["cooldown_seconds"]
+    state = {
+        "failures": failures,
+        "open_until": open_until,
+        "last_status": status,
+        "last_updated": now,
+    }
+    circuits[key] = state
+    return state
+
+
+def _gateway_retry_statuses(server):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    retry = policy.get("retries") if isinstance(policy.get("retries"), dict) else {}
+    return {int(status) for status in retry.get("retry_statuses") or [429, 500, 502, 503, 504]}
+
+
+def _gateway_should_failover(server, status):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    if not policy.get("enabled", True):
+        return False
+    failover = policy.get("failover") if isinstance(policy.get("failover"), dict) else {}
+    if not failover.get("enabled") or not failover.get("serverless_fallback", True):
+        return False
+    return int(status) in _gateway_retry_statuses(server)
+
+
+def _gateway_text_failover_model(server, current_model, attempted=None):
+    attempted = {str(item) for item in (attempted or []) if item}
+    current_model = str(current_model or "")
+    attempted.add(current_model)
+    for candidate in getattr(server, "models", []) or []:
+        candidate = str(candidate)
+        lower = candidate.lower()
+        if candidate in attempted:
+            continue
+        if "image" in lower or "stable-diffusion" in lower:
+            continue
+        return candidate
+    return None
+
+
 def _usage_totals(cost_file):
     totals = {"all": 0.0, "today": 0.0, "month": 0.0}
     now = time.localtime()
@@ -1442,6 +1552,24 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 cached.setdefault("claude_do", {})["trace_id"] = trace.get("trace_id")
                 return self._json(200, cached)
+            circuit_error = _gateway_circuit_open_error(self.server, "images", model, now=started)
+            if circuit_error:
+                payload = {"type": "error", "error": circuit_error}
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=503,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="gateway",
+                    routing_reason="circuit_open",
+                    started_at=started,
+                    error_category="circuit_open",
+                    human_message=circuit_error.get("message") or "",
+                    extra={"gateway_policy": {"decision": "circuit_open", "route": "images"}},
+                )
+                return self._json(503, _attach_trace(payload, trace))
             try:
                 resp = requests.post(
                     self.server.images_url,
@@ -1461,6 +1589,7 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": str(exc),
                 })
+                _gateway_record_circuit_result(self.server, "images", model, 502, now=time.time())
                 payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
                 trace = _trace_request(
                     self.server,
@@ -1486,6 +1615,7 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": resp.text[:1000],
                 })
+                _gateway_record_circuit_result(self.server, "images", model, resp.status_code, now=time.time())
                 friendly = _friendly_error(resp.status_code, resp.text)
                 payload = {"type": "error", "error": friendly}
                 trace = _trace_request(
@@ -1518,6 +1648,7 @@ class Handler(BaseHTTPRequestHandler):
             }
             _write_jsonl(self.server.log_file, record)
             _write_jsonl(self.server.cost_file, record)
+            _gateway_record_circuit_result(self.server, "images", model, resp.status_code, now=time.time())
             _gateway_cache_store(self.server, "images", model, body, data, now=time.time())
             trace = _trace_request(
                 self.server,
@@ -1635,6 +1766,7 @@ class Handler(BaseHTTPRequestHandler):
             token_clamp = _apply_dedicated_runtime_limits(payload, route["config"])
         upstream_url = route["url"] if route else self.server.chat_url
         upstream_token = route["token"] if route else self._token()
+        failover_decision = None
         started = time.time()
         if not body.get("stream"):
             cached = _gateway_cache_get(self.server, "chat", payload_model, payload, now=started)
@@ -1653,6 +1785,24 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 _attach_trace(cached, trace)
                 return self._json(200, cached)
+        circuit_error = _gateway_circuit_open_error(self.server, "chat", payload_model, now=started)
+        if circuit_error:
+            payload_error = {"type": "error", "error": circuit_error}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=503,
+                body=body,
+                requested_model=requested_model,
+                routed_model=payload_model,
+                endpoint_mode="gateway",
+                routing_reason="circuit_open",
+                started_at=started,
+                error_category="circuit_open",
+                human_message=circuit_error.get("message") or "",
+                extra={"gateway_policy": {"decision": "circuit_open", "route": "chat"}},
+            )
+            return self._json(503, _attach_trace(payload_error, trace))
         try:
             resp = requests.post(
                 upstream_url,
@@ -1674,6 +1824,7 @@ class Handler(BaseHTTPRequestHandler):
                 "latency_ms": int((time.time() - started) * 1000),
                 "error": str(exc),
             })
+            _gateway_record_circuit_result(self.server, "chat", payload_model, 502, now=time.time())
             payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
             trace = _trace_request(
                 self.server,
@@ -1726,14 +1877,15 @@ class Handler(BaseHTTPRequestHandler):
                     token_clamp = {"from": current_tokens, "to": retry_tokens, "reason": "context length retry"}
                 except Exception as exc:
                     _write_jsonl(self.server.log_file, {
-                            "ts": time.time(),
-                            "provider": self.server.provider,
-                            "model": retry_payload.get("model"),
-                            "upstream_url": upstream_url,
-                            "status": 502,
-                            "latency_ms": int((time.time() - started) * 1000),
-                            "error": str(exc),
-                        })
+                        "ts": time.time(),
+                        "provider": self.server.provider,
+                        "model": retry_payload.get("model"),
+                        "upstream_url": upstream_url,
+                        "status": 502,
+                        "latency_ms": int((time.time() - started) * 1000),
+                        "error": str(exc),
+                    })
+                    _gateway_record_circuit_result(self.server, "chat", retry_payload.get("model"), 502, now=time.time())
                     payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
                     trace = _trace_request(
                         self.server,
@@ -1751,6 +1903,66 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     return self._json(502, _attach_trace(payload, trace))
 
+        if resp.status_code >= 400 and not route and _gateway_should_failover(self.server, resp.status_code):
+            fallback_model = _gateway_text_failover_model(self.server, payload.get("model"), attempted={payload.get("model")})
+            if fallback_model:
+                original_status = resp.status_code
+                original_body = resp.text[:1000]
+                _gateway_record_circuit_result(self.server, "chat", payload.get("model"), resp.status_code, now=time.time())
+                _write_jsonl(self.server.log_file, {
+                    "ts": time.time(),
+                    "provider": self.server.provider,
+                    "model": payload.get("model"),
+                    "upstream_url": upstream_url,
+                    "status": resp.status_code,
+                    "latency_ms": int((time.time() - started) * 1000),
+                    "error": original_body,
+                    "failover_to": fallback_model,
+                })
+                failover_payload = dict(payload)
+                failover_payload["model"] = fallback_model
+                started = time.time()
+                try:
+                    resp = requests.post(
+                        upstream_url,
+                        headers={
+                            "authorization": "Bearer " + upstream_token,
+                            "content-type": "application/json",
+                            "user-agent": "matts-claude-code-proxy/1.0",
+                        },
+                        json=failover_payload,
+                        timeout=600,
+                    )
+                    payload = failover_payload
+                    failover_decision = {
+                        "from_model": model,
+                        "from_upstream_model": requested_model,
+                        "failed_model": _resolve_model(requested_model, self.server.model_aliases),
+                        "to_model": fallback_model,
+                        "reason": "provider_%s_failover" % original_status,
+                        "original_status": original_status,
+                        "original_error": original_body,
+                    }
+                except Exception as exc:
+                    _gateway_record_circuit_result(self.server, "chat", fallback_model, 502, now=time.time())
+                    payload_error = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
+                    trace = _trace_request(
+                        self.server,
+                        action="proxy.chat",
+                        status=502,
+                        body=body,
+                        requested_model=requested_model,
+                        routed_model=fallback_model,
+                        endpoint_mode="serverless",
+                        routing_reason="failover_exception",
+                        upstream_url=upstream_url,
+                        started_at=started,
+                        error_category="network_error",
+                        human_message=str(exc),
+                        extra={"gateway_policy": {"decision": "failover_exception", "from": payload.get("model"), "to": fallback_model}},
+                    )
+                    return self._json(502, _attach_trace(payload_error, trace))
+
         if resp.status_code >= 400:
             _write_jsonl(self.server.log_file, {
                 "ts": time.time(),
@@ -1761,6 +1973,7 @@ class Handler(BaseHTTPRequestHandler):
                     "latency_ms": int((time.time() - started) * 1000),
                     "error": resp.text[:1000],
                 })
+            _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), resp.status_code, now=time.time())
             friendly = _friendly_error(resp.status_code, resp.text)
             payload = {"type": "error", "error": friendly}
             trace = _trace_request(
@@ -1801,8 +2014,11 @@ class Handler(BaseHTTPRequestHandler):
             "upstream_url": upstream_url,
             "cost": cost,
         }
+        if failover_decision:
+            anthropic["claude_do"]["failover"] = failover_decision
         if token_clamp:
             anthropic["claude_do"]["token_clamp"] = token_clamp
+        _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), resp.status_code, now=time.time())
         if not body.get("stream"):
             _gateway_cache_store(self.server, "chat", payload.get("model", model), payload, anthropic, now=time.time())
         record = {
@@ -1828,12 +2044,13 @@ class Handler(BaseHTTPRequestHandler):
             requested_model=requested_model,
             routed_model=payload.get("model"),
             endpoint_mode="dedicated" if route else "serverless",
-            routing_reason=token_clamp.get("reason") if isinstance(token_clamp, dict) else "",
+            routing_reason=failover_decision.get("reason") if isinstance(failover_decision, dict) else (token_clamp.get("reason") if isinstance(token_clamp, dict) else ""),
             upstream_url=upstream_url,
             upstream_id=data.get("id") or "",
             usage=data.get("usage") or {},
             cost=cost,
             started_at=started,
+            extra={"gateway_policy": {"decision": "failover", "details": failover_decision}} if failover_decision else None,
         )
         _attach_trace(anthropic, trace)
 
