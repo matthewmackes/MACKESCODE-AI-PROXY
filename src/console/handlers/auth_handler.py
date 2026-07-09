@@ -42,10 +42,11 @@ SENSITIVE_POST_PERMISSIONS = {
 class AuthHandler:
     """Parse console auth tokens and evaluate request authorization."""
 
-    def __init__(self, auth_enabled, auth_token, role_tokens=None):
+    def __init__(self, auth_enabled, auth_token, role_tokens=None, session_verifier=None):
         self.auth_enabled = auth_enabled
         self.auth_token = auth_token
         self.role_tokens = role_tokens or (lambda: {})
+        self.session_verifier = session_verifier or (lambda token: None)
 
     def request_token(self, path, headers):
         parsed = urlparse(path)
@@ -76,6 +77,9 @@ class AuthHandler:
         owner_token = self.auth_token()
         if token and owner_token and secrets.compare_digest(token, owner_token):
             return {"id": "console-owner", "roles": ["owner"], "permissions": ["*"], "source": "console-token"}
+        session_identity = self.session_verifier(token) if token else None
+        if isinstance(session_identity, dict):
+            return session_identity
         token_map = self.role_token_map()
         profile = token_map.get(token) if token else None
         if not isinstance(profile, dict):

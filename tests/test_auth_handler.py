@@ -4,8 +4,13 @@ from src.console.handlers.auth_handler import AuthHandler
 
 
 class AuthHandlerTests(unittest.TestCase):
-    def handler(self, enabled=True, token="secret", role_tokens=None):
-        return AuthHandler(auth_enabled=lambda: enabled, auth_token=lambda: token, role_tokens=lambda: role_tokens or {})
+    def handler(self, enabled=True, token="secret", role_tokens=None, session_verifier=None):
+        return AuthHandler(
+            auth_enabled=lambda: enabled,
+            auth_token=lambda: token,
+            role_tokens=lambda: role_tokens or {},
+            session_verifier=session_verifier,
+        )
 
     def test_request_token_prefers_query_then_header_then_bearer(self):
         handler = self.handler()
@@ -43,6 +48,22 @@ class AuthHandlerTests(unittest.TestCase):
         self.assertFalse(handler.has_permission(viewer, "dedicated_admin"))
         self.assertTrue(handler.has_permission(infra, "dedicated_admin"))
         self.assertEqual(handler.permission_for("POST", "/api/dedicated/build"), ("dedicated_admin", "dedicated.build"))
+
+    def test_jwt_session_identity_is_authorized(self):
+        handler = self.handler(session_verifier=lambda token: {
+            "id": "session-user",
+            "roles": ["operator"],
+            "permissions": ["view_console", "tmux_control"],
+            "source": "jwt-session",
+            "session_id": "session-a",
+        } if token == "jwt-token" else None)
+
+        identity = handler.identity("/", {"authorization": "Bearer jwt-token"})
+
+        self.assertTrue(handler.authorized("/", {"authorization": "Bearer jwt-token"}))
+        self.assertEqual(identity["id"], "session-user")
+        self.assertEqual(identity["source"], "jwt-session")
+        self.assertTrue(handler.has_permission(identity, "tmux_control"))
 
 
 if __name__ == "__main__":

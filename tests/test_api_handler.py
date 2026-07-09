@@ -24,6 +24,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "tmux_session_items": record("tmux_session_items", [{"name": "live", "live": True}, {"name": "old", "live": False}]),
             "agentboard_payload": record("agentboard_payload", {"agents": []}),
             "models_payload": lambda refresh_catalog=True: {"models": [], "refresh_catalog": refresh_catalog},
+            "active_auth_sessions": record("active_auth_sessions", {"sessions": [{"session_id": "session-a"}]}),
             "model_info_payload": lambda model_id=None: (200, {"model_id": model_id, "cards": []}),
             "sync_serverless_model_catalog": lambda **kwargs: {"ok": True, "kwargs": kwargs},
             "proxy_sync_payload": lambda **kwargs: {"in_sync": True, "kwargs": kwargs},
@@ -106,6 +107,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertTrue(handled)
         self.assertEqual(status, 200)
         self.assertEqual(payload["sessions"], ["live"])
+        self.assertEqual(handler.get("/api/auth/sessions"), (True, 200, {"sessions": [{"session_id": "session-a"}]}))
 
     def test_get_serverless_catalog_status_and_unknown(self):
         handler, _ = self.handler()

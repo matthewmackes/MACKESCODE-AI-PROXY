@@ -1191,14 +1191,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-010
 **Title:** Improve authentication
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 2.5 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started JWT/session pass layered on the existing owner-token and scoped role-token model.
+- 2026-07-09: Added HMAC-signed JWT access tokens, rotating refresh tokens, runtime session storage/revocation, active-session listing, auth-session audit events, session backup coverage, security docs, and auth/session tests. Passed `./scripts/release-check.sh` with 216 tests and browser smoke.
 
 **Description:** Enhance authentication system with JWT tokens and session management.
 
@@ -1216,11 +1218,11 @@ The interface refactoring work consolidates previously separate components into 
 - Add audit logging
 
 **Completion Criteria:**
-- [ ] JWT authentication
-- [ ] Token rotation
-- [ ] Session management
-- [ ] Audit logging
-- [ ] Security tests
+- [x] JWT authentication
+- [x] Token rotation
+- [x] Session management
+- [x] Audit logging
+- [x] Security tests
 
 **Dependencies:** INT-002 (Handler refactoring)
 **Blocks:** None

@@ -30,6 +30,7 @@ from src.console.handlers.template_handler import TemplateHandler
 from src.console.handlers.websocket_handler import TmuxWebSocketHandler
 from src.console.services.agentboard import AgentBoardService
 from src.console.services.app_config import ConsoleConfigService
+from src.console.services.auth_session import AuthSessionService
 from src.console.services.audit import AuditService
 from src.console.services.chat import ChatRoutingService
 from src.console.services.evals import EvalService
@@ -175,6 +176,10 @@ def tmux_session_registry_file():
 
 def audit_file():
     return configured_path("audit_file", "audit.jsonl", "MATTS_AUDIT_FILE", app_dir())
+
+
+def auth_session_file():
+    return configured_path("auth_session_file", "auth-sessions.json", "MATTS_AUTH_SESSION_FILE", app_dir())
 
 
 def wallpaper_cache_dir():
@@ -1393,7 +1398,12 @@ def static_images_handler():
 
 
 def auth_handler():
-    return AuthHandler(auth_enabled=auth_enabled, auth_token=auth_token, role_tokens=auth_role_tokens)
+    return AuthHandler(
+        auth_enabled=auth_enabled,
+        auth_token=auth_token,
+        role_tokens=auth_role_tokens,
+        session_verifier=lambda token: auth_session_service().verify_access(token),
+    )
 
 
 def auth_role_tokens():
@@ -1415,6 +1425,41 @@ def audit_service():
 
 def append_audit(action, actor=None, outcome="allowed", permission="", request=None, status=None):
     return audit_service().append(action, actor=actor, outcome=outcome, permission=permission, request=request, status=status)
+
+
+def auth_session_service():
+    auth_config = STARTUP_CONFIG.get("auth", {}) if isinstance(STARTUP_CONFIG.get("auth"), dict) else {}
+    return AuthSessionService(
+        session_file=auth_session_file,
+        secret=auth_token,
+        clock=time.time,
+        access_ttl=int(auth_config.get("session_ttl_seconds", 3600)),
+        refresh_ttl=int(auth_config.get("refresh_ttl_seconds", 604800)),
+    )
+
+
+def create_auth_session(actor):
+    payload = auth_session_service().create_session(actor)
+    append_audit("auth.session.create", actor=actor, outcome="completed", permission="view_console", request={"session_id": payload.get("session_id")}, status=200)
+    return 200, payload
+
+
+def refresh_auth_session(data):
+    token = data.get("refresh_token") if isinstance(data, dict) else ""
+    status, payload = auth_session_service().refresh(token)
+    append_audit("auth.session.refresh", actor={"id": payload.get("identity", {}).get("id") if isinstance(payload, dict) else "unknown", "roles": [], "source": "refresh"}, outcome="completed" if int(status) < 400 else "failed", permission="view_console", request={"session_id": payload.get("session_id") if isinstance(payload, dict) else ""}, status=status)
+    return status, payload
+
+
+def revoke_auth_session(data, actor):
+    session_id = (data.get("session_id") if isinstance(data, dict) else "") or actor.get("session_id") or ""
+    revoked = auth_session_service().revoke(session_id)
+    append_audit("auth.session.revoke", actor=actor, outcome="completed" if revoked else "failed", permission="view_console", request={"session_id": session_id}, status=200 if revoked else 404)
+    return (200, {"revoked": True, "session_id": session_id}) if revoked else (404, error_payload("session not found", 404, code="session_not_found", details={"session_id": session_id}))
+
+
+def active_auth_sessions():
+    return {"sessions": auth_session_service().active_sessions()}
 
 
 _RATE_LIMITER = None
@@ -1449,6 +1494,7 @@ def api_handler():
         tmux_session_items=tmux_session_items,
         agentboard_payload=agentboard_payload,
         models_payload=models_payload,
+        active_auth_sessions=active_auth_sessions,
         model_info_payload=model_info_payload,
         sync_serverless_model_catalog=sync_serverless_model_catalog,
         proxy_sync_payload=proxy_sync_payload,
@@ -1665,9 +1711,18 @@ class StudioHandler(BaseHTTPRequestHandler):
         raw_path = urlparse(self.path).path
         version_info = api_version_info(raw_path, self.headers)
         path = version_info["path"]
+        version_headers = api_version_headers(version_info)
+        if path == "/api/auth/refresh":
+            if version_info.get("unsupported"):
+                return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
+            try:
+                data = self.read_json()
+            except ValueError as exc:
+                return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}), headers=version_headers)
+            status, payload = refresh_auth_session(data)
+            return self.send_json(status, payload, headers=version_headers)
         if not self.authorized():
             return self.send_unauthorized()
-        version_headers = api_version_headers(version_info)
         if version_info.get("unsupported"):
             return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
         actor = self.identity()
@@ -1690,6 +1745,12 @@ class StudioHandler(BaseHTTPRequestHandler):
             data.setdefault("session_id", actor.get("id"))
             if permission_action and not data.get("operator"):
                 data["operator"] = actor.get("id")
+        if path == "/api/auth/session":
+            status, payload = create_auth_session(actor)
+            return self.send_json(status, payload, headers=response_headers)
+        if path == "/api/auth/revoke":
+            status, payload = revoke_auth_session(data, actor)
+            return self.send_json(status, payload, headers=response_headers)
         if permission_action:
             permission, action = permission_action
             append_audit(action, actor=actor, outcome="allowed", permission=permission, request={"path": path, "body": data}, status=0)

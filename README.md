@@ -110,7 +110,7 @@ The active model registry is `config/models.json`. `./claude-DO.sh --list-models
 
 Use Console > LLM Management > key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
 
-Console auth supports the generated owner token plus optional scoped role/session tokens. Sensitive model, Dedicated, budget, billing, tmux, and terminal actions are permission-checked and written to `$HOME/.cache/matts-value-set/studio/audit.jsonl`. Role-token setup is documented in `SECURITY.md`.
+Console auth supports the generated owner token, optional scoped role tokens, and short-lived JWT sessions with rotating refresh tokens. Sensitive model, Dedicated, budget, billing, tmux, terminal, and auth-session actions are permission-checked and written to `$HOME/.cache/matts-value-set/studio/audit.jsonl`. Role-token and session setup is documented in `SECURITY.md`.
 
 Dedicated Inference live state is runtime data. The default state file is under the console app cache, and `config/dedicated-inference.example.json` is the publishable template. Do not commit live Dedicated endpoint metadata, access tokens, CA certificates, or raw DigitalOcean resource payloads.
 
@@ -124,6 +124,7 @@ Release config and runtime state are intentionally separate:
 | Dedicated Inference | `config/dedicated-inference.example.json` | `$HOME/.cache/matts-value-set/studio/dedicated-inference.json` |
 | Serverless catalog cache | none | `$HOME/.cache/matts-value-set/studio/serverless-model-catalog.json` |
 | Audit log | none | `$HOME/.cache/matts-value-set/studio/audit.jsonl` |
+| Auth sessions | none | `$HOME/.cache/matts-value-set/studio/auth-sessions.json` |
 | Wallpaper cache | none | `$HOME/.cache/matts-value-set/wallpapers/` |
 | Weather defaults/cache | none | Browser/runtime fallback state only |
 | Usage, budget, and traces | none | `$HOME/.cache/matts-value-set/usage.jsonl`, budgets, and trace files |
@@ -149,6 +150,8 @@ The `error` field remains a plain string for older clients. New UI and diagnosti
 Console JSON API v1 is available under `/api/v1/*`. Legacy `/api/*` paths remain compatible and include deprecation headers; migration details are in `docs/api-versioning.md`.
 
 Console API rate limits are configured in `config/console.json` under `rate_limits`. Limits are keyed by console token fingerprint when a token is present, otherwise by actor/client identity. API responses include `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset`; blocked requests return `429` with `retry-after`.
+
+Authenticated clients can mint JWT sessions with `POST /api/v1/auth/session`, refresh them with `POST /api/v1/auth/refresh`, inspect active sessions with `GET /api/v1/auth/sessions`, and revoke with `POST /api/v1/auth/revoke`.
 
 Run the local unit/smoke test suite with the standard library runner:
 

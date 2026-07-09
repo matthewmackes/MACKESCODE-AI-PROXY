@@ -49,6 +49,7 @@ The default archive includes:
 - gateway policy
 - Dedicated Inference runtime state and lifecycle events
 - audit log
+- auth sessions
 - Serverless catalog cache
 - trace log
 - tmux session registry

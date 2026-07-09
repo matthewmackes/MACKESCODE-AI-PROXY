@@ -5,7 +5,9 @@
   },
   "auth": {
     "enabled": true,
-    "role_tokens": {}
+    "role_tokens": {},
+    "session_ttl_seconds": 3600,
+    "refresh_ttl_seconds": 604800
   },
   "logging": {
     "level": "INFO"
@@ -32,6 +34,7 @@
     "serverless_catalog_cache_file": "serverless-model-catalog.json",
     "dedicated_events_file": "dedicated-events.jsonl",
     "audit_file": "audit.jsonl",
+    "auth_session_file": "auth-sessions.json",
     "tmux_session_registry_file": "tmux-sessions.json",
     "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
     "auth_token_file": "console-auth-token",

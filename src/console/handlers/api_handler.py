@@ -83,6 +83,8 @@ class ConsoleApiHandler:
             return True, 200, self.call("agentboard_payload")
         if path == "/api/models":
             return True, 200, self.call("models_payload")
+        if path == "/api/auth/sessions":
+            return True, 200, self.call("active_auth_sessions")
         if path == "/api/model-info":
             model_id = (query.get("model") or [""])[0] or None
             status, payload = self.call("model_info_payload", model_id)

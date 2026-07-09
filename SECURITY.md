@@ -35,6 +35,7 @@ Treat these as sensitive:
 - Unified console bind address: `0.0.0.0`
 - Unified console port: `18181`
 - Unified console auth token file: `$HOME/.cache/matts-value-set/studio/console-auth-token`
+- Unified console auth sessions file: `$HOME/.cache/matts-value-set/studio/auth-sessions.json`
 - Token file: `$HOME/.mcnf-do-model-access-token`
 - Usage file: `$HOME/.cache/matts-value-set/usage.jsonl`
 - Budget file: `$HOME/.cache/matts-value-set/budgets.json`
@@ -84,3 +85,5 @@ Built-in roles:
 Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, and terminal writes.
 
 Rotate scoped role tokens by replacing the JSON/file/config entry, restarting the console, and removing the old token from the configured role-token source.
+
+JWT sessions are issued by `POST /api/v1/auth/session` for an already authenticated owner or scoped role token. Access tokens are short-lived; refresh tokens rotate on every refresh and are invalid after replay, expiration, revocation, or owner-token rotation. Active session metadata is stored in `auth-sessions.json` with `0600` permissions and should be treated as sensitive runtime state. Use `POST /api/v1/auth/revoke` to revoke a session and delete `auth-sessions.json` to clear all sessions during incident response.

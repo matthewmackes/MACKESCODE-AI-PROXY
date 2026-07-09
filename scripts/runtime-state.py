@@ -27,6 +27,7 @@ def default_items(include_secrets=False):
         ("dedicated_state", env_path("MATTS_DEDICATED_CONFIG_FILE", app_dir / "dedicated-inference.json")),
         ("dedicated_events", env_path("MATTS_DEDICATED_EVENTS_FILE", app_dir / "dedicated-events.jsonl")),
         ("audit_log", env_path("MATTS_AUDIT_FILE", app_dir / "audit.jsonl")),
+        ("auth_sessions", env_path("MATTS_AUTH_SESSION_FILE", app_dir / "auth-sessions.json")),
         ("serverless_catalog_cache", env_path("MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir / "serverless-model-catalog.json")),
         ("trace_log", env_path("MATTS_TRACE_FILE", app_dir / "traces.jsonl")),
         ("tmux_registry", env_path("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir / "tmux-sessions.json")),
