@@ -954,6 +954,89 @@ def _gateway_policy_state(server):
     }
 
 
+def _request_session_id(body):
+    if not isinstance(body, dict):
+        return ""
+    metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    for key in ("session_id", "conversation_id", "chat_id", "user_id"):
+        value = metadata.get(key) or body.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return ""
+
+
+def _positive_int(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, value)
+
+
+def _rate_limit_candidates(policy, model, session_id):
+    rate_policy = policy.get("rate_limits") if isinstance(policy.get("rate_limits"), dict) else {}
+    if not rate_policy.get("enabled"):
+        return []
+    checks = []
+    global_limit = _positive_int(rate_policy.get("global_per_minute"))
+    if global_limit:
+        checks.append(("global", "global", global_limit))
+    model_limits = rate_policy.get("per_model_per_minute") if isinstance(rate_policy.get("per_model_per_minute"), dict) else {}
+    model_limit = _positive_int(model_limits.get(model) or model_limits.get("*"))
+    if model_limit:
+        checks.append(("model", model, model_limit))
+    session_limits = rate_policy.get("per_session_per_minute") if isinstance(rate_policy.get("per_session_per_minute"), dict) else {}
+    session_limit = _positive_int(session_limits.get(session_id) or session_limits.get("*")) if session_id else 0
+    if session_limit:
+        checks.append(("session", session_id, session_limit))
+    return checks
+
+
+def _gateway_rate_limit_error(server, body, model, route_type, now=None):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    if not policy.get("enabled", True):
+        return None
+    now = time.time() if now is None else float(now)
+    window_seconds = 60
+    session_id = _request_session_id(body)
+    checks = _rate_limit_candidates(policy, model, session_id)
+    if not checks:
+        return None
+    counters = getattr(server, "gateway_rate_counters", None)
+    if counters is None:
+        counters = {}
+        server.gateway_rate_counters = counters
+    pending = []
+    for scope, key, limit in checks:
+        counter_key = "%s:%s:%s" % (route_type, scope, key)
+        rows = [ts for ts in counters.get(counter_key, []) if now - float(ts) < window_seconds]
+        counters[counter_key] = rows
+        if len(rows) >= limit:
+            oldest = min(rows) if rows else now
+            retry_after = max(1, int(window_seconds - (now - oldest)))
+            return {
+                "type": "rate_limit_exceeded",
+                "message": "%s rate limit exceeded for %s: %d requests per minute" % (scope, key, limit),
+                "scope": scope,
+                "key": key,
+                "route": route_type,
+                "model": model,
+                "session_id": session_id,
+                "limit": limit,
+                "window_seconds": window_seconds,
+                "retry_after_seconds": retry_after,
+                "policy": {
+                    "enabled": True,
+                    "source": getattr(server, "gateway_policy_file", ""),
+                },
+            }
+        pending.append((counter_key, rows))
+    for counter_key, rows in pending:
+        rows.append(now)
+        counters[counter_key] = rows
+    return None
+
+
 def _usage_totals(cost_file):
     totals = {"all": 0.0, "today": 0.0, "month": 0.0}
     now = time.localtime()
@@ -1251,6 +1334,24 @@ class Handler(BaseHTTPRequestHandler):
             requested_model = body.get("model", model)
             body["model"] = model
             started = time.time()
+            rate_limit_error = _gateway_rate_limit_error(self.server, body, model, "images", now=started)
+            if rate_limit_error:
+                payload = {"type": "error", "error": rate_limit_error}
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=429,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="gateway",
+                    routing_reason="rate_limit_exceeded",
+                    started_at=started,
+                    error_category="rate_limit_exceeded",
+                    human_message=rate_limit_error.get("message") or "",
+                    extra={"gateway_policy": {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key")}},
+                )
+                return self._json(429, _attach_trace(payload, trace))
             try:
                 resp = requests.post(
                     self.server.images_url,
@@ -1350,6 +1451,24 @@ class Handler(BaseHTTPRequestHandler):
         budget_error = _budget_error(self.server.cost_file, self.server.budget_file)
         requested_model = body.get("model", self.server.default_model)
         model = _resolve_model(requested_model, self.server.model_aliases)
+        rate_limit_error = _gateway_rate_limit_error(self.server, body, model, "chat", now=request_started)
+        if rate_limit_error:
+            payload = {"type": "error", "error": rate_limit_error}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=429,
+                body=body,
+                requested_model=requested_model,
+                routed_model=model,
+                endpoint_mode="gateway",
+                routing_reason="rate_limit_exceeded",
+                started_at=request_started,
+                error_category="rate_limit_exceeded",
+                human_message=rate_limit_error.get("message") or "",
+                extra={"gateway_policy": {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key")}},
+            )
+            return self._json(429, _attach_trace(payload, trace))
         if budget_error:
             payload = {"type": "error", "error": budget_error}
             trace = _trace_request(

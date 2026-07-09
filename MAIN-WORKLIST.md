@@ -838,6 +838,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added from product/platform review. Industry gateways include failover, rate limits, caching, circuit breakers, quota controls, and provider policy routing.
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; gateway policy must make Dedicated preference, Serverless fallback, budget-blocked fallback, and stale-registry protection explicit and trace-visible.
 - 2026-07-08: Added `config/gateway-policy.json` schema/defaults, proxy policy loading and validation, `/v1/claude-do/gateway-policy`, capabilities/reload policy state, console launcher policy-file wiring, and tests for policy merge/fallback plus launcher arguments.
+- 2026-07-08: Added policy-driven global, per-model, and per-session rolling-window rate limits for chat and image proxy routes. Rate-limited requests now return structured 429 `rate_limit_exceeded` errors and emit trace-visible gateway decisions before upstream provider calls.
 
 **Description:** Expand the proxy from a model adapter into a policy-driven AI gateway with configurable reliability, cost, and abuse-protection behavior.
 
@@ -859,7 +860,7 @@ The interface refactoring work consolidates previously separate components into 
 **Completion Criteria:**
 - [x] Gateway policy schema exists
 - [ ] Failover and circuit breaker behavior implemented
-- [ ] Rate limits and quotas emit useful client errors
+- [x] Rate limits and quotas emit useful client errors
 - [ ] Cache can be enabled/disabled per route
 - [ ] Console shows active gateway policy and recent decisions
 - [ ] Dedicated-online preference, Build Server prompt, budget-blocked fallback, stale-registry protection, and access-forbidden rejection are represented as explicit policy decisions

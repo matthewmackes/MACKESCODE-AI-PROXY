@@ -249,6 +249,60 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertEqual(policy["schema_version"], 1)
         self.assertTrue(policy["budget"]["trace_budget_blocks"])
 
+    def test_gateway_rate_limit_blocks_over_limit_chat_request(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "rate_limits": {
+                    "enabled": True,
+                    "global_per_minute": 1,
+                    "per_model_per_minute": {},
+                    "per_session_per_minute": {},
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_rate_counters={},
+        )
+        body = {"model": "model-a", "messages": [{"role": "user", "content": "hi"}]}
+
+        first = proxy._gateway_rate_limit_error(server, body, "model-a", "chat", now=1000)
+        second = proxy._gateway_rate_limit_error(server, body, "model-a", "chat", now=1001)
+
+        self.assertIsNone(first)
+        self.assertEqual(second["type"], "rate_limit_exceeded")
+        self.assertEqual(second["scope"], "global")
+        self.assertEqual(second["route"], "chat")
+        self.assertEqual(second["retry_after_seconds"], 59)
+
+    def test_gateway_rate_limit_tracks_model_and_session_limits(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "rate_limits": {
+                    "enabled": True,
+                    "global_per_minute": 0,
+                    "per_model_per_minute": {"model-a": 1},
+                    "per_session_per_minute": {"session-1": 1},
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            gateway_rate_counters={},
+        )
+        body = {
+            "model": "model-a",
+            "metadata": {"session_id": "session-1"},
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+
+        self.assertIsNone(proxy._gateway_rate_limit_error(server, body, "model-a", "chat", now=1000))
+        model_block = proxy._gateway_rate_limit_error(server, body, "model-a", "chat", now=1002)
+        other_model = proxy._gateway_rate_limit_error(server, body, "model-b", "chat", now=1003)
+
+        self.assertEqual(model_block["scope"], "model")
+        self.assertEqual(model_block["key"], "model-a")
+        self.assertEqual(other_model["scope"], "session")
+        self.assertEqual(other_model["key"], "session-1")
+
 
 if __name__ == "__main__":
     unittest.main()
