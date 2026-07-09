@@ -148,6 +148,8 @@ The `error` field remains a plain string for older clients. New UI and diagnosti
 
 Console JSON API v1 is available under `/api/v1/*`. Legacy `/api/*` paths remain compatible and include deprecation headers; migration details are in `docs/api-versioning.md`.
 
+Console API rate limits are configured in `config/console.json` under `rate_limits`. Limits are keyed by console token fingerprint when a token is present, otherwise by actor/client identity. API responses include `x-ratelimit-limit`, `x-ratelimit-remaining`, and `x-ratelimit-reset`; blocked requests return `429` with `retry-after`.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

@@ -40,6 +40,20 @@
     "proxy_log_file": "/tmp/matts-value-set-proxy.jsonl"
   },
   "rate_limits": {
-    "enabled": false
+    "enabled": true,
+    "window_seconds": 60,
+    "default_limit": 600,
+    "write_limit": 180,
+    "paths": {
+      "/api/chat": {"limit": 120},
+      "/api/chat/compare": {"limit": 40},
+      "/api/generate": {"limit": 30},
+      "/api/model-access-audit": {"limit": 10},
+      "/api/models/serverless-catalog": {"limit": 12},
+      "/api/dedicated/build": {"limit": 8},
+      "/api/dedicated/teardown": {"limit": 20},
+      "/api/test-models": {"limit": 5},
+      "/api/evals/run": {"limit": 20}
+    }
   }
 }

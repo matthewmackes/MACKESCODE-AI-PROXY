@@ -207,5 +207,43 @@ class ApiVersionHttpSmokeTests(unittest.TestCase):
         self.with_server(run)
 
 
+class AlwaysDeniedLimiter:
+    def check(self, key, method, path):
+        return {
+            "allowed": False,
+            "headers": {
+                "x-ratelimit-limit": "1",
+                "x-ratelimit-remaining": "0",
+                "x-ratelimit-reset": "200",
+                "retry-after": "60",
+            },
+            "limit": 1,
+            "remaining": 0,
+            "reset": 200,
+            "retry_after": 60,
+        }
+
+
+class ApiRateLimitHttpSmokeTests(unittest.TestCase):
+    def test_api_rate_limit_returns_429_with_quota_headers(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), studio.StudioHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        with patch.object(studio, "auth_enabled", return_value=False), \
+             patch.object(studio, "rate_limiter", return_value=AlwaysDeniedLimiter()):
+            thread.start()
+            try:
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen("http://127.0.0.1:%d/api/v1/models" % server.server_address[1], timeout=5)
+                body = json.loads(ctx.exception.read().decode("utf-8"))
+            finally:
+                server.shutdown()
+                server.server_close()
+
+        self.assertEqual(ctx.exception.code, 429)
+        self.assertEqual(ctx.exception.headers["x-ratelimit-limit"], "1")
+        self.assertEqual(ctx.exception.headers["retry-after"], "60")
+        self.assertEqual(body["code"], "rate_limit_exceeded")
+
+
 if __name__ == "__main__":
     unittest.main()

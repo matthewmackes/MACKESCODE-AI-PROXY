@@ -3,6 +3,7 @@
 import argparse
 import datetime
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -41,6 +42,7 @@ from src.console.services.model_hero import ModelHeroService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.proxy_process import ProxyProcessService
+from src.console.services.rate_limit import RateLimitService
 from src.console.services.runtime_config import RuntimeConfigService
 from src.console.services.serverless_catalog import ServerlessCatalogService
 from src.console.services.session import SessionService
@@ -1415,6 +1417,17 @@ def append_audit(action, actor=None, outcome="allowed", permission="", request=N
     return audit_service().append(action, actor=actor, outcome=outcome, permission=permission, request=request, status=status)
 
 
+_RATE_LIMITER = None
+
+
+def rate_limiter():
+    global _RATE_LIMITER
+    config = STARTUP_CONFIG.get("rate_limits", {})
+    if _RATE_LIMITER is None or _RATE_LIMITER.config != config:
+        _RATE_LIMITER = RateLimitService(config=config, clock=time.time)
+    return _RATE_LIMITER
+
+
 def tmux_websocket_handler(authorized):
     return TmuxWebSocketHandler(
         authorized=authorized,
@@ -1535,6 +1548,18 @@ class StudioHandler(BaseHTTPRequestHandler):
     def identity(self):
         return auth_handler().identity(self.path, self.headers)
 
+    def rate_limit_key(self, actor):
+        token = self.request_token()
+        if token:
+            return "token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:20]
+        client = self.client_address[0] if getattr(self, "client_address", None) else "local"
+        return "actor:%s:%s:%s" % (actor.get("source") or "none", actor.get("id") or "anonymous", client)
+
+    def check_rate_limit(self, method, path, actor):
+        if not path.startswith("/api/"):
+            return {"allowed": True, "headers": {}}
+        return rate_limiter().check(self.rate_limit_key(actor), method, path)
+
     def send_html(self, html):
         data = html.encode("utf-8")
         self.send_response(200)
@@ -1577,6 +1602,11 @@ class StudioHandler(BaseHTTPRequestHandler):
         version_headers = api_version_headers(version_info)
         if version_info.get("unsupported"):
             return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
+        actor = self.identity()
+        rate = self.check_rate_limit("GET", path, actor)
+        response_headers = {**version_headers, **rate.get("headers", {})}
+        if not rate.get("allowed", True):
+            return self.send_json(429, error_payload("rate limit exceeded", 429, code="rate_limit_exceeded", details={"limit": rate.get("limit"), "reset": rate.get("reset"), "retry_after": rate.get("retry_after")}), headers=response_headers)
         if path == "/":
             html = render_template("main.html", {
                 "TEXT_MODELS": selectable_text_models(),
@@ -1597,8 +1627,8 @@ class StudioHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/") and path != "/api/wallpaper/image":
             handled, status, payload = api_handler().get(path, parse_qs(urlparse(self.path).query))
             if handled:
-                return self.send_json(status, payload, headers=version_headers)
-            return self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=version_headers)
+                return self.send_json(status, payload, headers=response_headers)
+            return self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=response_headers)
         if path == "/api/wallpaper/image":
             query = parse_qs(urlparse(self.path).query)
             remote = (query.get("remote") or [""])[0]
@@ -1606,10 +1636,10 @@ class StudioHandler(BaseHTTPRequestHandler):
             try:
                 status, data, content_type = wallpaper_image_response(remote, image_id)
             except Exception as exc:
-                return self.send_json(502, error_payload("wallpaper image fetch failed", 502, code="wallpaper_image_fetch_failed", details={"reason": str(exc)}), headers=version_headers)
+                return self.send_json(502, error_payload("wallpaper image fetch failed", 502, code="wallpaper_image_fetch_failed", details={"reason": str(exc)}), headers=response_headers)
             self.send_response(int(status))
             self.send_header("content-type", content_type)
-            for key, value in version_headers.items():
+            for key, value in response_headers.items():
                 self.send_header(key, value)
             self.send_header("cache-control", "public, max-age=86400")
             self.send_header("content-length", str(len(data)))
@@ -1641,16 +1671,20 @@ class StudioHandler(BaseHTTPRequestHandler):
         if version_info.get("unsupported"):
             return self.send_json(400, error_payload("unsupported API version", 400, code="unsupported_api_version", details={"requested_version": version_info.get("requested_version"), "supported_versions": ["v1"]}), headers=version_headers)
         actor = self.identity()
+        rate = self.check_rate_limit("POST", path, actor)
+        response_headers = {**version_headers, **rate.get("headers", {})}
+        if not rate.get("allowed", True):
+            return self.send_json(429, error_payload("rate limit exceeded", 429, code="rate_limit_exceeded", details={"limit": rate.get("limit"), "reset": rate.get("reset"), "retry_after": rate.get("retry_after")}), headers=response_headers)
         permission_action = auth_handler().permission_for("POST", path)
         if permission_action:
             permission, action = permission_action
             if not auth_handler().has_permission(actor, permission):
                 append_audit(action, actor=actor, outcome="denied", permission=permission, request={"path": path}, status=403)
-                return self.send_json(403, error_payload("permission denied", 403, code="permission_denied", details={"permission": permission, "actor": actor.get("id")}), headers=version_headers)
+                return self.send_json(403, error_payload("permission denied", 403, code="permission_denied", details={"permission": permission, "actor": actor.get("id")}), headers=response_headers)
         try:
             data = self.read_json()
         except ValueError as exc:
-            return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}), headers=version_headers)
+            return self.send_json(400, error_payload(str(exc), 400, code="invalid_json_body", details={"path": path}), headers=response_headers)
         if isinstance(data, dict):
             data.setdefault("actor", actor)
             data.setdefault("session_id", actor.get("id"))
@@ -1664,8 +1698,8 @@ class StudioHandler(BaseHTTPRequestHandler):
             permission, action = permission_action
             append_audit(action, actor=actor, outcome="completed" if int(status) < 400 else "failed", permission=permission, request={"path": path}, status=status)
         if handled:
-            return self.send_json(status, payload, headers=version_headers)
-        self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=version_headers)
+            return self.send_json(status, payload, headers=response_headers)
+        self.send_json(404, error_payload("api endpoint not found", 404, code="api_endpoint_not_found", details={"path": path}), headers=response_headers)
 
 
 def main():

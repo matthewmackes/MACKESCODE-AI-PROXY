@@ -1153,14 +1153,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-009
 **Title:** Add rate limiting
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 2 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started Console API rate-limiting middleware with token/actor-keyed fixed windows, configurable endpoint limits, quota headers, and abuse-protection tests.
+- 2026-07-09: Added in-memory token/actor keyed fixed-window API rate limiting, configurable defaults and endpoint-specific quotas in `config/console.json`, quota headers on API responses, structured `429 rate_limit_exceeded` responses with `retry-after`, HTTP smoke coverage, and service unit tests. Passed `./scripts/release-check.sh` with 213 tests and browser smoke.
 
 **Description:** Implement rate limiting to protect against abuse.
 
@@ -1176,11 +1178,11 @@ The interface refactoring work consolidates previously separate components into 
 - Add configuration options
 
 **Completion Criteria:**
-- [ ] Rate limiting implemented
-- [ ] Configurable limits
-- [ ] Proper headers
-- [ ] Abuse protection
-- [ ] Tests added
+- [x] Rate limiting implemented
+- [x] Configurable limits
+- [x] Proper headers
+- [x] Abuse protection
+- [x] Tests added
 
 **Dependencies:** INT-004 (Configuration system)
 **Blocks:** None
