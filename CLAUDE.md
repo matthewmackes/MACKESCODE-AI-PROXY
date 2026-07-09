@@ -6,6 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the Matts Value Set Claude Code Proxy - a private Claude Code launcher and Anthropic-compatible local proxy for Matts Value Set models. The system provides a local proxy server that translates Anthropic API calls to OpenAI-compatible endpoints for various LLM models.
 
+## Governance
+
+Read `GOVERNANCE.md` before broad changes. It is the project rulebook for
+architecture, security, cost safety, runtime-state boundaries, definition of
+done, and AI-assisted work. Durable product decisions live in
+`docs/requirements-ledger.md`; architecture/policy changes live in
+`docs/DECISIONS.md`; live-resource blockers live in `docs/NEEDS-OPERATOR.md`.
+
+The most important locks:
+
+- `config/models.json` is the selectable model source of truth.
+- Runtime state and cloud credentials are not release-owned files.
+- Done means runtime-reachable, observably working, documented, and verified.
+- Sensitive actions must be permission checked and audit logged.
+- UI changes need rendered browser evidence when feasible.
+
 ## Key Components
 
 ### Core Launcher (`claude-DO.sh`)
@@ -150,26 +166,35 @@ Key environment variables:
 All development work must be tracked in `MAIN-WORKLIST.md` using the standardized task format. This document serves as the single source of truth for work status, priorities, and dependencies.
 
 **Key Documents:**
+- `GOVERNANCE.md` - Architectural locks, definition of done, source-of-truth policy, and safety rules
 - `MAIN-WORKLIST.md` - Central work tracking with tasks, status, and dependencies
 - `AI-WORK-PROTOCOL.md` - Quick reference for AI work procedures
 - `CLAUDE.md` - Project instructions and development workflow
+- `docs/DECISIONS.md` - Append-only durable decision log
+- `docs/NEEDS-OPERATOR.md` - Operator/live-resource gated items
+- `docs/THREAT_MODEL.md` - Security model for proxy, console, terminal, cloud integrations, and traces
+- `docs/COMPLIANCE.md` - Integrity sweep checklist and findings log
 
 **Before starting any work:**
-1. Read `MAIN-WORKLIST.md` to understand current priorities
-2. Follow the protocol in `AI-WORK-PROTOCOL.md`
-3. Update task status before beginning work
-4. Document progress during work
-5. Update status and documentation after completion
+1. Read `GOVERNANCE.md` and relevant current task/spec docs.
+2. Check `MAIN-WORKLIST.md` and `docs/NEEDS-OPERATOR.md`.
+3. Follow the protocol in `AI-WORK-PROTOCOL.md`.
+4. Document progress and decisions during work.
+5. Update status, docs, and verification evidence after completion.
 
-### Interface Refactoring Work
-Current focus is on refactoring the unified web console (`image-studio.py`) to address technical debt and improve maintainability. See `MAIN-WORKLIST.md` for detailed task breakdown.
+### Current Work Focus
+Use `MAIN-WORKLIST.md` as the current task ledger. Do not rely on stale priority
+lists in older docs; when work is blocked on live cloud resources or an operator
+choice, move the blocker to `docs/NEEDS-OPERATOR.md` instead of pretending it is
+code-complete.
 
 ### Quality Standards
 - All code changes must include tests
-- Documentation must be updated (CLAUDE.md, README.md)
+- Documentation must be updated when behavior, operator workflows, security posture, release process, or runtime-state boundaries change
 - Backward compatibility must be maintained
 - Security considerations must be addressed
 - Performance impact must be evaluated
+- `scripts/release-check.sh` is the standard release gate
 
 ## File Structure
 

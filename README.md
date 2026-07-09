@@ -2,6 +2,19 @@
 
 Private Claude Code launcher and Anthropic-compatible local proxy for the current Matts Value Set models.
 
+## Governance
+
+Project governance, architectural locks, runtime-state boundaries, definition of
+done, and AI-assisted work rules are in `GOVERNANCE.md`. Supporting operator and
+release-readiness documents:
+
+- `docs/DECISIONS.md` - append-only architecture and policy decision log
+- `docs/NEEDS-OPERATOR.md` - work that needs a live cloud resource or operator decision
+- `docs/THREAT_MODEL.md` - proxy, console, terminal, model, trace, and cloud threat model
+- `docs/COMPLIANCE.md` - integrity sweep checklist and findings log
+- `DISCLAIMER.md` - private-operator and cloud-cost disclaimer
+- `SUPPORT.md` - support and diagnostic entry points
+
 ## Current Models
 
 - `deepseek` -> `deepseek-3.2`

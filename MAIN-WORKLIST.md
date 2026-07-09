@@ -1072,6 +1072,36 @@ The interface refactoring work consolidates previously separate components into 
 
 ---
 
+### Task ID: INT-027
+**Title:** Import applicable magic-mesh governance and directives
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Estimated Duration:** 1 hour
+**Completion Time:** 2026-07-09
+
+**Progress Notes:**
+- 2026-07-09: Reviewed `https://github.com/matthewmackes/magic-mesh` for governance, skills, directives, CI discipline, threat modeling, compliance sweeps, decision logs, and operator-needed tracking.
+- 2026-07-09: Imported the portable governance patterns while explicitly excluding product-specific `magic-mesh` locks for Nebula, egui/DRM, Rust workspaces, Fedora images, and build-farm topology.
+- 2026-07-09: Added `GOVERNANCE.md`, `docs/DECISIONS.md`, `docs/NEEDS-OPERATOR.md`, `docs/THREAT_MODEL.md`, `docs/COMPLIANCE.md`, `DISCLAIMER.md`, `SUPPORT.md`, and an adapted `.claude/skills/polish/SKILL.md`.
+- 2026-07-09: Updated `README.md`, `CLAUDE.md`, `AI-WORK-PROTOCOL.md`, `CONTRIBUTING.md`, and `SECURITY.md` so future assistants and contributors use the new governance structure.
+
+**Description:** Review the governance, skills, and directives from `magic-mesh`; import as many as apply to this Python/web-console LLM proxy without creating false constraints from unrelated platform doctrine.
+
+**Completion Criteria:**
+- [x] Applicable source governance reviewed
+- [x] Project-specific governance rulebook added
+- [x] Decision log, operator-needed tracker, threat model, and compliance sweep docs added
+- [x] UI polish skill adapted to this repository
+- [x] Existing contributor, assistant, README, and security docs point at the imported governance structure
+- [x] Product-specific `magic-mesh` locks are not copied into this project
+
+**Dependencies:** None
+**Blocks:** Future release-readiness, UI-polish, and AI-assisted work staying consistent
+
+---
+
 ## P2 Tasks - Enhancements
 
 ### Task ID: INT-007

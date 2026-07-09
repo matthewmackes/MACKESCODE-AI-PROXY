@@ -2,6 +2,21 @@
 
 This setup is intended for local or trusted-host use. The proxy binds to `127.0.0.1` by default and should not be exposed to untrusted networks.
 
+The project threat model is maintained in `docs/THREAT_MODEL.md`. Governance
+locks for secrets, runtime state, cost safety, and definition of done are in
+`GOVERNANCE.md`.
+
+## Reporting A Vulnerability
+
+Do not open a public issue containing access keys, DigitalOcean tokens, console
+URLs with tokens, Dedicated endpoint credentials, trace logs, billing payloads,
+or private source code.
+
+Report privately through the repository's GitHub security advisory flow when it
+is enabled, or contact the repository owner directly. Include the affected
+component, commit/version, impact, and reproduction steps. Redact credentials
+and account-specific identifiers.
+
 ## Access Key
 
 The launcher does not ship with a default model access key. Provide a key by writing the token file below, or set `MATTS_VALUE_SET_ALLOW_KEY_OVERRIDE=1` with `MATTS_VALUE_SET_ACCESS_KEY` for an intentional one-run override. If neither source is present, the launcher exits before starting the proxy.

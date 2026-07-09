@@ -3,10 +3,10 @@
 ## Quick Reference for All AI Assistants
 
 ### BEFORE Starting Work:
-1. **READ** MAIN-WORKLIST.md completely
-2. **CHECK** if task already exists or is in progress
-3. **CLAIM** task by updating Assigned To and Status
-4. **DOCUMENT** start time and estimated duration
+1. **READ** `GOVERNANCE.md` for architectural locks and definition of done.
+2. **CHECK** `MAIN-WORKLIST.md`, `docs/requirements-ledger.md`, and `docs/NEEDS-OPERATOR.md`.
+3. **CLAIM** existing tracked work when appropriate, or add a scoped task if the work is not represented.
+4. **DOCUMENT** start time, scope, and verification plan for non-trivial work.
 
 ### DURING Work:
 1. **UPDATE** Progress Notes with timestamps
@@ -19,7 +19,7 @@
 2. **ADD** completion timestamp
 3. **VERIFY** all completion criteria met
 4. **UPDATE** related documentation
-5. **RUN** final verification tests
+5. **RUN** final verification tests and record any skipped evidence
 
 ## Task Status Updates:
 - `TODO` → `IN_PROGRESS` (when starting)
@@ -47,10 +47,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ## Quality Standards:
 1. **Tests Required**: All changes need tests
-2. **Documentation**: Update CLAUDE.md, README.md
+2. **Documentation**: Update docs when behavior, workflows, governance, security posture, or release process changes
 3. **Backward Compatibility**: Don't break existing functionality
 4. **Security**: Consider security implications
 5. **Performance**: Monitor for regressions
+6. **Runtime Reachability**: No dead UI controls, placeholder workflows, or documented-only features
 
 ## Communication Protocol:
 - Update MAIN-WORKLIST.md with progress
@@ -63,7 +64,7 @@ If you encounter:
 - **Security vulnerability**: Stop work and document immediately
 - **Breaking change**: Flag for review before merging
 - **Performance regression**: Investigate before proceeding
-- **Blocked by dependency**: Update status to BLOCKED
+- **Blocked by live resource/operator decision**: Add or update `docs/NEEDS-OPERATOR.md`
 
 ## Verification Checklist (Before Marking COMPLETED):
 - [ ] All completion criteria met
@@ -76,19 +77,20 @@ If you encounter:
 
 ---
 
-## Current Active Tasks (Check MAIN-WORKLIST.md):
-- INT-006: Early health check endpoints (P1)
-- INT-002: HTTP handler refactoring (P1)
-- INT-015: Digital Ocean Serverless Inference model catalog (P1)
-- INT-016: DigitalOcean Dedicated Inference lifecycle manager (P1)
-- INT-017: Model Hero Card descriptions (P1)
-- INT-003: Error handling improvements (P1)
-- INT-004: Configuration system (P1)
-- INT-005: Comprehensive test suite (P1)
+## Current Active Tasks
+
+Check `MAIN-WORKLIST.md`. Do not trust old active-task lists copied into chat or
+stale docs. If a task cannot be closed without DigitalOcean capacity, billing
+visibility, a token, GitHub administration, or another operator choice, record it
+in `docs/NEEDS-OPERATOR.md`.
 
 ## Key Files to Know:
 - `MAIN-WORKLIST.md` - Work tracking (READ FIRST)
+- `GOVERNANCE.md` - Architectural locks and definition of done
 - `CLAUDE.md` - Project instructions
+- `docs/DECISIONS.md` - Append-only decision log
+- `docs/NEEDS-OPERATOR.md` - Live-resource/operator blockers
+- `docs/THREAT_MODEL.md` - Security model
 - `image-studio.py` - Current unified console
 - `do-anthropic-proxy.py` - API proxy server
 - `claude-DO.sh` - Main launcher script
@@ -103,6 +105,7 @@ curl http://localhost:18181/health
 curl http://127.0.0.1:18081/v1/models
 ```
 
-**Remember:** Always update MAIN-WORKLIST.md before, during, and after work!  
-**Last Updated:** 2026-07-07  
+**Remember:** The work is not done until it is runtime-reachable, verified, and
+the relevant docs or ledgers are current.
+**Last Updated:** 2026-07-09
 **By:** Codex
