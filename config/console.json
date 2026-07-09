@@ -18,6 +18,19 @@
   "serverless": {
     "catalog_ttl_seconds": 3600
   },
+  "plugins": {
+    "enabled": true,
+    "directories": ["plugins"],
+    "extension_points": [
+      "console.nav",
+      "console.panel",
+      "create.prompt_action",
+      "code.session_action",
+      "model.metadata_enricher",
+      "dedicated.lifecycle_hook",
+      "reporting.exporter"
+    ]
+  },
   "proxy": {
     "host": "127.0.0.1",
     "port": 18081,

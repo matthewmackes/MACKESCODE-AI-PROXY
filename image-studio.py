@@ -42,6 +42,7 @@ from src.console.services.image_generation import ImageGenerationService
 from src.console.services.model_hero import ModelHeroService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
+from src.console.services.plugins import PluginRegistryService
 from src.console.services.proxy_process import ProxyProcessService
 from src.console.services.rate_limit import RateLimitService
 from src.console.services.runtime_config import RuntimeConfigService
@@ -1338,6 +1339,14 @@ def agentboard_payload():
     return agentboard_service().payload()
 
 
+def plugin_registry_service():
+    return PluginRegistryService(config=STARTUP_CONFIG.get("plugins", {}), root_dir=script_dir())
+
+
+def plugins_payload():
+    return plugin_registry_service().payload()
+
+
 def websocket_protocol_service():
     return WebSocketProtocolService(
         select_func=select.select,
@@ -1493,6 +1502,7 @@ def api_handler():
         load_chat=load_chat,
         tmux_session_items=tmux_session_items,
         agentboard_payload=agentboard_payload,
+        plugins_payload=plugins_payload,
         models_payload=models_payload,
         active_auth_sessions=active_auth_sessions,
         model_info_payload=model_info_payload,

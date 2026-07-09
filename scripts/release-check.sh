@@ -32,6 +32,7 @@ python3 -m py_compile \
   src/console/services/image_generation.py \
   src/console/services/model_registry.py \
   src/console/services/persistence.py \
+  src/console/services/plugins.py \
   src/console/services/proxy_process.py \
   src/console/services/rate_limit.py \
   src/console/services/runtime_config.py \
@@ -58,6 +59,7 @@ python3 -m py_compile \
   tests/test_model_registry.py \
   tests/test_model_registry_service.py \
   tests/test_persistence_service.py \
+  tests/test_plugin_service.py \
   tests/test_proxy_process_service.py \
   tests/test_proxy_registry_reload.py \
   tests/test_rate_limit_service.py \

@@ -81,6 +81,8 @@ class ConsoleApiHandler:
             return True, 200, {"sessions": [item["name"] for item in items if item.get("live")], "items": items}
         if path == "/api/agentboard":
             return True, 200, self.call("agentboard_payload")
+        if path == "/api/plugins":
+            return True, 200, self.call("plugins_payload")
         if path == "/api/models":
             return True, 200, self.call("models_payload")
         if path == "/api/auth/sessions":

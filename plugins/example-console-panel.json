@@ -1,0 +1,19 @@
+{
+  "id": "example-console-panel",
+  "name": "Example Console Panel",
+  "version": "0.1.0",
+  "description": "Demonstrates a manifest-only Console panel extension.",
+  "author": "MackesCode",
+  "enabled": false,
+  "extensions": [
+    {
+      "point": "console.panel",
+      "target": "console",
+      "label": "Example",
+      "module": "example.console.panel"
+    }
+  ],
+  "config": {
+    "notes": "This example is disabled and is not executed by the registry."
+  }
+}

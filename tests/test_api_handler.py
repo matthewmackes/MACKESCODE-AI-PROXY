@@ -23,6 +23,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "load_chat": lambda chat_id: {"id": chat_id} if chat_id == "ok" else None,
             "tmux_session_items": record("tmux_session_items", [{"name": "live", "live": True}, {"name": "old", "live": False}]),
             "agentboard_payload": record("agentboard_payload", {"agents": []}),
+            "plugins_payload": record("plugins_payload", {"plugins": [{"id": "plug"}]}),
             "models_payload": lambda refresh_catalog=True: {"models": [], "refresh_catalog": refresh_catalog},
             "active_auth_sessions": record("active_auth_sessions", {"sessions": [{"session_id": "session-a"}]}),
             "model_info_payload": lambda model_id=None: (200, {"model_id": model_id, "cards": []}),
@@ -95,6 +96,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(payload["code"], "chat_not_found")
         self.assertEqual(payload["details"], {"id": "missing"})
         self.assertEqual(handler.get("/api/chat/load", {"id": ["ok"]}), (True, 200, {"id": "ok"}))
+        self.assertEqual(handler.get("/api/plugins"), (True, 200, {"plugins": [{"id": "plug"}]}))
 
     def test_get_model_info_routes(self):
         handler, _ = self.handler()

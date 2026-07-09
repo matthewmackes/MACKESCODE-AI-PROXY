@@ -153,6 +153,8 @@ Console API rate limits are configured in `config/console.json` under `rate_limi
 
 Authenticated clients can mint JWT sessions with `POST /api/v1/auth/session`, refresh them with `POST /api/v1/auth/refresh`, inspect active sessions with `GET /api/v1/auth/sessions`, and revoke with `POST /api/v1/auth/revoke`.
 
+Console plugins are manifest based and discovered from `plugins.directories` in `config/console.json`. `GET /api/v1/plugins` reports enabled, disabled, and invalid plugin manifests plus supported extension points. The manifest contract is documented in `docs/plugins.md`.
+
 Run the local unit/smoke test suite with the standard library runner:
 
 ```bash

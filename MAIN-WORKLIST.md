@@ -1231,14 +1231,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-011
 **Title:** Add plugin system
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
+**Completion Time:** 2026-07-09
 **Estimated Duration:** 4 hours
 
 **Progress Notes:**
-- *None yet*
+- 2026-07-09: Started manifest-based plugin framework with safe discovery, extension point definitions, API exposure, example plugin, docs, and tests.
+- 2026-07-09: Added manifest-only plugin registry service, configured plugin directories and extension points, example disabled plugin manifest, `/api/plugins` payload, documentation, and plugin/API tests. Passed `./scripts/release-check.sh` with 218 tests and browser smoke.
 
 **Description:** Create plugin system for modular interface components and third-party extensions.
 
@@ -1255,11 +1257,11 @@ The interface refactoring work consolidates previously separate components into 
 - Plugin examples
 
 **Completion Criteria:**
-- [ ] Plugin framework created
-- [ ] Extension points defined
-- [ ] Example plugins
-- [ ] Documentation
-- [ ] Tests
+- [x] Plugin framework created
+- [x] Extension points defined
+- [x] Example plugins
+- [x] Documentation
+- [x] Tests
 
 **Dependencies:** INT-002 (Handler refactoring), INT-004 (Configuration system)
 **Blocks:** None
