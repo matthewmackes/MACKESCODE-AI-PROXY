@@ -356,6 +356,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-09: Added Create cursor-reactive light, desktop drifting motes, weather/time mood pill using browser geolocation plus Open-Meteo with graceful time-only fallback, and mood-based wallpaper tone adjustments while keeping mobile atmospheric effects disabled.
 - 2026-07-09: Added "Continue with this model" actions to Create comparison reply cards so a saved comparison can continue as a normal single-model conversation.
 - 2026-07-09: Added registry-backed generated model styles plus seven-day global "new" sparkle metadata for DigitalOcean catalog additions, and rendered those accents in model cards and Serverless model management.
+- 2026-07-09: Added Create first-view greeting with typewriter replay, model/weather-aware copy, dimmed suggestions while typing, and wallpaper Info control that reports attribution or fallback status.
 
 **Specification:** `BING-UPDATE-SPEC.md`
 
@@ -395,7 +396,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Waiting state shows model identity, routing stage, elapsed time, and fallback notice when routing changes
 - [x] Create supports text-model comparison for up to five selected models
 - [x] Comparison entries save as one chat-history entry and support "continue with this model"
-- [ ] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
+- [x] Greeting, weather widget, wallpaper caption/info controls, and graceful weather/wallpaper fallback match the requirements ledger
 - [ ] Mobile and desktop layouts verified visually
 - [ ] Documentation updated if workflows or screenshots change
 
