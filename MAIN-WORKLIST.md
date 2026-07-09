@@ -993,17 +993,19 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-026
 **Title:** Reconcile follow-up worklist survey answers
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-08
 **Estimated Duration:** 1 hour
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Added at user request after the follow-up one-at-a-time worklist survey answers. These decisions should be folded into the requirements ledger and owning tasks before further UI polish, model-routing, or release-cleanup work depends on them.
 - 2026-07-08: User requested "add to worklist" after the latest answer sequence. Preserve this as an active reconciliation task: only promote follow-up answers into implementation criteria when the underlying question and product decision can be reconstructed from project context; otherwise list them as open confirmations.
 - 2026-07-08: User reaffirmed "add to worklist" after the latest answer-only sequence. Keep this queued under `INT-026` rather than duplicating raw answer choices across implementation tasks.
 - 2026-07-08: User again requested "add to worklist" after the most recent follow-up answer. Treat this as confirmation that the current survey sequence must be reconciled before release cleanup is considered complete.
+- 2026-07-08: Reconciled the follow-up sequence into `docs/requirements-ledger.md`. Reconstructable decisions were promoted into a follow-up reconciliation section; answer-only choices without durable prompts were explicitly kept as unreconstructable confirmations instead of being guessed.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
@@ -1020,12 +1022,12 @@ The interface refactoring work consolidates previously separate components into 
 - Owning task specs or implementation specs when a decision needs more detail
 
 **Completion Criteria:**
-- [ ] Follow-up survey answers are summarized in the requirements ledger
-- [ ] Existing tasks have updated acceptance criteria where needed
-- [ ] Any ambiguous answer is listed as an open confirmation instead of being guessed
-- [ ] Priority order is updated if the follow-up survey changes sequencing
-- [ ] Duplicate or stale worklist entries are consolidated
-- [ ] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
+- [x] Follow-up survey answers are summarized in the requirements ledger
+- [x] Existing tasks have updated acceptance criteria where needed
+- [x] Any ambiguous answer is listed as an open confirmation instead of being guessed
+- [x] Priority order is updated if the follow-up survey changes sequencing
+- [x] Duplicate or stale worklist entries are consolidated
+- [x] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
 
 **Dependencies:** INT-025 (initial survey reconciliation)
 **Blocks:** Fully draining the worklist without losing newly clarified requirements
@@ -1382,15 +1384,15 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-2. **Then INT-020:** Trace-first observability
-3. **Then INT-022:** Gateway reliability and cost controls
-4. **Then INT-021:** Evaluation and model comparison workflows
-5. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+1. **Start with INT-020:** Trace-first observability
+2. **Then INT-022:** Gateway reliability and cost controls
+3. **Then INT-021:** Evaluation and model comparison workflows
+4. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+5. **Then INT-017:** Detailed model hero cards
 6. **Then INT-019:** Documentation reconciliation
 7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 
-Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-018, INT-025.
+Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-016, INT-018, INT-025, INT-026.
 
 ---
 
@@ -1428,11 +1430,11 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-016:** Finish Dedicated cost-governance and lifecycle enforcement
-2. **Then INT-020:** Trace-first observability
-3. **Then INT-022:** Gateway reliability and cost controls
-4. **Then INT-021:** Evaluation and model comparison workflows
-5. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+1. **Start with INT-020:** Trace-first observability
+2. **Then INT-022:** Gateway reliability and cost controls
+3. **Then INT-021:** Evaluation and model comparison workflows
+4. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+5. **Then INT-017:** Detailed model hero cards
 6. **Then INT-019:** Documentation reconciliation
 7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
 

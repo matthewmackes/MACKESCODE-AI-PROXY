@@ -82,6 +82,18 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 | Evals should compare selected models/prompts with cost, latency, failures, human notes, and exportable history before model registry changes become defaults. | Confirmed | `INT-021` |
 | Gateway policy should cover failover, circuit breakers, rate limits, quotas, cache controls, budget-aware routing, and trace-visible decisions. | Confirmed | `INT-022` |
 
+## Follow-Up Survey Reconciliation
+
+The latest follow-up survey sequence was mostly preserved as answer choices without the original prompts. The following decisions are durable because they can be reconstructed from worklist entries, implemented behavior, or explicit user requests around the answer sequence.
+
+| Decision | Evidence | Owner |
+| --- | --- | --- |
+| Disabled managed Dedicated models should stay visible in selectors and expose a guarded Build Again path with estimated hourly cost confirmation. | Confirmed | `INT-016` |
+| Build Again should respect the daily Dedicated budget guard, but a console-token operator may explicitly override after a second confirmation. | Confirmed | `INT-016`, `INT-023` |
+| Dedicated lifecycle warnings must be global, not Console-only, so idle, unhealthy, and budget countdowns are visible across Code, Create, and Console. | Confirmed | `INT-016`, `INT-020` |
+| Follow-up answer-only choices should not be copied into implementation tasks unless the original product decision can be reconstructed from durable project state. | Confirmed | `INT-026` |
+| Remaining enterprise-class work should proceed through traceability, gateway policy, eval/comparison, Create completion, documentation, and release packaging in that order. | Confirmed | `INT-020`, `INT-022`, `INT-021`, `INT-014`, `INT-019`, `INT-024` |
+
 ## Release Readiness
 
 | Decision | Evidence | Owner |
@@ -98,21 +110,20 @@ These items were requested through survey flow, but the specific answer content 
 | Item | Why it needs confirmation | Suggested owner |
 | --- | --- | --- |
 | Exact 100-question answer mapping by question number. | Chat compaction preserved many selected options but not all original question prompts. | `INT-025` follow-up note only; do not block implementation. |
-| Latest follow-up answer-only sequence ending with "add to worklist". | The answer choices are preserved in chat context, but most associated prompts are not available in local project files; requirements should only be promoted when the actual product decision can be reconstructed. | `INT-026` |
+| Latest follow-up answer-only sequence ending with "add to worklist". | Reconciled on 2026-07-08. Reconstructable decisions were promoted above; any remaining raw answer choices lack their prompts and should stay unreconstructable until the user restates the product decision. | `INT-026` |
 | Preferred weather provider and whether browser geolocation may be stored as a default. | Requirements say geolocation first and graceful fallback, but provider/privacy preference is not durable. | `INT-014`, `INT-018` |
 | Exact default Code wizard profile ordering and permission defaults beyond the current local implementation. | Preserved answers confirm wizard behavior, but not all profile policy details. | `INT-007`, `INT-023` |
 | Final public release name/versioning policy. | GitHub repository name is known; semantic version and release cadence are not. | `INT-024` |
 
 ## Priority Order
 
-1. `INT-002` split the monolith enough that future service boundaries are real.
-2. `INT-003` standardize errors before adding more surfaces.
-3. `INT-004` centralize configuration and validation.
-4. `INT-018` separate release config, runtime state, and secrets.
-5. `INT-016` finish Dedicated cost-governance and lifecycle enforcement.
-6. `INT-020` add trace-first observability.
-7. `INT-022` add gateway policy controls.
-8. `INT-021` add eval/model comparison workflows.
-9. `INT-014` finish the remaining Create/Image visual workflow gaps.
-10. `INT-019` reconcile documentation.
-11. `INT-024` finish packaging, upgrade, rollback, and release checklist.
+Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-025`, and `INT-026`.
+
+1. `INT-020` add trace-first observability.
+2. `INT-022` add gateway policy controls.
+3. `INT-021` add eval/model comparison workflows.
+4. `INT-014` finish the remaining Create/Image visual workflow gaps.
+5. `INT-017` complete detailed model hero cards.
+6. `INT-019` reconcile documentation.
+7. `INT-024` finish packaging, upgrade, rollback, and release checklist.
+8. `INT-023` add governance, RBAC, and audit hardening.
