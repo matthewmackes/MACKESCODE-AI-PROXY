@@ -35,6 +35,7 @@ from src.console.services.http_json import JsonHttpService
 from src.console.services.dedicated import DedicatedInferenceService
 from src.console.services.digitalocean import DigitalOceanHealthService
 from src.console.services.image_generation import ImageGenerationService
+from src.console.services.model_hero import ModelHeroService
 from src.console.services.model_registry import ModelRegistryService
 from src.console.services.persistence import LocalPersistenceService
 from src.console.services.proxy_process import ProxyProcessService
@@ -136,6 +137,10 @@ def model_config_file():
     return configured_path("model_config_file", "config/models.json", "MATTS_MODEL_CONFIG_FILE", PROJECT_DIR)
 
 
+def model_descriptions_dir():
+    return configured_path("model_descriptions_dir", "config/model-descriptions", "MATTS_MODEL_DESCRIPTIONS_DIR", PROJECT_DIR)
+
+
 def gateway_policy_file():
     return configured_path("gateway_policy_file", "config/gateway-policy.json", "MATTS_GATEWAY_POLICY_FILE", PROJECT_DIR)
 
@@ -178,6 +183,10 @@ def eval_runs_dir():
 
 def model_registry_service():
     return ModelRegistryService(DEFAULT_MODEL_REGISTRY, MODEL_TYPES, MODEL_AUTO_ENABLE_MAX_USD)
+
+
+def model_hero_service():
+    return ModelHeroService(model_descriptions_dir())
 
 
 def model_enabled_by_default(pricing):
@@ -265,6 +274,17 @@ def model_options(model_type=None, include_disabled=True):
 
 def model_metadata_map():
     return model_registry_service().metadata_map(model_options(include_disabled=True))
+
+
+def model_info_payload(model_id=None):
+    options = model_options(include_disabled=True)
+    payload = model_hero_service().hero_cards(options)
+    if model_id:
+        card = payload["model_info"].get(model_id)
+        if not card:
+            return HTTPStatus.NOT_FOUND, {"error": "model info not found", "id": model_id}
+        return HTTPStatus.OK, {"model": card}
+    return HTTPStatus.OK, payload
 
 
 def documented_serverless_pricing():
@@ -1384,6 +1404,7 @@ def api_handler():
         tmux_session_items=tmux_session_items,
         agentboard_payload=agentboard_payload,
         models_payload=models_payload,
+        model_info_payload=model_info_payload,
         sync_serverless_model_catalog=sync_serverless_model_catalog,
         proxy_sync_payload=proxy_sync_payload,
         active_model_access_key_info=active_model_access_key_info,

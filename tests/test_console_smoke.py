@@ -81,6 +81,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn("function applyModelStyle", html)
         self.assertIn("new_until", html)
         self.assertIn("model-generated", html)
+        self.assertIn('id="model-hero-modal"', html)
+        self.assertIn("function openModelHero", html)
+        self.assertIn("/api/model-info", html)
+        self.assertIn("data-model-info", html)
+        self.assertIn("Model Info", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

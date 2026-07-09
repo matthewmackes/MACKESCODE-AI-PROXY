@@ -1,0 +1,30 @@
+# Model Hero Cards
+
+Model hero cards give operators a richer view of each LLM without creating a second model source of truth.
+
+## Source Of Truth
+
+- `config/models.json` remains the active model registry for IDs, enablement, access state, pricing, context, origin, provider identity, and generated style.
+- `config/model-descriptions/families.json` stores curated family-level descriptions: summary, best-fit use cases, strengths, weaknesses, and comparison families.
+- `src/console/services/model_hero.py` combines those two sources into per-model cards for every current registry entry.
+
+## API
+
+- `GET /api/model-info` returns all hero cards and a `model_info` map keyed by model ID.
+- `GET /api/model-info?model=<id>` returns one card.
+- `GET /api/models/<id>/info` is also supported for REST-style callers.
+
+## UI
+
+Info buttons appear in:
+
+- chat assistant replies
+- model selector cards
+- image model selector cards
+- Console Serverless model cards
+
+Each modal includes cost, origin, provider identity, access state, deployment mode, best-fit use cases, strengths, watch-outs, and similar models from the active registry.
+
+## Updating Descriptions
+
+Prefer updating `config/model-descriptions/families.json` for broad provider or family behavior. Add registry facts to `config/models.json` only when the fact belongs to a specific model, such as pricing, access state, model type, context window, or Dedicated Inference lifecycle metadata.

@@ -1,4 +1,6 @@
 """JSON API route dispatcher for the console HTTP handler."""
+from urllib.parse import unquote
+
 from src.console.utils.errors import error_payload, normalize_error_payload
 
 
@@ -78,6 +80,14 @@ class ConsoleApiHandler:
             return True, 200, self.call("agentboard_payload")
         if path == "/api/models":
             return True, 200, self.call("models_payload")
+        if path == "/api/model-info":
+            model_id = (query.get("model") or [""])[0] or None
+            status, payload = self.call("model_info_payload", model_id)
+            return True, status, payload
+        if path.startswith("/api/models/") and path.endswith("/info"):
+            model_id = unquote(path[len("/api/models/"):-len("/info")])
+            status, payload = self.call("model_info_payload", model_id)
+            return True, status, payload
         if path == "/api/models/serverless-catalog":
             result = self.call("sync_serverless_model_catalog", force=True, validate_access=True)
             payload = self.call("models_payload", refresh_catalog=False)

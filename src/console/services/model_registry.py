@@ -358,6 +358,7 @@ class ModelRegistryService:
             "access_status": (model or {}).get("access_status") or "not_checked",
             "use_case": use_case,
             "comparison": use_case,
+            "context_window": (model or {}).get("context_window") or 0,
             "created": (model or {}).get("created") or 0,
             "is_new": bool(new_until),
             "new_until": new_until,

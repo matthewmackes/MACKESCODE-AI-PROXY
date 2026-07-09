@@ -607,14 +607,16 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-017
 **Title:** Add detailed Hero Card descriptions for each model
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** *Unassigned*
-**Start Time:** *Not started*
+**Assigned To:** Codex
+**Start Time:** 2026-07-09
 **Estimated Duration:** 2.5 hours
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-08: Survey decisions were reconciled into `docs/requirements-ledger.md`; hero cards should reuse the global model label metadata and add richer strengths, weaknesses, alternatives, origin, cost, and access context.
+- 2026-07-09: Implemented model hero cards from the global registry plus curated family descriptions in `config/model-descriptions/families.json`; added `/api/model-info` and `/api/models/{id}/info`; added Info actions in chat replies, selector cards, image model cards, and Serverless model cards; documented the source-of-truth pattern; passed `./scripts/release-check.sh` with 198 tests and browser smoke.
 
 **Specification:** `MODEL-HERO-CARD-SPEC.md`
 
@@ -644,14 +646,14 @@ The interface refactoring work consolidates previously separate components into 
 7. Test across all models and screen sizes
 
 **Completion Criteria:**
-- [ ] Detailed descriptions written for all current models
-- [ ] JSON description files created and organized
-- [ ] Model info modal implemented with feature-rich design
-- [ ] API endpoint serving model information
-- [ ] Info buttons added throughout UI (chat, image studio, model selection)
-- [ ] Hero cards include cost, origin, provider logo/identity, access state, best-fit use cases, weaknesses, and alternatives to similar models
-- [ ] Responsive design working on all screen sizes
-- [ ] Documentation updated
+- [x] Detailed descriptions written for all current models
+- [x] JSON description files created and organized
+- [x] Model info modal implemented with feature-rich design
+- [x] API endpoint serving model information
+- [x] Info buttons added throughout UI (chat, image studio, model selection)
+- [x] Hero cards include cost, origin, provider logo/identity, access state, best-fit use cases, weaknesses, and alternatives to similar models
+- [x] Responsive design working on all screen sizes
+- [x] Documentation updated
 
 **Dependencies:** INT-001 (Template separation) - for modal HTML/CSS
 **Blocks:** None

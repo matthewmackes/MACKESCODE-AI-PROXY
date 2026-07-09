@@ -24,6 +24,7 @@ class ConsoleApiHandlerTests(unittest.TestCase):
             "tmux_session_items": record("tmux_session_items", [{"name": "live", "live": True}, {"name": "old", "live": False}]),
             "agentboard_payload": record("agentboard_payload", {"agents": []}),
             "models_payload": lambda refresh_catalog=True: {"models": [], "refresh_catalog": refresh_catalog},
+            "model_info_payload": lambda model_id=None: (200, {"model_id": model_id, "cards": []}),
             "sync_serverless_model_catalog": lambda **kwargs: {"ok": True, "kwargs": kwargs},
             "proxy_sync_payload": lambda **kwargs: {"in_sync": True, "kwargs": kwargs},
             "active_model_access_key_info": record("active_model_access_key_info", {"configured": True}),
@@ -93,6 +94,13 @@ class ConsoleApiHandlerTests(unittest.TestCase):
         self.assertEqual(payload["code"], "chat_not_found")
         self.assertEqual(payload["details"], {"id": "missing"})
         self.assertEqual(handler.get("/api/chat/load", {"id": ["ok"]}), (True, 200, {"id": "ok"}))
+
+    def test_get_model_info_routes(self):
+        handler, _ = self.handler()
+
+        self.assertEqual(handler.get("/api/model-info", {}), (True, 200, {"model_id": None, "cards": []}))
+        self.assertEqual(handler.get("/api/model-info", {"model": ["qwen3"]}), (True, 200, {"model_id": "qwen3", "cards": []}))
+        self.assertEqual(handler.get("/api/models/qwen3/info", {}), (True, 200, {"model_id": "qwen3", "cards": []}))
         handled, status, payload = handler.get("/api/tmux/sessions")
 
         self.assertTrue(handled)

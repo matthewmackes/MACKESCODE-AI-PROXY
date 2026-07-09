@@ -56,7 +56,7 @@ The console includes:
 - AgentBoard tab for all local tmux sessions, status inference, task/trajectory summaries, approximate eval metrics, and model/session leaderboard data
 - Local eval datasets and model comparison runs with cost, latency, failures, selected answers, and baseline deltas
 
-Create workspace behavior is documented in `docs/create-experience.md`.
+Create workspace behavior is documented in `docs/create-experience.md`. Rich model detail cards are documented in `docs/model-hero-cards.md`.
 
 Stable Diffusion is also available through the one-shot helper:
 

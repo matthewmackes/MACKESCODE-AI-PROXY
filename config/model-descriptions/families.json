@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "families": {
+    "arcee": {
+      "summary": "Arcee models are best treated as practical open-model assistants for structured drafting, extraction, and cost-aware automation.",
+      "best_for": ["structured drafting", "classification", "workflow automation"],
+      "strengths": ["Good fit for repeatable business prompts", "Useful when cost and control matter", "Pairs well with eval-driven routing"],
+      "weaknesses": ["May trail frontier models on deep reasoning", "Requires prompt discipline for complex tool plans", "Validate niche domain claims"],
+      "alternatives": ["Mistral", "Llama", "Qwen"]
+    },
+    "bge": {
+      "summary": "BGE models are retrieval infrastructure models focused on embeddings, reranking, and search quality rather than conversational output.",
+      "best_for": ["semantic search", "RAG retrieval", "document ranking"],
+      "strengths": ["Strong retrieval-oriented behavior", "Useful for multilingual knowledge bases", "Low-cost fit for background indexing"],
+      "weaknesses": ["Not intended for chat answers", "Quality depends on chunking and evaluation", "Latency depends on batch size and index design"],
+      "alternatives": ["E5", "GTE", "all-mini-lm"]
+    },
+    "claude": {
+      "summary": "Claude-family models are suited to careful writing, review, planning, and nuanced long-form reasoning when the account key allows access.",
+      "best_for": ["policy-sensitive writing", "review", "multi-step planning"],
+      "strengths": ["Careful tone and instruction following", "Strong document synthesis", "Good for review and explanation-heavy work"],
+      "weaknesses": ["Access may vary by key", "Can be more expensive than smaller models", "Latency can be higher on large prompts"],
+      "alternatives": ["GPT", "Mistral", "DeepSeek"]
+    },
+    "deepseek": {
+      "summary": "DeepSeek models are strong cost-performance choices for coding, reasoning, and practical automation workflows.",
+      "best_for": ["coding", "reasoning", "automation"],
+      "strengths": ["Good value on code and technical prompts", "Useful for multi-step problem solving", "Often competitive for everyday engineering work"],
+      "weaknesses": ["Verify safety-critical or regulatory claims", "Style can be direct and terse", "Availability and access can vary by catalog state"],
+      "alternatives": ["Qwen", "GPT", "Mistral"]
+    },
+    "e5": {
+      "summary": "E5 models are embedding-focused Microsoft-origin retrieval models for search, clustering, and knowledge workflows.",
+      "best_for": ["embeddings", "document search", "knowledge indexing"],
+      "strengths": ["Well-suited to dense retrieval", "Good fit for stable indexing pipelines", "Cost-efficient for background processing"],
+      "weaknesses": ["Not a conversational model", "Needs retrieval evals before production use", "Prompt formatting matters for some embedding tasks"],
+      "alternatives": ["BGE", "GTE", "all-mini-lm"]
+    },
+    "flux": {
+      "summary": "FLUX models are image-generation models known for prompt-driven visual composition and creative exploration.",
+      "best_for": ["image generation", "concept art", "visual iteration"],
+      "strengths": ["Strong visual style range", "Good for creative exploration", "Useful for generated assets and mockups"],
+      "weaknesses": ["Not useful for text chat", "Precise text rendering may need retries", "Cost and latency vary with image size"],
+      "alternatives": ["Stable Diffusion", "GPT Image"]
+    },
+    "gemma": {
+      "summary": "Gemma models are Google-origin open models for efficient assistant, summarization, and general text workflows.",
+      "best_for": ["summarization", "general chat", "lightweight reasoning"],
+      "strengths": ["Efficient for common text tasks", "Good open-model baseline", "Useful for low-cost comparison runs"],
+      "weaknesses": ["May lag larger frontier models", "Needs evals for specialized domains", "Not always ideal for complex coding agents"],
+      "alternatives": ["Llama", "Mistral", "Qwen"]
+    },
+    "general": {
+      "summary": "General models should be evaluated by live routing, observed cost, latency, and output quality before being promoted as defaults.",
+      "best_for": ["experimentation", "fallback routing", "comparison testing"],
+      "strengths": ["Automatically available through the global registry", "Useful for broad model discovery", "Can be promoted after access verification"],
+      "weaknesses": ["Limited curated provider guidance", "Needs hands-on validation", "May have incomplete pricing or access metadata"],
+      "alternatives": ["Mistral", "Qwen", "DeepSeek"]
+    },
+    "glm": {
+      "summary": "GLM models are broad Chinese-origin assistants useful for analysis, writing, multilingual work, and long-context synthesis.",
+      "best_for": ["analysis", "multilingual writing", "long-form synthesis"],
+      "strengths": ["Good general assistant behavior", "Useful for multilingual prompts", "Strong option for comparative reasoning tests"],
+      "weaknesses": ["Validate facts in regulated domains", "Coding quality varies by model size", "Access depends on provider catalog state"],
+      "alternatives": ["Qwen", "Kimi", "DeepSeek"]
+    },
+    "gpt": {
+      "summary": "GPT-family models are broad general-purpose assistants for coding, structured output, tool use, and production chat workflows when access is enabled.",
+      "best_for": ["general assistant work", "coding", "structured output"],
+      "strengths": ["Strong all-around capability", "Good fit for tool and schema-driven prompts", "Easy to compare against Claude and DeepSeek baselines"],
+      "weaknesses": ["Key access can block specific variants", "Higher-end models can cost more", "Use traces to verify requested versus routed model"],
+      "alternatives": ["Claude", "DeepSeek", "Mistral"]
+    },
+    "gte": {
+      "summary": "GTE models are Alibaba-origin embedding models for English and multilingual retrieval workloads.",
+      "best_for": ["embeddings", "RAG", "similarity search"],
+      "strengths": ["Good retrieval pipeline fit", "Useful companion to Qwen text models", "Cost-effective for indexing"],
+      "weaknesses": ["Not a chat model", "Quality depends on corpus and chunking", "Needs recall and precision evals"],
+      "alternatives": ["BGE", "E5", "all-mini-lm"]
+    },
+    "kimi": {
+      "summary": "Kimi models are useful for long-form analysis, writing, and multilingual assistant workflows.",
+      "best_for": ["long-form analysis", "writing", "multilingual chat"],
+      "strengths": ["Good fit for document-heavy work", "Useful alternative to GLM and Qwen", "Can produce readable long answers"],
+      "weaknesses": ["Validate technical edge cases", "May not be the first choice for agentic coding", "Access and pricing should be confirmed"],
+      "alternatives": ["GLM", "Qwen", "Llama"]
+    },
+    "llama": {
+      "summary": "Llama models are Meta-origin open models that work well as general assistant, summarization, and baseline comparison options.",
+      "best_for": ["general chat", "summarization", "open-model baselines"],
+      "strengths": ["Broad ecosystem familiarity", "Good for repeatable comparison tests", "Useful where open-model behavior is preferred"],
+      "weaknesses": ["Frontier reasoning varies by size", "Coding quality is model-dependent", "May need stronger prompts for strict formats"],
+      "alternatives": ["Mistral", "Gemma", "Qwen"]
+    },
+    "mimo": {
+      "summary": "MiMo models are efficient Xiaomi-origin options for lightweight chat, fast drafting, and low-cost experimentation.",
+      "best_for": ["quick drafting", "low-cost chat", "latency-sensitive tasks"],
+      "strengths": ["Efficient everyday assistant behavior", "Good for inexpensive comparisons", "Useful for simple automation"],
+      "weaknesses": ["Not the best default for deep reasoning", "Validate complex code changes", "Use stronger models for high-stakes review"],
+      "alternatives": ["Mistral", "Gemma", "DeepSeek"]
+    },
+    "minimax": {
+      "summary": "MiniMax models are practical general assistants for chat, drafting, and comparative model-routing experiments.",
+      "best_for": ["chat", "drafting", "creative iteration"],
+      "strengths": ["Useful for varied assistant prompts", "Good comparison candidate", "Can be cost-effective depending on catalog pricing"],
+      "weaknesses": ["Needs local evals before default routing", "May be less predictable on strict technical formats", "Access can vary"],
+      "alternatives": ["Kimi", "Qwen", "Mistral"]
+    },
+    "mistral": {
+      "summary": "Mistral models are concise, fast general-purpose assistants for drafting, summarization, and efficient production chat.",
+      "best_for": ["summarization", "fast drafting", "concise chat"],
+      "strengths": ["Crisp output style", "Good latency and cost profile on smaller variants", "Strong candidate for default fallback routing"],
+      "weaknesses": ["May need larger peers for deep reasoning", "Can be terse when more exploration is desired", "Compare against DeepSeek for coding-heavy work"],
+      "alternatives": ["DeepSeek", "Llama", "GPT"]
+    },
+    "nemotron": {
+      "summary": "Nemotron models are NVIDIA-origin instruction models useful for structured enterprise prompts, extraction, and controlled assistant behavior.",
+      "best_for": ["structured output", "enterprise prompts", "data extraction"],
+      "strengths": ["Good instruction-following profile", "Useful for schema-oriented work", "Strong comparison option for Llama-class tasks"],
+      "weaknesses": ["May not be best for creative writing", "Needs evals for long tool plans", "Cost and access depend on provider catalog"],
+      "alternatives": ["Llama", "GPT", "Mistral"]
+    },
+    "qwen": {
+      "summary": "Qwen models are strong multilingual coding and reasoning options, especially when a Dedicated Inference server is available.",
+      "best_for": ["coding", "multilingual reasoning", "agent workflows"],
+      "strengths": ["Strong code and tool-use fit", "Good multilingual behavior", "Dedicated variants can become the preferred route when online"],
+      "weaknesses": ["Dedicated servers need lifecycle and cost controls", "Validate safety-critical claims", "Smaller variants may trade depth for speed"],
+      "alternatives": ["DeepSeek", "GLM", "GPT"]
+    },
+    "stable diffusion": {
+      "summary": "Stable Diffusion models are image-generation options for visual ideation, asset exploration, and iterative prompt development.",
+      "best_for": ["image generation", "visual ideation", "style exploration"],
+      "strengths": ["Broad visual style range", "Good for repeated image iteration", "Works well with prompt builder workflows"],
+      "weaknesses": ["Not a text chat model", "Precise text and layout may need retries", "Output should be reviewed before brand use"],
+      "alternatives": ["FLUX", "GPT Image"]
+    }
+  }
+}
