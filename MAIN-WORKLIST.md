@@ -1005,11 +1005,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-026
 **Title:** Reconcile follow-up worklist survey answers
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 1 hour
+**Completion Time:** 2026-07-09
 
 **Progress Notes:**
 - 2026-07-08: Added at user request after the follow-up one-at-a-time worklist survey answers. These decisions should be folded into the requirements ledger and owning tasks before further UI polish, model-routing, or release-cleanup work depends on them.
@@ -1019,6 +1020,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Reconciled the follow-up sequence into `docs/requirements-ledger.md`. Reconstructable decisions were promoted into a follow-up reconciliation section; answer-only choices without durable prompts were explicitly kept as unreconstructable confirmations instead of being guessed.
 - 2026-07-08: User repeated "add to worklist" after another answer-only continuation. Preserve this as a standing backlog hygiene rule: future implementation passes must promote only reconstructable product decisions into owning tasks and leave unpaired answer choices in the ledger's open-confirmation table.
 - 2026-07-09: User again requested "add to worklist" after a new answer-only continuation. Reopened this reconciliation task so the latest sequence is preserved for a future requirements-ledger pass without inventing missing prompt context.
+- 2026-07-09: Reconciled the reopened item by preserving the latest answer-only continuation in `docs/requirements-ledger.md` as an open confirmation. No implementation criteria were invented from missing survey prompts.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
@@ -1041,7 +1043,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Priority order is updated if the follow-up survey changes sequencing
 - [x] Duplicate or stale worklist entries are consolidated
 - [x] The latest answer-only sequence is reconciled into durable decisions or explicitly marked unreconstructable
-- [ ] The 2026-07-09 answer-only continuation is reconciled into durable decisions or explicitly marked unreconstructable
+- [x] The 2026-07-09 answer-only continuation is reconciled into durable decisions or explicitly marked unreconstructable
 
 **Dependencies:** INT-025 (initial survey reconciliation)
 **Blocks:** Fully draining the worklist without losing newly clarified requirements
