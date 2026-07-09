@@ -51,6 +51,11 @@ class TemplateSmokeTests(unittest.TestCase):
         self.assertIn('id="traces-results"', html)
         self.assertIn("function loadTraces", html)
         self.assertIn("trace_id", html)
+        self.assertIn("fallback_reason", html)
+        self.assertIn("upstream_url", html)
+        self.assertIn("error_category", html)
+        self.assertIn("human_message", html)
+        self.assertIn("claude_do", html)
 
     def test_render_template_replaces_string_and_json_values(self):
         html = studio.render_template(

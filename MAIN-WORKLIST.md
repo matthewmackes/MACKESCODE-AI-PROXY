@@ -736,11 +736,12 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-020
 **Title:** Add trace-first LLM observability
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
 **Start Time:** 2026-07-08
 **Estimated Duration:** 3 hours
+**Completion Time:** 2026-07-08
 
 **Progress Notes:**
 - 2026-07-08: Added from product/platform review. Industry-leading LLM platforms expose request traces before evals and dashboards; the current usage log is useful but not trace-grade.
@@ -748,6 +749,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: Added `TraceService` JSONL persistence with privacy-safe message summaries, `/api/traces` search filters, Console Observability trace search, chat/serverless/Dedicated trace emission, response `trace_id` propagation into routing metadata, Show Detail trace IDs, and `docs/trace-redaction-policy.md`. `scripts/release-check.sh` passed with 175 tests.
 - 2026-07-08: Added API-boundary trace records for image generation, Serverless catalog refresh/model access audit, Dedicated build/teardown, and tmux launch. Added tests for operator action traces plus chat trace success, registry-blocked failure, and budget-blocked fallback paths.
 - 2026-07-08: Added proxy-side trace records for `/v1/messages` and `/v1/images/generations`, including budget blocks, missing models, Dedicated-not-ready, upstream exceptions, upstream HTTP errors, success usage/cost, endpoint mode, upstream id/url, and shared console trace-file launch wiring.
+- 2026-07-08: Expanded chat message Show Detail payloads with fallback reason, upstream URL/id, provider, endpoint mode, token summary, cost USD, error category, human message, and compact `claude_do` upstream metadata while keeping saved raw history bounded.
 
 **Description:** Create a first-class trace model for every LLM, image, Dedicated, proxy, and Claude Code routing action. Traces should make it possible to debug model choice, provider failures, retries, token/cost math, tool calls, latency, and user-visible output.
 
@@ -772,7 +774,7 @@ The interface refactoring work consolidates previously separate components into 
 - [x] Image generation, model access probes, Dedicated build/teardown, gateway fallback, and tmux launch actions emit trace/audit records or explicit non-LLM event records
 - [x] Console exposes trace search/filter by model, session, status, and cost
 - [x] Message-level Show Detail links to trace ID
-- [ ] Show Detail exposes requested model, routed model, fallback reason, provider, endpoint mode, cost, tokens, latency, upstream id, and human-friendly error category where available
+- [x] Show Detail exposes requested model, routed model, fallback reason, provider, endpoint mode, cost, tokens, latency, upstream id, and human-friendly error category where available
 - [x] Trace data redaction policy exists
 - [x] Tests cover trace emission for success, fallback, and failure
 
@@ -1388,15 +1390,15 @@ The interface refactoring work consolidates previously separate components into 
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-08):
-1. **Start with INT-020:** Trace-first observability
-2. **Then INT-022:** Gateway reliability and cost controls
-3. **Then INT-021:** Evaluation and model comparison workflows
-4. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-5. **Then INT-017:** Detailed model hero cards
-6. **Then INT-019:** Documentation reconciliation
-7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-022:** Gateway reliability and cost controls
+2. **Then INT-021:** Evaluation and model comparison workflows
+3. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+4. **Then INT-017:** Detailed model hero cards
+5. **Then INT-019:** Documentation reconciliation
+6. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+7. **Then INT-023:** Governance, RBAC, and audit hardening
 
-Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-016, INT-018, INT-025, INT-026.
+Completed prerequisites: INT-001, INT-002, INT-003, INT-004, INT-005, INT-006, INT-015, INT-016, INT-018, INT-020, INT-025, INT-026.
 
 ---
 
@@ -1434,13 +1436,13 @@ DO-ClaudeCode-Proxy/
 
 ## Next Immediate Actions (P1)
 
-1. **Start with INT-020:** Trace-first observability
-2. **Then INT-022:** Gateway reliability and cost controls
-3. **Then INT-021:** Evaluation and model comparison workflows
-4. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
-5. **Then INT-017:** Detailed model hero cards
-6. **Then INT-019:** Documentation reconciliation
-7. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+1. **Start with INT-022:** Gateway reliability and cost controls
+2. **Then INT-021:** Evaluation and model comparison workflows
+3. **Then INT-014:** Finish remaining Create/Image visual workflow gaps
+4. **Then INT-017:** Detailed model hero cards
+5. **Then INT-019:** Documentation reconciliation
+6. **Then INT-024:** Release packaging, upgrade, and rollback discipline
+7. **Then INT-023:** Governance, RBAC, and audit hardening
 
 ## Dependencies & Blockers
 

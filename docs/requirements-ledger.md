@@ -118,13 +118,12 @@ These items were requested through survey flow, but the specific answer content 
 
 ## Priority Order
 
-Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-025`, and `INT-026`.
+Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-020`, `INT-025`, and `INT-026`.
 
-1. `INT-020` add trace-first observability.
-2. `INT-022` add gateway policy controls.
-3. `INT-021` add eval/model comparison workflows.
-4. `INT-014` finish the remaining Create/Image visual workflow gaps.
-5. `INT-017` complete detailed model hero cards.
-6. `INT-019` reconcile documentation.
-7. `INT-024` finish packaging, upgrade, rollback, and release checklist.
-8. `INT-023` add governance, RBAC, and audit hardening.
+1. `INT-022` add gateway policy controls.
+2. `INT-021` add eval/model comparison workflows.
+3. `INT-014` finish the remaining Create/Image visual workflow gaps.
+4. `INT-017` complete detailed model hero cards.
+5. `INT-019` reconcile documentation.
+6. `INT-024` finish packaging, upgrade, rollback, and release checklist.
+7. `INT-023` add governance, RBAC, and audit hardening.
