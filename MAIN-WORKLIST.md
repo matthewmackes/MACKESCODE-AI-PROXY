@@ -1007,6 +1007,7 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-08: User reaffirmed "add to worklist" after the latest answer-only sequence. Keep this queued under `INT-026` rather than duplicating raw answer choices across implementation tasks.
 - 2026-07-08: User again requested "add to worklist" after the most recent follow-up answer. Treat this as confirmation that the current survey sequence must be reconciled before release cleanup is considered complete.
 - 2026-07-08: Reconciled the follow-up sequence into `docs/requirements-ledger.md`. Reconstructable decisions were promoted into a follow-up reconciliation section; answer-only choices without durable prompts were explicitly kept as unreconstructable confirmations instead of being guessed.
+- 2026-07-08: User repeated "add to worklist" after another answer-only continuation. Preserve this as a standing backlog hygiene rule: future implementation passes must promote only reconstructable product decisions into owning tasks and leave unpaired answer choices in the ledger's open-confirmation table.
 
 **Description:** Capture the latest follow-up survey choices as durable product requirements. The goal is to prevent the worklist from drifting away from the user's clarified priorities after chat compaction or implementation passes.
 
