@@ -1,9 +1,11 @@
 import importlib.util
+import json
 import os
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import contextmanager
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -18,6 +20,26 @@ except (ImportError, RuntimeError):  # pragma: no cover
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@contextmanager
+def console_auth_env():
+    keys = ("MATTS_CONSOLE_AUTH_ENABLED", "MATTS_CONSOLE_AUTH_TOKEN", "MATTS_CONSOLE_ROLE_TOKENS")
+    old = {key: os.environ.get(key) for key in keys}
+    os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = "1"
+    os.environ["MATTS_CONSOLE_AUTH_TOKEN"] = "owner-token-secret"
+    os.environ["MATTS_CONSOLE_ROLE_TOKENS"] = json.dumps({
+        "viewer-token": {"id": "viewer-user", "roles": ["viewer"]},
+        "operator-token": {"id": "operator-user", "roles": ["operator"]},
+    })
+    try:
+        yield
+    finally:
+        for key, value in old.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def load_launcher():
@@ -113,6 +135,33 @@ class V2AppLauncherTests(unittest.TestCase):
         self.assertTrue(payload["details"]["method_mismatch"])
         self.assertEqual(payload["details"]["allowed_methods"], ["GET"])
         self.assertIn("Use GET /v2/research/engines", payload["details"]["suggested_fix"])
+
+    def test_ws_tmux_route_is_registered_before_react_static_mount(self):
+        if app_module.FastAPI is None or app_module.StaticFiles is None:
+            self.skipTest("fastapi is not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            dist = Path(tmp)
+            (dist / "index.html").write_text("<!doctype html><div id=\"root\">v2</div>", encoding="utf-8")
+            with patch.object(app_module, "FRONTEND_DIST", dist):
+                app = app_module.create_app()
+
+        tmux_index = next(index for index, route in enumerate(app.routes) if getattr(route, "path", "") == "/ws/tmux")
+        react_index = next(index for index, route in enumerate(app.routes) if getattr(route, "name", "") == "react")
+        self.assertLess(tmux_index, react_index)
+
+    def test_ws_tmux_viewer_denial_uses_v2_route_not_static_mount(self):
+        if app_module.FastAPI is None or app_module.StaticFiles is None or TestClient is None:
+            self.skipTest("fastapi test client is not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            dist = Path(tmp)
+            (dist / "index.html").write_text("<!doctype html><div id=\"root\">v2</div>", encoding="utf-8")
+            with patch.object(app_module, "FRONTEND_DIST", dist), console_auth_env():
+                client = TestClient(app_module.create_app())
+                with client.websocket_connect("/ws/tmux?session=work&token=viewer-token") as websocket:
+                    payload = websocket.receive_json()
+
+        self.assertEqual(payload["type"], "denied")
+        self.assertEqual(payload["decision"]["required_permission"], "tmux_control")
 
     def test_cors_origins_default_to_remote_browser_friendly_wildcard(self):
         old_env = os.environ.get("MATTS_V2_CORS_ORIGINS")

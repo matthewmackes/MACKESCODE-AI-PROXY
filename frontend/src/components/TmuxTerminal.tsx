@@ -11,6 +11,19 @@ type Props = {
   workspace?: TmuxWorkspacePayload;
 };
 
+function bridgeMessageText(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  const row = value as Record<string, unknown>;
+  if (row.type === 'denied') {
+    const decision = row.decision && typeof row.decision === 'object' ? row.decision as Record<string, unknown> : {};
+    return `TMux attach denied: ${decision.required_permission || 'tmux_control'} permission required.`;
+  }
+  if (row.type === 'error') {
+    return `TMux attach failed: ${row.code || 'unknown_error'}${row.session ? ` (${row.session})` : ''}`;
+  }
+  return '';
+}
+
 function tmuxWebSocketUrl(sessionName: string, workspace?: TmuxWorkspacePayload): string {
   const terminal = workspace?.terminal;
   const url = new URL(apiWebSocketUrl(terminal?.websocket_path || '/ws/tmux', { defaultPort: terminal?.default_legacy_port }));
@@ -60,13 +73,27 @@ export default function TmuxTerminal({ active, canControl, sessionName, workspac
     socket.onerror = () => {
       setStatusText('Attach failed');
     };
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       setConnected(false);
-      setStatusText('Detached');
-      terminal.writeln('\r\n[tmux detached]');
+      const cleanClose = event.code === 1000 || event.code === 1001;
+      const detail = event.reason || (cleanClose ? 'detached' : `closed ${event.code}`);
+      setStatusText(cleanClose ? 'Detached' : 'Attach closed');
+      terminal.writeln(`\r\n[tmux ${detail}]`);
     };
     socket.onmessage = (event) => {
       if (typeof event.data === 'string') {
+        const trimmed = event.data.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const bridgeText = bridgeMessageText(JSON.parse(trimmed));
+            if (bridgeText) {
+              terminal.writeln(`\r\n${bridgeText}`);
+              return;
+            }
+          } catch {
+            // Not a bridge control message; write it to the terminal below.
+          }
+        }
         terminal.write(event.data);
       } else {
         terminal.write(new Uint8Array(event.data));

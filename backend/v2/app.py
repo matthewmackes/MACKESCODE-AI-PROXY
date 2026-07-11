@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - dependency is installed by the v2 setu
     StaticFiles = None  # type: ignore[assignment]
     StarletteHTTPException = Exception  # type: ignore[assignment]
 
-from backend.v2.api import auth, chat, code, console, create, models, observe, operate, research, run, tui
+from backend.v2.api import auth, chat, code, console, create, models, observe, operate, research, run, tmux_ws, tui
 from src.console.utils.errors import error_payload, route_not_found_details
 
 
@@ -117,6 +117,8 @@ def create_app():
         app.include_router(operate.router)
     if tui.router is not None:
         app.include_router(tui.router)
+    if tmux_ws.router is not None:
+        app.include_router(tmux_ws.router)
     if BRANDING_DIR.exists() and StaticFiles is not None:
         app.mount("/branding", StaticFiles(directory=str(BRANDING_DIR)), name="branding")
     if FRONTEND_DIST.exists() and StaticFiles is not None:

@@ -65,6 +65,9 @@ Security and reliability fixes from the comprehensive architecture/UX review
   ADR-0003 makes the V2 React console the current product surface.
 - Registry writes are now centrally non-churning: `ModelRegistryService.save()`
   skips the write when the on-disk content already matches.
+- V2 TMux attach now has a native `/ws/tmux` FastAPI bridge, so browser
+  attachments no longer fall through the React static mount and immediately
+  detach.
 - Proxy `/v1/images/generations` now enforces the budget guard and the model
   allowlist, matching the chat path; over-budget or unconfigured-model image
   requests are rejected instead of silently spending or forwarding arbitrary
