@@ -14,6 +14,13 @@ class TmuxControlService:
         "C-c", "C-d", "C-u", "C-l", "PageUp", "PageDown", "Home", "End",
     }
 
+    # Every console-managed tmux session name lives under this prefix. It is the
+    # single security boundary that keeps the browser-exposed console from
+    # attaching, capturing, writing, or killing arbitrary host tmux sessions
+    # (e.g. `default` or another user's SSH session). See GOVERNANCE.md: tmux
+    # terminal writes/reads are a security surface and the console binds 0.0.0.0.
+    managed_prefix = "matts-"
+
     def __init__(
         self,
         script_dir,
@@ -50,6 +57,35 @@ class TmuxControlService:
 
     def active_text_models(self):
         return list(self.text_models() if callable(self.text_models) else self.text_models)
+
+    def _ensure_managed(self, session):
+        """Force a bare session name into the console-managed namespace.
+
+        Idempotent: names that already carry the managed prefix are returned
+        unchanged; empty input falls back to the managed default. Non-managed
+        names (e.g. ``default``) are namespaced under the prefix so they can
+        never resolve to a foreign host session.
+        """
+        session = str(session or "").strip()
+        if not session:
+            return self.managed_prefix + "claude"
+        if not session.startswith(self.managed_prefix):
+            session = self.managed_prefix + session
+        return session
+
+    def scoped_target(self, value):
+        """Normalize and constrain a tmux target to the managed namespace.
+
+        This is the single choke-point for every capture/send/attach/stop
+        operation. It first runs the injected ``tmux_target`` sanitizer (strips
+        unsafe characters, applies the managed default) and then guarantees the
+        session component of the target carries the managed prefix. Pane targets
+        of the form ``session:window.pane`` keep their window/pane suffix while
+        only the session component is scoped.
+        """
+        target = self.tmux_target(value)
+        session, sep, rest = str(target).partition(":")
+        return self._ensure_managed(session) + sep + rest
 
     def launcher_health(self):
         launcher = self.script_dir() / "claude-DO.sh"
@@ -162,7 +198,10 @@ class TmuxControlService:
         if not Path(project_dir).is_dir():
             return HTTPStatus.BAD_REQUEST, {"error": "project directory does not exist"}
         display_name = str(data.get("display_name") or data.get("name") or "matts-claude").strip() or "matts-claude"
-        requested_name = data.get("name") or display_name
+        # Scope the requested name to the managed namespace before resolving it,
+        # otherwise start() itself becomes an attach vector for a foreign session
+        # (existing-session branch returns a captured screen with attached=True).
+        requested_name = self._ensure_managed(data.get("name") or display_name)
         name = self.unique_tmux_session_name(requested_name) if data.get("new_session") else self.tmux_session_name(requested_name)
         run_mode = data.get("run_mode") or "interactive"
         reset_dead_session = False
@@ -222,14 +261,14 @@ class TmuxControlService:
         return HTTPStatus.BAD_REQUEST, {"error": "tmux session did not become addressable", "name": name, "sessions": out.splitlines(), "detail": err}
 
     def capture(self, name):
-        name = self.tmux_target(name)
+        name = self.scoped_target(name)
         code, out, err = self.tmux_capture_target(name, "-200")
         if code != 0:
             return HTTPStatus.NOT_FOUND, {"error": err or "tmux session not found", "name": name}
         return HTTPStatus.OK, {"name": name, "screen": out}
 
     def send_text(self, name, text, enter=False):
-        name = self.tmux_target(name)
+        name = self.scoped_target(name)
         buffer_name = name + "-paste"
         code, _, err = self.tmux_cmd(["set-buffer", "-b", buffer_name, text or ""], check=False)
         if code != 0:
@@ -242,7 +281,7 @@ class TmuxControlService:
         return HTTPStatus.OK, {"ok": True}
 
     def send_key(self, name, key):
-        name = self.tmux_target(name)
+        name = self.scoped_target(name)
         if key not in self.allowed_keys:
             return HTTPStatus.BAD_REQUEST, {"error": "key is not allowed"}
         code, _, err = self.tmux_cmd(["send-keys", "-t", name, key], check=False)
@@ -251,7 +290,7 @@ class TmuxControlService:
         return HTTPStatus.OK, {"ok": True}
 
     def stop(self, name):
-        name = self.tmux_target(name)
+        name = self.scoped_target(name)
         code, _, err = self.tmux_cmd(["kill-session", "-t", name], check=False)
         if code not in (0, 1):
             return HTTPStatus.BAD_REQUEST, {"error": err or "tmux kill-session failed"}

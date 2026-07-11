@@ -2,10 +2,19 @@
 import colorsys
 import hashlib
 import json
+import os
+import tempfile
+import threading
 import time
 
 
 NEW_MODEL_SECONDS = 7 * 24 * 60 * 60
+
+# Serializes registry writes within this process. config/models.json is the
+# governance-locked source of truth, mutated from request threads, the dedicated
+# lifecycle worker, and catalog sync; without this a concurrent writer could
+# interleave with another and a reader could observe a torn file.
+_REGISTRY_WRITE_LOCK = threading.Lock()
 
 
 DEFAULT_BRAND_PROFILES = [
@@ -153,8 +162,35 @@ class ModelRegistryService:
 
     def save(self, path, models):
         normalized = [item for item in (self.normalize(model) for model in models) if item]
+        payload = json.dumps(self.document_from_models(normalized), indent=2, sort_keys=True) + "\n"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.document_from_models(normalized), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        # Centralized no-op guard: if the on-disk content already equals what we
+        # would write, skip the write entirely. This makes the registry write path
+        # non-churning for EVERY caller (status polls, catalog sync, dedicated
+        # updates), independent of each caller's own change detection.
+        try:
+            if path.exists() and path.read_text(encoding="utf-8") == payload:
+                return normalized
+        except OSError:
+            pass
+        # Atomic write: render to a sibling temp file, fsync, then os.replace so a
+        # concurrent reader always sees either the old or the new complete file,
+        # never a half-written one that would parse to zero models and reset the
+        # registry to bundled defaults.
+        with _REGISTRY_WRITE_LOCK:
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".models-", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp, path)
+            except BaseException:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
         return normalized
 
     def serverless_model_type(self, model_id):

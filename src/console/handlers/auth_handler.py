@@ -14,7 +14,7 @@ ROLE_PERMISSIONS = {
     "operator": {"view_console", "view_traces", "model_use", "tmux_control", "eval_run", "review_queue", "notification_update", "replay_run", "repository_context_import", "synthetic_load_run"},
     "model_admin": {"view_console", "view_traces", "model_use", "model_admin", "tmux_control", "eval_run", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "synthetic_load_run"},
     "billing_admin": {"view_console", "view_billing", "budget_admin"},
-    "infra_admin": {"view_console", "view_traces", "model_use", "tmux_control", "dedicated_admin", "budget_admin", "config_drift_admin", "rollback_admin", "automation_admin", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "audit_view", "policy_admin", "synthetic_load_run"},
+    "infra_admin": {"view_console", "view_traces", "model_use", "tmux_control", "dedicated_admin", "budget_admin", "config_drift_admin", "rollback_admin", "automation_admin", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "audit_view", "auth_session_admin", "policy_admin", "synthetic_load_run"},
 }
 
 SENSITIVE_POST_PERMISSIONS = {
@@ -25,6 +25,11 @@ SENSITIVE_POST_PERMISSIONS = {
     "/api/model-deprecations/preview": ("model_admin", "model_deprecation.preview"),
     "/api/model-deprecations/apply": ("model_admin", "model_deprecation.apply"),
     "/api/model-deprecations/rollback": ("model_admin", "model_deprecation.rollback"),
+    # Cost-bearing model calls: gate on model_use so a view-only token cannot
+    # spend the operator's budget through chat or image generation.
+    "/api/chat": ("model_use", "chat.completion"),
+    "/api/chat/compare": ("model_use", "chat.compare"),
+    "/api/generate": ("model_use", "image.generate"),
     "/api/dedicated/preflight": ("dedicated_admin", "dedicated.preflight"),
     "/api/dedicated/capacity-plan": ("dedicated_admin", "dedicated.capacity_plan"),
     "/api/dedicated/build": ("dedicated_admin", "dedicated.build"),
@@ -77,6 +82,7 @@ SENSITIVE_POST_PERMISSIONS = {
     "/api/test-models": ("model_admin", "model.smoke_test"),
     "/api/tmux/start": ("tmux_control", "tmux.start"),
     "/api/tmux/permissions": ("tmux_control", "tmux.permissions"),
+    # Reads of live terminal contents are a security surface, not just writes.
     "/api/tmux/capture": ("tmux_control", "tmux.capture"),
     "/api/tmux/send": ("tmux_control", "tmux.send"),
     "/api/tmux/key": ("tmux_control", "tmux.key"),
@@ -89,6 +95,7 @@ SENSITIVE_POST_PERMISSIONS = {
 }
 
 SENSITIVE_GET_PERMISSIONS = {
+    "/api/models/serverless-catalog": ("model_admin", "model_catalog.refresh"),
     "/api/auth/sessions": ("auth_session_admin", "auth.sessions.list"),
     "/api/audit": ("audit_view", "audit.view"),
     "/api/audit/export": ("audit_view", "audit.export"),

@@ -65,6 +65,21 @@ if [ -f "matts-image" ]; then
     install -m 755 matts-image %{buildroot}/usr/lib/matts-value-set/
 fi
 
+# Install application package, templates, and read-only config (required at
+# runtime; the console imports src.console.* and serves templates/).
+cp -r src %{buildroot}/usr/lib/matts-value-set/
+cp -r templates %{buildroot}/usr/lib/matts-value-set/
+cp -r config %{buildroot}/usr/lib/matts-value-set/
+
+# Seed the writable model registry under the data dir (source of truth must be
+# writable; environment.conf points MATTS_MODEL_CONFIG_FILE here).
+mkdir -p %{buildroot}/var/lib/matts-value-set/config
+if [ -f config/models.json ]; then
+    install -m 644 config/models.json %{buildroot}/var/lib/matts-value-set/config/models.json
+elif [ -f config/default-models.json ]; then
+    install -m 644 config/default-models.json %{buildroot}/var/lib/matts-value-set/config/models.json
+fi
+
 # Create symlinks in /usr/bin
 ln -sf ../lib/matts-value-set/claude-DO.sh %{buildroot}/usr/bin/claude-do
 ln -sf ../lib/matts-value-set/do-anthropic-proxy.py %{buildroot}/usr/bin/matts-value-set-proxy
@@ -176,6 +191,15 @@ fi
 
 # Additional CLI tools
 /usr/lib/matts-value-set/matts-image
+
+# Application package, templates, and read-only config
+/usr/lib/matts-value-set/src
+/usr/lib/matts-value-set/templates
+/usr/lib/matts-value-set/config
+
+# Writable model registry seed (source of truth; may be edited at runtime)
+%dir /var/lib/matts-value-set/config
+%config(noreplace) /var/lib/matts-value-set/config/models.json
 
 # Symlinks
 /usr/bin/claude-do

@@ -187,6 +187,27 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
         self.assertIn("dedicated", by_id)
         self.assertEqual(state["refreshes"], 1)
 
+    def test_sync_does_not_churn_registry_when_catalog_is_unchanged(self):
+        catalog = {
+            "ok": True,
+            "source": "test",
+            "fetched_at": 1000,
+            "payload": {"data": [{"id": "cheap", "pricing": {"input": 0.1, "output": 0.2}}]},
+            "error": "",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            service, state, _ = self.service(tmp, serverless_catalog_payload=lambda force=False: catalog)
+            # First sync populates and persists.
+            service.sync_serverless_model_catalog(force=True, validate_access=False)
+            baseline_refreshes = state["refreshes"]
+            self.assertGreaterEqual(baseline_refreshes, 1)
+            # A second identical sync (the passive GET /api/models path) must change
+            # nothing and must NOT rewrite the registry or refresh globals again.
+            result = service.sync_serverless_model_catalog(force=True, validate_access=False)
+
+        self.assertEqual((result["added"], result["updated"], result["removed"]), (0, 0, 0))
+        self.assertEqual(state["refreshes"], baseline_refreshes)
+
     def test_audit_updates_access_and_syncs_proxy(self):
         catalog_holder = {"payload": {"ok": False, "payload": {"data": []}, "error": "skip"}}
         with tempfile.TemporaryDirectory() as tmp:

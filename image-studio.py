@@ -1056,10 +1056,17 @@ def enforce_dedicated_policy():
     return dedicated_service().enforce_policy()
 
 
+def reconcile_dedicated_lifecycle():
+    return dedicated_service().reconcile()
+
+
 def dedicated_policy_worker(interval=30):
     while True:
         try:
-            enforce_dedicated_policy()
+            # Refresh live DigitalOcean state AND apply policy headlessly, so idle
+            # and unhealthy teardown do not depend on a browser polling the status
+            # endpoint.
+            reconcile_dedicated_lifecycle()
         except Exception as exc:
             append_dedicated_event("policy_worker", "Dedicated policy worker failed", "error", {"error": str(exc)})
         time.sleep(interval)
@@ -1268,6 +1275,25 @@ def augment_with_retrieval(data, action="chat"):
 
 def proxy_get(path):
     return chat_routing_service().proxy_get(path)
+
+
+def _read_last_lines(path, limit, block=8192):
+    """Read approximately the last `limit` lines of a file without loading the
+    whole thing, by seeking backward in blocks from the end. Bounds the work on
+    unbounded JSONL logs (usage/traces/proxy) that were previously read in full."""
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            remaining = handle.tell()
+            data = b""
+            while remaining > 0 and data.count(b"\n") <= limit:
+                read = min(block, remaining)
+                remaining -= read
+                handle.seek(remaining)
+                data = handle.read(read) + data
+    except OSError:
+        return []
+    return data.decode("utf-8", errors="replace").splitlines()[-limit:]
 
 
 def tail_jsonl(path, limit=80):

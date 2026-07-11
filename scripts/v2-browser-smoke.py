@@ -301,10 +301,9 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.get_by_test_id("shell-readiness-pulse")).to_be_visible()
         expect(page.get_by_test_id("shell-readiness-reason").first).to_be_visible()
-        for label in ("console", "run", "observe", "operate", "tui"):
+        for label in ("console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
         expect(page.locator(".consoleHeader")).to_be_visible()
-        expect(page.get_by_test_id("tui-terminal")).to_be_visible()
         expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
         expect(page.get_by_test_id("tmux-session-table")).to_be_visible()
         expect(page.get_by_test_id("tmux-control-dock")).to_be_visible()
@@ -346,9 +345,12 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         else:
             expect(page.get_by_test_id("operate-release-handoff-brief")).to_contain_text("No handoff")
         assert_no_document_horizontal_overflow(page, "mobile Advanced operate handoff")
-        page.locator(".advancedTabs").get_by_role("button", name="tui", exact=True).click()
+        page.get_by_role("navigation", name="Primary").get_by_role("button", name="Code", exact=True).click()
+        expect(page.get_by_role("heading", name="Code")).to_be_visible()
+        expect(page.get_by_test_id("code-tui-section")).to_be_visible()
+        page.get_by_test_id("code-tui-toggle").click()
         expect(page.get_by_test_id("tui-terminal")).to_be_visible()
-        assert_no_document_horizontal_overflow(page, "mobile Advanced TUI")
+        assert_no_document_horizontal_overflow(page, "mobile Code TUI")
     finally:
         page.close()
 
@@ -1368,42 +1370,20 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".createBriefDock")).to_contain_text("No brief")
         expect(page.locator(".createBriefDock").get_by_role("button", name="Copy Brief")).to_be_disabled()
         expect(page.locator(".createBriefDock").get_by_role("button", name="Download Brief")).to_be_disabled()
-        page.locator(".modeSwitch").get_by_role("button", name="Research").click()
-        expect(page.locator(".createSourceControls")).to_contain_text("All sources")
-        expect(page.locator(".createSourceControls").get_by_role("button", name="All Sources")).to_have_attribute("aria-pressed", "true")
-        expect(page.locator(".createSourceControls").get_by_role("button", name="Required Sources")).to_have_attribute("aria-pressed", "false")
-        page.locator(".createSourceControls").get_by_role("button", name="Required Sources").click()
-        expect(page.locator(".createSourceControls")).to_contain_text("5 required sources")
-        expect(page.locator(".createSourceControls").get_by_role("button", name="All Sources")).to_have_attribute("aria-pressed", "false")
-        expect(page.locator(".createSourceControls").get_by_role("button", name="Required Sources")).to_have_attribute("aria-pressed", "true")
-        page.locator(".createPrompt textarea").fill("serverless inference news")
-        with page.expect_request(lambda request: "/v2/research/search" in request.url and "serverless inference news" in (request.post_data or "")) as create_research_request:
-            with page.expect_response(lambda response: "/v2/research/search" in response.url and response.status == 200):
-                page.locator(".createPrompt textarea").press("Control+Enter")
-        create_research_payload = json.loads(create_research_request.value.post_data or "{}")
-        assert create_research_payload.get("engines") == ["images", "examples", "mapping", "wikipedia", "technical-docs"]
-        expect(page.locator(".createResult")).to_contain_text("serverless inference news")
+        expect(page.locator(".modeSwitch")).to_have_count(0)
+        expect(page.locator(".createSourceControls")).to_have_count(0)
+        page.locator(".createPrompt textarea").fill("smoke image prompt")
+        with page.expect_response(lambda response: "/v2/create/images" in response.url and response.status == 200):
+            page.get_by_role("button", name="Generate", exact=True).click()
         expect(page.locator(".createBriefDock")).to_contain_text("Brief Ready")
         expect(page.locator(".createBriefDock").get_by_role("button", name="Copy Brief")).to_be_enabled()
         expect(page.locator(".createHistory")).to_be_visible()
         expect(page.locator(".createHistoryCard")).to_have_count(1)
-        expect(page.locator(".createHistoryCard").first).to_contain_text("Research")
-        expect(page.locator(".createHistoryCard").first).to_contain_text("serverless inference news")
-        page.locator(".modeSwitch").get_by_role("button", name="Image").click()
-        page.locator(".createPrompt textarea").fill("smoke image prompt")
-        with page.expect_response(lambda response: "/v2/create/images" in response.url and response.status == 200):
-            page.get_by_role("button", name="Run", exact=True).click()
-        expect(page.locator(".createHistoryCard")).to_have_count(2)
         expect(page.locator(".createHistoryCard").first).to_contain_text("Image")
+        assert "Research" not in page.locator(".createHistoryCard").first.inner_text()
         expect(page.locator(".createHistoryCard").first.locator("img")).to_have_count(1)
         expect(page.locator(".createHistoryCard").first.get_by_role("button", name="Reuse")).to_be_visible()
         expect(page.locator(".createHistoryCard").first.get_by_role("button", name="Copy")).to_be_visible()
-        page.locator(".createHistoryCard").nth(1).get_by_role("button", name="Copy").click()
-        expect(page.locator(".createHistory")).to_contain_text("Packet copied")
-        copied_research_history = page.evaluate("window.__mattsSmokeClipboard || ''")
-        assert "# Create History Packet" in copied_research_history
-        assert "Mode: Research" in copied_research_history and "serverless inference news" in copied_research_history
-        assert "## Research Snapshot" in copied_research_history and "## Evidence" in copied_research_history and "Citation:" in copied_research_history
         page.locator(".createHistoryCard").first.get_by_role("button", name="Copy").click()
         expect(page.locator(".createHistory")).to_contain_text("Packet copied")
         copied_image_history = page.evaluate("window.__mattsSmokeClipboard || ''")
@@ -1413,22 +1393,14 @@ def run_browser_smoke(base_url: str) -> None:
         page.locator(".createBriefDock").get_by_role("button", name="Copy Brief").click()
         expect(page.locator(".createBriefDock")).to_contain_text("Brief copied")
         copied_create_brief = page.evaluate("window.__mattsSmokeClipboard || ''")
-        assert "# Create Brief" in copied_create_brief and "smoke image prompt" in copied_create_brief and "serverless inference news" in copied_create_brief
-        assert "Research Source Mode: Required Sources" in copied_create_brief
+        assert "# Create Brief" in copied_create_brief and "smoke image prompt" in copied_create_brief and "Studio: Image creation" in copied_create_brief
+        assert "Research Source Mode" not in copied_create_brief and "serverless inference news" not in copied_create_brief
         assert "## Images" in copied_create_brief and "sdxl-smoke" in copied_create_brief and "## Recent History" in copied_create_brief
         with page.expect_download() as create_brief_download:
             page.locator(".createBriefDock").get_by_role("button", name="Download Brief").click()
         assert create_brief_download.value.suggested_filename.startswith("mde-llm-proxy-create-brief-")
         assert create_brief_download.value.suggested_filename.endswith(".md")
-        page.locator(".createHistoryCard").nth(1).get_by_role("button", name="Reuse").click()
-        expect(page.locator(".modeSwitch").get_by_role("button", name="Research")).to_have_class(re.compile("active"))
-        expect(page.locator(".createPrompt textarea")).to_have_value("serverless inference news")
-        expect(page.locator(".createResult")).to_contain_text("serverless inference news")
-        expect(page.locator(".createResult")).to_contain_text("Research Team")
-        page.locator(".modeSwitch").get_by_role("button", name="Image").click()
-        expect(page.locator(".imageGalleryResult")).to_have_count(0)
         page.locator(".createHistoryCard").first.get_by_role("button", name="Reuse").click()
-        expect(page.locator(".modeSwitch").get_by_role("button", name="Image")).to_have_class(re.compile("active"))
         expect(page.locator(".createPrompt textarea")).to_have_value("smoke image prompt")
         expect(page.locator(".createImageGrid img")).to_have_count(1)
         expect(page.locator(".imageGalleryResult")).to_contain_text("Image result")
@@ -1438,17 +1410,17 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".imageGalleryResult").get_by_role("link", name="Download")).to_be_visible()
         expect(page.locator(".imageGalleryResult")).to_contain_text("Raw payload")
         stored_create = page.evaluate("window.sessionStorage.getItem('matts-v2-create-workspace')")
-        assert stored_create and "smoke image prompt" in stored_create and "serverless inference news" in stored_create
+        assert stored_create and "smoke image prompt" in stored_create and "sdxl-smoke" in stored_create and "serverless inference news" not in stored_create
         hero_nav.get_by_role("button", name="Models", exact=True).click()
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         hero_nav.get_by_role("button", name="Create", exact=True).click()
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
-        expect(page.locator(".modeSwitch").get_by_role("button", name="Image")).to_have_class(re.compile("active"))
+        expect(page.locator(".modeSwitch")).to_have_count(0)
         expect(page.locator(".createPrompt textarea")).to_have_value("smoke image prompt")
         expect(page.locator(".createHistory")).to_contain_text("Restored")
-        expect(page.locator(".createHistoryCard")).to_have_count(2)
+        expect(page.locator(".createHistoryCard")).to_have_count(1)
         expect(page.locator(".createHistoryCard").first).to_contain_text("Image")
-        expect(page.locator(".createHistoryCard").nth(1)).to_contain_text("Research")
+        assert "Research" not in page.locator(".createHistoryCard").first.inner_text()
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
         expect(page.locator(".imageGalleryResult")).to_contain_text("sdxl-smoke")
 
@@ -1529,8 +1501,9 @@ def run_browser_smoke(base_url: str) -> None:
 
         hero_nav.get_by_role("button", name="Advanced", exact=True).click()
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        for label in ("console", "run", "observe", "operate", "tui"):
+        for label in ("console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="tui", exact=True)).to_have_count(0)
         page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True).click()
         expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate("window.sessionStorage.getItem('matts-v2-advanced-tab')") == "observe"
@@ -1555,8 +1528,9 @@ def run_browser_smoke(base_url: str) -> None:
         assert "chat" in copied_state["recent_workspace_keys"]
         assert copied_state["restore_state"]["matts-v2-advanced-tab"] == "observe"
         assert "matts-v2-create-workspace" in copied_state["restore_state"]
-        assert "serverless inference news" in copied_state["restore_state"]["matts-v2-create-workspace"]
-        assert "researchResult" in copied_state["restore_state"]["matts-v2-create-workspace"]
+        assert "smoke image prompt" in copied_state["restore_state"]["matts-v2-create-workspace"]
+        assert "serverless inference news" not in copied_state["restore_state"]["matts-v2-create-workspace"]
+        assert "researchResult" not in copied_state["restore_state"]["matts-v2-create-workspace"]
         assert "imageResult" in copied_state["restore_state"]["matts-v2-create-workspace"]
         workspace_state_path = Path(tempfile.gettempdir()) / "v2-workspace-state-smoke.json"
         workspace_state_path.write_text(json.dumps(copied_state), encoding="utf-8")
@@ -1596,12 +1570,12 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate("window.location.hash") == "#advanced"
         restored_create = page.evaluate("window.sessionStorage.getItem('matts-v2-create-workspace')")
-        assert restored_create and "serverless inference news" in restored_create and "researchResult" in restored_create and "imageResult" in restored_create
+        assert restored_create and "smoke image prompt" in restored_create and "researchResult" not in restored_create and "imageResult" in restored_create
         restored_recents = page.evaluate("window.sessionStorage.getItem('matts-v2-quick-switcher-recents')")
         assert restored_recents and "chat" in restored_recents
         hero_nav.get_by_role("button", name="Create", exact=True).click()
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
-        expect(page.locator(".createHistoryCard")).to_have_count(2)
+        expect(page.locator(".createHistoryCard")).to_have_count(1)
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
         hero_nav.get_by_role("button", name="Advanced", exact=True).click()
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()

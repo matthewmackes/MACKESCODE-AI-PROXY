@@ -235,7 +235,7 @@ class ProxyRegistryReloadTests(unittest.TestCase):
             policy_file = Path(tmp) / "gateway-policy.json"
             policy_file.write_text(json.dumps({
                 "schema_version": 1,
-                "failover": {"max_attempts": 3},
+                "cache": {"ttl_seconds": 120},
                 "rate_limits": {"enabled": True, "global_per_minute": 60},
             }), encoding="utf-8")
 
@@ -244,7 +244,7 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertTrue(loaded)
         self.assertEqual(error, "")
         self.assertTrue(policy["failover"]["enabled"])
-        self.assertEqual(policy["failover"]["max_attempts"], 3)
+        self.assertEqual(policy["cache"]["ttl_seconds"], 120)
         self.assertTrue(policy["rate_limits"]["enabled"])
         self.assertEqual(policy["rate_limits"]["global_per_minute"], 60)
         self.assertIn("chat", policy["cache"]["routes"])
@@ -261,7 +261,8 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertFalse(loaded)
         self.assertIn("schema_version", error)
         self.assertEqual(policy["schema_version"], 1)
-        self.assertTrue(policy["budget"]["trace_budget_blocks"])
+        self.assertTrue(policy["failover"]["enabled"])
+        self.assertIn(429, policy["retries"]["retry_statuses"])
 
     def test_gateway_rate_limit_blocks_over_limit_chat_request(self):
         server = SimpleNamespace(

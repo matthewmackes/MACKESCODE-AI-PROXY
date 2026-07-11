@@ -66,6 +66,11 @@ class AnalyticsService:
         model_rows.sort(key=lambda item: (item["cost_usd"], item["requests"]), reverse=True)
         daily_rows = [dict(item, cost_usd=round(float(item.get("cost_usd") or 0), 8)) for item in sorted(by_day.values(), key=lambda item: item["date"])]
         avg_latency = int(sum(latency_values) / len(latency_values)) if latency_values else 0
+        # ``cost_summary_payload`` performs the live DigitalOcean billing call and
+        # a usage-log parse; both are cached inside UsageService (TTL insights
+        # cache + mtime-keyed usage-row cache shared across instances), so on the
+        # eager page load and subsequent polls this does not re-hit DO or re-parse
+        # the same usage log that ``local_usage_report`` above already read.
         summary = {
             "days": days,
             "start_date": start.isoformat(),

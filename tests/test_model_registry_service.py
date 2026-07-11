@@ -44,6 +44,60 @@ class ModelRegistryServiceTests(unittest.TestCase):
 
         self.assertEqual([model["id"] for model in active], ["allowed", "image"])
 
+    def test_save_is_atomic_and_leaves_no_temp_files(self):
+        service = self.service()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            service.save(path, [{"id": "a", "type": "text", "enabled": True, "pricing": {"input": 0.1}}])
+            service.save(path, [{"id": "b", "type": "text", "enabled": True, "pricing": {"input": 0.1}}])
+            # The final file parses cleanly and no .models-*.tmp scratch file survives.
+            import json as _json
+            doc = _json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual([m["id"] for m in doc["models"]], ["b"])
+            leftovers = [p.name for p in Path(tmp).iterdir() if p.name != "models.json"]
+            self.assertEqual(leftovers, [])
+
+    def test_save_is_a_noop_when_content_is_unchanged(self):
+        service = self.service()
+        models = [{"id": "a", "type": "text", "enabled": True, "pricing": {"input": 0.1}}]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            service.save(path, models)
+            replaced = {"n": 0}
+            import os as _os
+            real_replace = _os.replace
+
+            def counting_replace(src, dst):
+                replaced["n"] += 1
+                return real_replace(src, dst)
+
+            with patch("src.console.services.model_registry.os.replace", counting_replace):
+                # Identical content -> no atomic replace performed at all.
+                service.save(path, models)
+                # A real change -> exactly one replace.
+                service.save(path, models + [{"id": "b", "type": "text", "enabled": True, "pricing": {"input": 0.2}}])
+
+        self.assertEqual(replaced["n"], 1)
+
+    def test_save_replaces_via_temp_so_a_reader_never_sees_a_torn_file(self):
+        service = self.service()
+        seen = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            path.write_text('{"schema_version": 1, "models": [{"id": "old"}]}\n', encoding="utf-8")
+            import os as _os
+            real_replace = _os.replace
+
+            def spy_replace(src, dst):
+                # At the moment of replace the destination must still be the intact
+                # previous file, proving we never truncate-in-place.
+                seen["before"] = Path(dst).read_text(encoding="utf-8")
+                return real_replace(src, dst)
+
+            with patch("src.console.services.model_registry.os.replace", spy_replace):
+                service.save(path, [{"id": "new", "type": "text", "enabled": True, "pricing": {"input": 0.1}}])
+        self.assertIn("old", seen["before"])
+
     def test_options_enrich_brand_cost_status_and_use_case(self):
         option = self.service().enriched_option({
             "id": "openai-gpt-5-nano",

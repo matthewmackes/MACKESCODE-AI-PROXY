@@ -16,6 +16,16 @@ class DedicatedInferenceService:
 
     active_states = {"new", "creating", "provisioning", "active", "idle_warning", "draining", "cooldown", "tearing_down"}
     schema_version = 1
+    # Sensitive operational metadata that must never reach a viewer-scoped status
+    # payload or lifecycle event detail (GOVERNANCE: Dedicated endpoint access
+    # tokens, public/private endpoint FQDNs, inference ids, VPC UUIDs, CA certs,
+    # and raw DigitalOcean payloads are sensitive). Comparison is case-insensitive
+    # and matches exact keys anywhere in a nested details/response structure.
+    sensitive_detail_keys = frozenset({
+        "access_token", "access_key", "token", "authorization", "bearer",
+        "public_endpoint_fqdn", "private_endpoint_fqdn", "endpoints", "endpoint",
+        "vpc_uuid", "vpc", "ca_certificate", "ca_cert", "inference_id", "id", "raw",
+    })
 
     def __init__(
         self,
@@ -132,6 +142,22 @@ class DedicatedInferenceService:
         path.chmod(0o600)
         return merged
 
+    def redact_sensitive(self, value):
+        """Recursively drop sensitive keys so lifecycle event details and status
+        payloads never leak Dedicated endpoint access tokens, endpoint FQDNs,
+        inference ids, VPC UUIDs, CA certs, or raw DigitalOcean responses to a
+        viewer-scoped reader. Non-sensitive diagnostics (status codes, error
+        messages) are preserved even when nested inside a raw ``response``."""
+        if isinstance(value, dict):
+            return {
+                key: self.redact_sensitive(item)
+                for key, item in value.items()
+                if str(key).lower() not in self.sensitive_detail_keys
+            }
+        if isinstance(value, list):
+            return [self.redact_sensitive(item) for item in value]
+        return value
+
     def append_event(self, state, message, severity="info", details=None):
         event = {
             "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -139,7 +165,7 @@ class DedicatedInferenceService:
             "state": state,
             "severity": severity,
             "message": message,
-            "details": details or {},
+            "details": self.redact_sensitive(details or {}),
         }
         path = self.events_file()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,22 +245,24 @@ class DedicatedInferenceService:
         rows.sort(key=lambda item: float(item.get("ts") or 0))
         intervals = []
         open_start = None
+        # Reconstruct billing intervals from structured lifecycle *state*
+        # transitions only, never from human-readable message copy (PR-1.3): a
+        # billing server opens an interval when it first enters a start state and
+        # closes it when it reaches a terminal state. Reading the message text
+        # meant a reworded event could silently drop cost from the budget guard.
+        billing_start_states = {"new", "provisioning", "active"}
+        billing_stop_states = {"deleted", "failed"}
         for row in rows:
             try:
                 ts = float(row.get("ts") or 0)
             except (TypeError, ValueError):
                 continue
             state = str(row.get("state") or "")
-            message = str(row.get("message") or "")
-            if state in {"new", "provisioning", "active"} and (
-                "creation accepted" in message.lower() or "state changed" in message.lower()
-            ):
-                if open_start is None:
-                    open_start = ts
-            if state in {"deleted", "failed"} or (state == "tearing_down" and "destroying dedicated" in message.lower()):
-                if open_start is not None and ts >= open_start:
-                    intervals.append((open_start, ts))
-                    open_start = None
+            if state in billing_start_states and open_start is None:
+                open_start = ts
+            elif state in billing_stop_states and open_start is not None and ts >= open_start:
+                intervals.append((open_start, ts))
+                open_start = None
         if open_start is None and cfg.get("state") in self.active_states:
             open_start = float(cfg.get("run_started_at") or cfg.get("created_at") or 0) or None
         if open_start is not None:
@@ -292,13 +320,27 @@ class DedicatedInferenceService:
         keep_alive_until = float(cfg.get("keep_alive_until") or 0)
         keep_alive_started_at = float(cfg.get("keep_alive_started_at") or 0)
         last_work_at = float(cfg.get("last_work_at") or 0)
+        # Reference time idle is measured from (last work, else run start) — the
+        # same basis idle_seconds uses.
+        last_reference = float(cfg.get("last_work_at") or cfg.get("run_started_at") or 0)
+        # Normal idle-policy teardown deadline.
+        idle_deadline = (last_reference + teardown_seconds) if last_reference else 0
+        # PR-1.4: a keep-alive extension may only ever push the effective teardown
+        # deadline LATER, never earlier. The effective deadline is therefore the
+        # max of the normal idle deadline and any operator keep-alive floor, so an
+        # expiring *short* keep-alive can no longer force teardown while a longer
+        # idle window still has time left.
+        effective_deadline = max(idle_deadline, keep_alive_until) if keep_alive_until else idle_deadline
         extension_active_unused = bool(keep_alive_until and now < keep_alive_until and last_work_at <= keep_alive_started_at)
         extension_expired_unused = bool(keep_alive_until and now >= keep_alive_until and last_work_at <= keep_alive_started_at)
         warning = bool(cfg.get("state") == "active" and warning_seconds and idle >= warning_seconds)
-        teardown_due = bool(cfg.get("state") == "active" and (((teardown_seconds and idle >= teardown_seconds) and not extension_active_unused) or extension_expired_unused))
-        countdown = max(0, teardown_seconds - idle)
-        if extension_active_unused:
-            countdown = max(0, int(keep_alive_until - now))
+        teardown_due = bool(
+            cfg.get("state") == "active"
+            and teardown_seconds
+            and effective_deadline
+            and now >= effective_deadline
+        )
+        countdown = max(0, int(effective_deadline - now)) if effective_deadline else 0
         return {
             "idle_seconds": idle,
             "warning_seconds": warning_seconds,
@@ -308,6 +350,7 @@ class DedicatedInferenceService:
             "teardown_countdown_seconds": countdown if cfg.get("state") == "active" else 0,
             "keep_alive_until": keep_alive_until,
             "keep_alive_started_at": keep_alive_started_at,
+            "effective_teardown_deadline": effective_deadline,
             "extension_active_unused": extension_active_unused,
             "extension_expired_unused": extension_expired_unused,
         }
@@ -354,8 +397,24 @@ class DedicatedInferenceService:
         idle_policy = self.idle_policy_state(cfg)
         unhealthy_policy = self.unhealthy_policy_state(cfg)
         policy_decision = self.policy_service.dedicated_lifecycle_decision(cfg, idle_policy, unhealthy_policy).to_dict()
+        budget_state = self.budget_state(cfg)
         if cfg.get("state") != "active":
-            return {"action": "none", "reason": "not_active", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
+            return {"action": "none", "reason": "not_active", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "budget_state": budget_state, "dedicated": self.public_payload(cfg)}
+        # Numeric budget guard (PR-1.3): an over-budget active billing server is
+        # torn down by the headless policy path itself, using the numeric
+        # budget_state (never reconstructed from human-readable event copy), so
+        # enforcement does not depend on a browser polling the status endpoint.
+        if budget_state["critical"]:
+            self.append_event("budget_teardown", "Dedicated over-budget guard triggered teardown", "error", {
+                "reason": "budget_exceeded",
+                "budget_state": budget_state,
+                "budget_percent": budget_state["percent"],
+                "used_24h_usd": budget_state["used_24h_usd"],
+                "limit_usd": budget_state["limit_usd"],
+                "model_id": cfg.get("model_id"),
+            })
+            status, payload = self.teardown({"reason": "budget_exceeded"})
+            return {"action": "teardown", "reason": "budget_exceeded", "status": int(status), "payload": payload, "policy_decision": policy_decision, "budget_state": budget_state}
         if unhealthy_policy["teardown_due"]:
             self.append_event("unhealthy_teardown", "Dedicated unhealthy policy triggered teardown", "error", {
                 "unhealthy_policy": unhealthy_policy,
@@ -388,8 +447,8 @@ class DedicatedInferenceService:
                     "inference_id": cfg.get("inference_id"),
                     "policy_decision": policy_decision,
                 })
-                return {"action": "warning", "reason": "idle_warning", "policy_decision": policy_decision, "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
-        return {"action": "none", "reason": "within_policy", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
+                return {"action": "warning", "reason": "idle_warning", "policy_decision": policy_decision, "idle_policy": idle_policy, "budget_state": budget_state, "dedicated": self.public_payload(cfg)}
+        return {"action": "none", "reason": "within_policy", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "budget_state": budget_state, "dedicated": self.public_payload(cfg)}
 
     def keep_alive(self, data):
         data = data or {}
@@ -423,9 +482,20 @@ class DedicatedInferenceService:
     def public_payload(self, cfg):
         now = self.clock()
         clean = dict(cfg)
-        if clean.get("access_token"):
-            clean["access_token_configured"] = True
-            clean["access_token"] = ""
+        # Redact sensitive operational metadata before this reaches a
+        # viewer-scoped status payload (PR-1.5 / GOVERNANCE). Expose booleans so
+        # the GUI can still show configured/ready state without the secret value,
+        # mirroring the existing access_token redaction pattern.
+        clean["access_token_configured"] = bool(cfg.get("access_token"))
+        clean["inference_configured"] = bool(cfg.get("inference_id"))
+        clean["endpoint_configured"] = bool(self.endpoint(cfg))
+        clean["public_endpoint_configured"] = bool(cfg.get("public_endpoint_fqdn"))
+        clean["private_endpoint_configured"] = bool(cfg.get("private_endpoint_fqdn"))
+        for key in ("access_token", "inference_id", "public_endpoint_fqdn",
+                    "private_endpoint_fqdn", "vpc_uuid", "ca_certificate"):
+            if key in clean:
+                clean[key] = ""
+        clean["raw"] = {}
         clean.update({
             "elapsed_seconds": self.elapsed_seconds(cfg, now),
             "idle_seconds": self.idle_seconds(cfg, now),
@@ -531,7 +601,7 @@ class DedicatedInferenceService:
             "lifecycle": {
                 "requested_model": requested_model,
                 "state": lifecycle.get("state"),
-                "server_id": lifecycle.get("inference_id"),
+                "server_id": cfg.get("inference_id"),
                 "region": lifecycle.get("region"),
                 "model_slug": lifecycle.get("model_slug"),
                 "accelerator_slug": lifecycle.get("accelerator_slug"),
@@ -579,12 +649,16 @@ class DedicatedInferenceService:
         entry = self.model_entry(cfg, enabled=enabled)
         models = self.load_model_registry(include_disabled=True)
         existing = next((m for m in models if m.get("id") == entry["id"]), None)
+        # register_model runs on every remote state refresh (browser poll and the
+        # headless worker). Skip the registry write when the entry is unchanged so
+        # a status poll no longer churns the governance-locked registry file.
+        if existing == entry:
+            return entry
         models = [m for m in models if m.get("id") != entry["id"]]
         models.append(entry)
         self.save_model_registry(models)
         self.refresh_model_globals()
-        if existing != entry:
-            self.append_event("registering_model", "Updated Dedicated model registry entry", "success", {"model_id": entry["id"], "enabled": entry["enabled"], "state": entry.get("state")})
+        self.append_event("registering_model", "Updated Dedicated model registry entry", "success", {"model_id": entry["id"], "enabled": entry["enabled"], "state": entry.get("state")})
         return entry
 
     def remove_model(self, cfg):
@@ -774,28 +848,49 @@ class DedicatedInferenceService:
                         return "DigitalOcean marked %s for %s as %s. Rebuild with another available GPU or region." % (slug, model_slug, state)
         return ""
 
+    def refresh_remote_state(self, cfg):
+        """Poll DigitalOcean for the live inference state and reconcile local config.
+        Shared by status_payload (browser poll) and reconcile (headless worker) so
+        lifecycle advancement and health tracking never depend on a browser page
+        staying open (a GOVERNANCE cost-safety lock). Returns the updated cfg; a
+        no-op when there is no token or no live inference to poll."""
+        token = self.digitalocean_token()
+        if not (token and cfg.get("inference_id") and cfg.get("state") not in {"deleted", "not_configured"}):
+            return cfg
+        status, response = self.do_request("/v2/dedicated-inferences/%s" % quote(str(cfg["inference_id"]), safe=""), token, method="GET")
+        if status < 400:
+            previous = cfg.get("state")
+            cfg = self.update_from_resource(cfg, self.extract_resource(response))
+            cfg = self.record_health_success(cfg)
+            if cfg.get("state") != previous:
+                self.append_event(cfg.get("state"), "DigitalOcean state changed to %s" % cfg.get("state"), "info", {"previous": previous})
+            if cfg.get("state") == "active" and not cfg.get("access_token"):
+                cfg, _ = self.create_token(cfg)
+            if cfg.get("inference_id") and cfg.get("state") not in {"deleted", "not_configured", "tearing_down"}:
+                self.register_model(cfg)
+            self.save_config(cfg)
+        else:
+            error = json.dumps(response)[:1000]
+            cfg = self.record_health_failure(cfg, error, {"status": status, "response": response})
+            self.save_config(cfg)
+            self.append_event("status", "Failed to refresh Dedicated status", "error", {"status": status, "response": response})
+        return cfg
+
     def status_payload(self, poll=True):
         cfg = self.load_config()
-        token = self.digitalocean_token()
-        if poll and token and cfg.get("inference_id") and cfg.get("state") not in {"deleted", "not_configured"}:
-            status, response = self.do_request("/v2/dedicated-inferences/%s" % quote(str(cfg["inference_id"]), safe=""), token, method="GET")
-            if status < 400:
-                previous = cfg.get("state")
-                cfg = self.update_from_resource(cfg, self.extract_resource(response))
-                cfg = self.record_health_success(cfg)
-                if cfg.get("state") != previous:
-                    self.append_event(cfg.get("state"), "DigitalOcean state changed to %s" % cfg.get("state"), "info", {"previous": previous})
-                if cfg.get("state") == "active" and not cfg.get("access_token"):
-                    cfg, _ = self.create_token(cfg)
-                if cfg.get("inference_id") and cfg.get("state") not in {"deleted", "not_configured", "tearing_down"}:
-                    self.register_model(cfg)
-                self.save_config(cfg)
-            else:
-                error = json.dumps(response)[:1000]
-                cfg = self.record_health_failure(cfg, error, {"status": status, "response": response})
-                self.save_config(cfg)
-                self.append_event("status", "Failed to refresh Dedicated status", "error", {"status": status, "response": response})
+        if poll:
+            cfg = self.refresh_remote_state(cfg)
         return {"dedicated": self.public_payload(cfg), "events": self.events(), "models": self.models_payload(), "digitalocean": self.digitalocean_health_snapshot()}
+
+    def reconcile(self):
+        """Headless lifecycle tick for the background policy worker: refresh the
+        live DigitalOcean state (advancing provisioning->active, recording health
+        failures) and then apply idle/unhealthy/budget policy. Without the refresh
+        step, enforce_policy only sees stale local state and idle/unhealthy
+        teardown never fires unless a browser is polling the status endpoint."""
+        cfg = self.load_config()
+        self.refresh_remote_state(cfg)
+        return self.enforce_policy()
 
     def create_token(self, cfg):
         token = self.digitalocean_token()
@@ -822,6 +917,22 @@ class DedicatedInferenceService:
         cfg["scale"] = max(1, int(cfg.get("scale") or 1))
         cfg["price_per_hour"] = float(cfg.get("price_per_hour") or 0)
         cfg["daily_budget_usd"] = float(cfg.get("daily_budget_usd") or 0)
+        # Idempotency guard: never POST a second /v2/dedicated-inferences while a
+        # billing server is already live or in flight. A double build (double
+        # click, retry, or concurrent session) would overwrite inference_id and
+        # orphan the first GPU server with no teardown path. The operator must
+        # tear down first, or pass rebuild=true to intentionally replace it.
+        current_state = str(cfg.get("state") or "")
+        has_live_server = bool(cfg.get("inference_id")) and current_state not in {"deleted", "not_configured", "failed", ""}
+        live_in_flight = current_state in {"creating", "provisioning", "active", "idle_warning", "draining", "cooldown", "tearing_down"}
+        if (has_live_server or live_in_flight) and not bool(data.get("rebuild")):
+            message = (
+                "A Dedicated Inference server is already %s (inference_id=%s). Refusing to build a "
+                "second billing server; tear it down first, or resend with rebuild=true to replace it."
+                % (current_state or "provisioned", cfg.get("inference_id") or "unknown")
+            )
+            self.append_event("build_blocked", message, "warning", {"state": current_state, "inference_id": cfg.get("inference_id")})
+            return HTTPStatus.CONFLICT, {"error": message, "message": message, "dedicated": self.public_payload(cfg)}
         preflight = self.preflight(cfg)
         self.append_event("preflight", "Checking DigitalOcean permissions and required fields", "info", {"ok": preflight["ok"]})
         if not preflight["ok"]:

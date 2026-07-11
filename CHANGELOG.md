@@ -1,5 +1,76 @@
 # Changelog
 
+## Unreleased — Platform review hardening (2026-07-11)
+
+Security and reliability fixes from the comprehensive architecture/UX review
+(see `docs/PLATFORM-REVIEW-2026-07-11.md`):
+
+- Model registry (`config/models.json`) is now written atomically (temp file +
+  fsync + `os.replace`) under a process lock, so a concurrent write can no
+  longer produce a torn file that resets the governance-locked source of truth
+  to bundled defaults.
+- Dedicated Inference idle/unhealthy teardown and state advancement no longer
+  depend on a browser polling the status endpoint: the 30s background worker now
+  refreshes live DigitalOcean state and applies policy headlessly (`reconcile`).
+- Dedicated budget guard now reconstructs billing intervals from structured state
+  transitions (not human-readable event copy) and tears down an over-budget active
+  server in the headless policy path, audit-logged with the numeric budget state.
+- Dedicated keep-alive can only ever extend the idle-teardown deadline, never
+  shorten it.
+- Dedicated status payloads and lifecycle events now redact access tokens,
+  endpoint FQDNs, inference ids, VPC UUIDs, CA certs, and raw DigitalOcean
+  payloads, exposing `*_configured` booleans instead of the secret values.
+- tmux attach/capture/send/stop are scoped to console-managed (`matts-`) sessions,
+  and AgentBoard no longer surfaces screen previews of foreign host tmux sessions.
+- Proxy budget check on `/v1/messages` no longer re-parses the entire usage log
+  per request (incremental in-memory aggregator); `tail_jsonl` reads only the tail.
+- `/api/cost-summary` and `/api/analytics` cache the live DigitalOcean billing
+  call (TTL) and share a single usage-log parse instead of re-reading per request.
+- Serverless catalog sync and Dedicated `register_model` no longer rewrite the
+  model registry on every status poll when nothing changed; fixed a bug where a
+  catalog model's `auto_managed` flag flipped on every sync (non-idempotent entry).
+- Console template rendering escapes JSON interpolated into `<script>` blocks, so
+  model metadata containing `</script>` can no longer break out (stored XSS).
+- The wallpaper image proxy enforces a host allowlist, https-only, internal-IP
+  blocking, redirect suppression with final-URL re-validation, and a response
+  size cap + timeout (SSRF/DoS hardening).
+- Added proxy message-translation tests (OpenAI↔Anthropic text/tool_use/budget)
+  and HTTP-level authorization-enforcement tests.
+- The proxy's bare `--port` default is now `18081` (was `18080`), matching the
+  launcher, console, and `config/console.json` so running the proxy directly
+  binds the port the rest of the system expects.
+- The proxy now truly streams: `stream:true` requests forward upstream tokens
+  incrementally (real time-to-first-byte) instead of buffering the whole
+  response and replaying it as one SSE burst. Non-streaming requests, with their
+  context-retry and serverless failover, are unchanged.
+- Removed dead `gateway-policy.json` keys that were advertised via
+  `/v1/claude-do/gateway-policy` but never honored (failover max-attempts /
+  preference / reason-codes, retries enable/max/backoff, and the budget toggles);
+  `retries.retry_statuses` is retained (it drives failover triggering).
+- Added an audit of the pre-existing worklist COMPLETED claims
+  (`docs/worklist-audit-2026-07-11.md`): 12 confirmed, 2 partial, 0 unsubstantiated.
+- V1-only UI remediations from the source worktree were not ported because
+  ADR-0003 makes the V2 React console the current product surface.
+- Registry writes are now centrally non-churning: `ModelRegistryService.save()`
+  skips the write when the on-disk content already matches.
+- Proxy `/v1/images/generations` now enforces the budget guard and the model
+  allowlist, matching the chat path; over-budget or unconfigured-model image
+  requests are rejected instead of silently spending or forwarding arbitrary
+  models upstream.
+- Proxy request handlers no longer crash the request thread on malformed client
+  JSON, a malformed upstream 200 response, or a missing token file; unhandled
+  errors now return a logged `502` (or nothing extra once a stream has started).
+- Console authorization now gates cost-bearing (`/api/chat`, `/api/chat/compare`,
+  `/api/generate`) and live-terminal-read (`/api/tmux/capture`,
+  `/api/terminal/read`) routes on `model_use`/`tmux_control`, and permission-checks
+  state-mutating GET routes (`/api/models/serverless-catalog`). A view-only token
+  can no longer spend budget or read terminals.
+- Launcher warns visibly when it defaults to `--dangerously-skip-permissions`
+  (with `MATTS_REQUIRE_PERMISSION_PROMPTS=1` to refuse it) and refuses to launch
+  Claude Code against a proxy that is not listening.
+- Coverage reporting now measures the expanded shipped Python module set; the
+  current V2 release gate keeps its real coverage floor at 40%.
+
 ## Current
 
 - Removed the old whiptail launcher interface.

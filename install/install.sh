@@ -126,6 +126,26 @@ if [ -f "$PROJECT_DIR/matts-image" ]; then
     cp "$PROJECT_DIR/matts-image" "$INSTALL_DIR/"
 fi
 
+# Application package, templates, and read-only config (required at runtime:
+# image-studio.py imports src.console.*, serves templates/, and both launcher
+# and proxy resolve config/ relative to the install dir).
+rm -rf "$INSTALL_DIR/src" "$INSTALL_DIR/templates" "$INSTALL_DIR/config"
+cp -r "$PROJECT_DIR/src" "$INSTALL_DIR/"
+cp -r "$PROJECT_DIR/templates" "$INSTALL_DIR/"
+cp -r "$PROJECT_DIR/config" "$INSTALL_DIR/"
+
+# Seed a writable model registry under the data dir. config/models.json is the
+# runtime-editable source of truth, so it must not live under the read-only
+# install prefix; environment.conf points MATTS_MODEL_CONFIG_FILE here.
+mkdir -p "$DATA_DIR/config"
+if [ ! -f "$DATA_DIR/config/models.json" ]; then
+    if [ -f "$PROJECT_DIR/config/models.json" ]; then
+        cp "$PROJECT_DIR/config/models.json" "$DATA_DIR/config/models.json"
+    elif [ -f "$PROJECT_DIR/config/default-models.json" ]; then
+        cp "$PROJECT_DIR/config/default-models.json" "$DATA_DIR/config/models.json"
+    fi
+fi
+
 # Set permissions on scripts
 chmod 755 "$INSTALL_DIR"/*.sh "$INSTALL_DIR"/*.py "$INSTALL_DIR"/claude-* 2>/dev/null || true
 if [ -f "$INSTALL_DIR/matts-image" ]; then

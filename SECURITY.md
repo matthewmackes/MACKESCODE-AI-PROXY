@@ -101,7 +101,7 @@ Built-in roles:
 - `infra_admin`: operator plus Dedicated Inference and budget administration
 - `owner` / `admin`: all permissions
 
-Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, terminal writes, and interactive terminal WebSocket attach/detach on `/ws/tmux`.
+Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, terminal reads/writes, cost-bearing chat and image generation (`model_use`), the state-mutating serverless-catalog refresh GET, and interactive terminal WebSocket attach/detach on `/ws/tmux`. A `viewer` token cannot spend budget through chat/image generation or read live terminal contents; those require `operator`/`model_use` or `tmux_control`.
 
 The V2 React console uses the same role/capability model for `/v2/*` routes. The standing Console TUI bridge is read-only unless the actor has `tui.control`; control leases and denied writes are written to the TUI audit log. Operate actions such as automation dispatch, rollback apply, CI launch, review updates, and model deprecation migrations are capability-gated before reaching the legacy service adapter.
 

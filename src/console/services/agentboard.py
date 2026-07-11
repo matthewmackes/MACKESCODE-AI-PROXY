@@ -7,6 +7,10 @@ import time
 class AgentBoardService:
     """Builds AgentBoard session, usage, and leaderboard payloads."""
 
+    # AgentBoard captures pane previews. Only console-managed sessions may be
+    # surfaced; foreign host tmux sessions must not leak through this payload.
+    managed_prefix = "matts-"
+
     def __init__(
         self,
         ansi_re,
@@ -92,6 +96,10 @@ class AgentBoardService:
             if len(parts) < 10:
                 continue
             session, window_index, window_name, pane_index, command, path, width, height, pid, active = parts[:10]
+            # Scope to console-managed sessions only: skip foreign panes before
+            # capturing their screen so their contents never enter the payload.
+            if not str(session).startswith(self.managed_prefix):
+                continue
             target = "%s:%s.%s" % (session, window_index, pane_index)
             _, screen, _ = self.tmux_capture_target(target, "-120")
             try:

@@ -39,6 +39,18 @@ DEFAULT_FILES = [
     "src/console/services/usage.py",
     "src/console/services/wallpaper.py",
     "src/console/services/websocket.py",
+    "src/console/handlers/api_versioning.py",
+    "src/console/services/analytics.py",
+    "src/console/services/app_config.py",
+    "src/console/services/audit.py",
+    "src/console/services/auth_session.py",
+    "src/console/services/evals.py",
+    "src/console/services/model_hero.py",
+    "src/console/services/plugins.py",
+    "src/console/services/rate_limit.py",
+    "src/console/services/traces.py",
+    "src/console/utils/error_logging.py",
+    "src/console/utils/errors.py",
 ]
 
 

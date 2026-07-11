@@ -22,6 +22,19 @@ check_file() {
     fi
 }
 
+check_dir() {
+    local dir="$1"
+    TOTAL_FILES=$((TOTAL_FILES + 1))
+    if [ -d "$dir" ]; then
+        echo "  ✅ $dir/"
+        FILES_OK=$((FILES_OK + 1))
+        return 0
+    else
+        echo "  ❌ $dir/ (missing — runtime import/template/config resolution will fail)"
+        return 1
+    fi
+}
+
 echo "Main scripts:"
 check_file "/usr/lib/matts-value-set/claude-DO.sh"
 check_file "/usr/lib/matts-value-set/do-anthropic-proxy.py"
@@ -35,6 +48,16 @@ check_file "/usr/lib/matts-value-set/claude-glm"
 check_file "/usr/lib/matts-value-set/claude-mistral"
 check_file "/usr/lib/matts-value-set/claude-codex"
 check_file "/usr/lib/matts-value-set/claude-sd35"
+
+echo -e "\nRuntime packages and assets (required — the console imports src.console.* and serves templates/):"
+check_dir "/usr/lib/matts-value-set/src"
+check_dir "/usr/lib/matts-value-set/templates"
+check_dir "/usr/lib/matts-value-set/config"
+check_file "/usr/lib/matts-value-set/src/console/handlers/api_handler.py"
+check_file "/usr/lib/matts-value-set/templates/main.html"
+
+echo -e "\nWritable model registry seed (source of truth, must be under the data dir):"
+check_file "/var/lib/matts-value-set/config/models.json"
 
 echo -e "\n2. Checking symlinks..."
 SYMLINKS_OK=0

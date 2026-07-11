@@ -9563,6 +9563,164 @@ DO-ClaudeCode-Proxy/
 
 ---
 
+## Platform Review 2026-07-11 — Remediation Worklist
+
+Source: `docs/PLATFORM-REVIEW-2026-07-11.md` (116 findings: 8 P0, 38 P1, 53 P2, 17 P3).
+Phases are ordered by dependency: stability/security/data-integrity first, then
+performance, testing, UX/visual, and long-term architecture. Complexity is S/M/L.
+
+### Phase 0 — Completed in review pass / V2 port status
+
+Backend, security, packaging, proxy, and service hardening items were ported to
+the current V2 `main` line. V1-only UI/template remediations from the source
+worktree are preserved in the review record but superseded by ADR-0003 and were
+not ported as current-product changes.
+
+| ID | Title | Priority | Status |
+| --- | --- | --- | --- |
+| PR-0.1 | Atomic + locked model-registry writes | P0 | ✅ COMPLETED |
+| PR-0.2 | Dedicated build idempotency guard (`rebuild=true` to replace) | P0 | ✅ COMPLETED |
+| PR-1.2 | Headless Dedicated lifecycle polling (worker `reconcile`, no browser dependency) | P0 | ✅ COMPLETED |
+| PR-1.3 | Budget guard: numeric over-budget teardown (no event-string matching) | P1 | ✅ COMPLETED |
+| PR-1.4 | Keep-alive can only extend, never shorten, the teardown deadline | P1 | ✅ COMPLETED |
+| PR-1.5 | Redact Dedicated token/FQDN/inference-id from status payloads + events | P1 | ✅ COMPLETED |
+| PR-1.8 | Scope tmux attach/capture to console-managed (`matts-`) sessions | P1 | ✅ COMPLETED |
+| PR-2.1 | Proxy usage aggregator (incremental) + bounded `tail_jsonl` | P0/P1 | ✅ COMPLETED |
+| PR-2.2 | TTL cache for DO billing + single-pass usage parsing | P1 | ✅ COMPLETED |
+| PR-1.1 | Stop registry churn on read paths (+ fix non-idempotent `auto_managed`) | P1 | ✅ COMPLETED |
+| PR-1.6 | Wallpaper SSRF/DoS hardening (allowlist, no-redirect, size cap, IP block) | P1 | ✅ COMPLETED |
+| PR-1.7 | Stored-XSS fix in template rendering (script-safe JSON) | P1 | ✅ COMPLETED |
+| PR-3.1 | Proxy message-path translation tests (text/tool_use/budget) | P1 | ✅ COMPLETED |
+| PR-3.2 | Auth-enforcement HTTP tests (viewer 403 / owner / 401 / parity) | P1 | ✅ COMPLETED |
+| PR-1.9 | True streaming pass-through (incremental SSE, real TTFB) | P1 | ✅ COMPLETED |
+| PR-1.10 | Remove dead gateway-policy config (advertised-but-unread keys) | P1 | ✅ COMPLETED |
+| PR-5.2 | Docs verified accurate + fixed proxy `--port` default 18080→18081 | P2 | ✅ COMPLETED |
+| PR-5.3 | Audit of old COMPLETED claims → docs/worklist-audit-2026-07-11.md | P3 | ✅ COMPLETED |
+| PR-2.3 | Lazy per-tab loading (no thundering herd on page load) | P1 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-4.1 | Dedicated build confirmation dialog with hourly cost | P1 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-4.2 | Keep-alive control on idle countdown (5m/10m/30m/1h) | P1 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-4.3 | Dark-mode uses rotating wallpaper (no hardcoded Unsplash) | P1 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-4.4 | Interactive terminal (dead Focus → Interactive WS xterm) | P1 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-4.5 | Accessibility: tab roles, aria-selected, aria-labels, focus rings | P2 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-6.1 | Modularize main.html: extract CSS/JS to cacheable /assets | P2 | SUPERSEDED BY V2 (V1-only worktree evidence) |
+| PR-6.2 | Centralized non-churning registry write (no-op guard in save) | P2 | ✅ COMPLETED |
+| PR-0.3 | WebSocket terminal bridge requires `tmux_control` + audit log | P0 | ✅ COMPLETED |
+| PR-0.4 | Installer ships `src/`,`templates/`,`config/` + writable registry seed | P0 | ✅ COMPLETED (needs packaged-install acceptance — see NEEDS-OPERATOR) |
+| PR-0.5 | Proxy image endpoint: budget + model allowlist | P1 | ✅ COMPLETED |
+| PR-0.6 | Proxy request-thread fail-safe (malformed JSON/upstream/token) | P1 | ✅ COMPLETED |
+| PR-0.7 | Auth gates cost-bearing + terminal-read + agentboard + catalog GET | P1 | ✅ COMPLETED |
+| PR-0.8 | Launcher: skip-permissions warning + dead-proxy guard | P0/P1 | ✅ COMPLETED |
+| PR-0.9 | Coverage gate real floor (current V2 floor 40%) + expanded module set measured | P1 | ✅ COMPLETED |
+
+### Phase 1 — Critical stability, security, and data integrity (remaining P0/P1)
+
+**PR-1.1 — Stop registry churn and defaults-clobber on read paths** · P1 · M · ✅ MOSTLY COMPLETED (2026-07-11)
+- **Done:** `sync_serverless_model_catalog` now only saves/refreshes when `added|updated|removed` (or an explicit access audit); `register_model` early-returns when the entry is unchanged. Root cause of the churn was a data bug — `serverless_registry_entry` flipped `auto_managed` True→False on every re-sync, making the entry non-idempotent; now preserved. Tests: catalog no-churn + register_model no-churn. GET /api/models/status/dedicated no longer rewrite the registry when nothing changed.
+- **Remaining (follow-up):** the `defaults_after_error` guard (keep a `.bak`, refuse to persist bundled defaults over a real-but-unparseable file) in `model_registry.load_with_status` — atomic writes (PR-0.1) already prevent the torn-read cause, so this is defense-in-depth.
+
+**PR-1.2 — Headless Dedicated lifecycle polling** · P0 · M · ✅ COMPLETED (2026-07-11)
+- **Objective:** Idle/unhealthy teardown and state advancement no longer depend on a browser polling `/api/dedicated/status`.
+- **Files:** `src/console/services/dedicated.py` (extracted `refresh_remote_state`, added `reconcile`), `image-studio.py` (`dedicated_policy_worker` now calls `reconcile`).
+- **Done:** The 30s background worker now refreshes live DigitalOcean state and applies policy headlessly. New test `test_reconcile_advances_provisioning_and_tears_down_idle_headlessly` proves a `provisioning` server advances to active and tears down when idle with no status-endpoint call. `enforce_policy` and all existing policy/status tests unchanged. 232 tests pass.
+
+**PR-1.3 — Budget guard actually stops an over-budget Dedicated server** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** `runtime_cost_summary` reconstructs billing intervals from structured state transitions (not event-copy substring matching); `enforce_policy` tears down an active over-budget server in the headless path and audit-logs the numeric `budget_state`. Test: `test_over_budget_active_runtime_is_torn_down_with_numeric_state`.
+
+**PR-1.4 — Fix keep-alive that can shorten the teardown deadline** · P1 · S · ✅ COMPLETED (2026-07-11)
+- **Done:** `idle_policy_state` now uses `effective_deadline = max(idle_deadline, keep_alive_until)`, so keep-alive only ever pushes teardown later. Test: `test_keep_alive_expiry_never_shortens_a_longer_idle_window`.
+
+**PR-1.5 — Stop leaking the Dedicated bearer token in status payloads** · P1 · S · ✅ COMPLETED (2026-07-11)
+- **Done:** New recursive `redact_sensitive()` scrubs access tokens, endpoint FQDNs, inference ids, VPC UUIDs, CA certs, and `raw` from all event details; `public_payload` blanks those fields and exposes `*_configured` booleans instead. Test asserts no secret appears in payload/events. **Note:** redaction applies to all callers (role-unaware); a role-aware owner view of inference_id is a possible follow-up.
+
+**PR-1.6 — Wallpaper image proxy SSRF/DoS hardening** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** Host allowlist (`www.bing.com`) enforced before any fetch; https-only; literal loopback/RFC1918/link-local/metadata/`0.0.0.0` blocked via `ipaddress`; redirect-following disabled (no-redirect opener) with final-URL re-validation; 8 MiB size cap (streamed) + timeout. 11 tests. **Residual:** DNS-rebinding TOCTOU not fully closed (would need connect-time IP pinning) — documented; realistic LAN vectors are covered.
+
+**PR-1.7 — Eliminate stored-XSS vector in template rendering** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** `TemplateHandler.render` now routes non-string (JSON) replacements through `_script_safe_json`, which escapes `<`, `>`, `&`, and U+2028/U+2029 as unicode escapes after `json.dumps`. A model id containing `</script><img onerror=...>` is now inert in the `<script>` block while the JS parser still decodes the real value; ordinary spaces preserved. Tests: breakout-neutralization + whitespace-preservation.
+
+**PR-1.8 — Scope tmux targets to console-managed sessions** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** New `scoped_target()` choke-point in tmux_control namespaces every capture/send/key/stop/start target into `matts-`; agentboard skips non-managed sessions before capturing pane previews. Tests cover foreign-name namespacing and agentboard exclusion. **Follow-up:** `session.py` `session_name()` could also enforce the prefix for uniform managed naming (property already holds at the tmux layer).
+
+**PR-1.9 — True streaming pass-through in the proxy** · P1 · L · ✅ COMPLETED (2026-07-11)
+- **Done:** For `stream:true`, the proxy now passes `stream=True` (+`stream_options.include_usage`) upstream and translates each OpenAI SSE chunk to Anthropic events incrementally via `_stream_openai_to_anthropic` (text deltas as separate `text_delta` events, tool-call args as `input_json_delta`, `finish_reason`→`stop_reason`, usage→cost + budget record). Headers are sent before the body so TTFB is real. Streamed requests forgo context-retry/failover (impossible once bytes are sent); the buffered non-stream path (with retry+failover) is byte-for-byte unchanged. Tests: incremental text, tool-call streaming, upstream-error JSON fallback, budget tracking (fake SSE upstream harness).
+
+**PR-1.10 — Remove or wire dead gateway-policy config** · P1 · S · ✅ COMPLETED (2026-07-11)
+- **Done:** Removed the 8 advertised-but-never-read keys (`failover.max_attempts/dedicated_preference/fallback_reason_codes`, `retries.enabled/max_retries/backoff_seconds`, and the whole `budget` block) from both `config/gateway-policy.json` and `DEFAULT_GATEWAY_POLICY`, so `/v1/claude-do/gateway-policy` no longer promises unimplemented behavior. Kept `retries.retry_statuses` (it IS read — drives which upstream statuses trigger serverless failover) with a clarifying comment. Two merge-fixture tests re-pointed to live keys.
+
+### Phase 2 — Performance and resource usage (P1/P2)
+
+**PR-2.1 — Log rotation + incremental reads for usage/traces/proxy logs** · P1 · M · ✅ MOSTLY COMPLETED (2026-07-11)
+- **Objective:** Unbounded JSONL logs stop being fully re-parsed on hot paths.
+- **Files:** `do-anthropic-proxy.py` (new `_UsageAggregator`, `_budget_error` now incremental), `image-studio.py` (`tail_jsonl` now bounded reverse-read via `_read_last_lines`).
+- **Done:** The `/v1/messages` budget check no longer re-parses the whole usage.jsonl — an in-memory day/month/all aggregator reads only bytes appended since the last check (byte-offset tracking, rotation/truncation detection). `tail_jsonl` reads only the tail. Tested: 3 aggregator tests + 2 tail_jsonl tests. **Remaining (follow-up):** an actual size-based rotation/retention policy for usage/traces/proxy logs (archival, not truncation) — the readers are now rotation-safe, but growth is still unbounded on disk.
+
+**PR-2.2 — Cache cost-summary/analytics and move live DO calls off the request thread** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** Thread-safe module-level TTL cache (90s positive / 15s negative) around the DigitalOcean insights call, keyed by `(token, urn, start, end)`; a `(path, mtime, size, limit)`-keyed cache makes repeated usage-log reads a single pass shared by `local_usage_report`/`local_usage_since`. Payload shapes unchanged. Tests assert one DO call within TTL, a second after expiry, and local-fallback on DO failure.
+
+**PR-2.3 — Lazy per-tab loading on the console** · P1 · S · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** Page load stops firing ~10 heavy endpoints regardless of active tab.
+- **Files:** `templates/main.html` (`~939` init block).
+- **Acceptance:** Only the active tab's data loads on open; others load on activation. **Dependencies:** none. **Validation:** browser smoke shows one tab's requests on load. **Complexity:** S.
+
+### Phase 3 — Test coverage for the runtime entry points (P1)
+
+**PR-3.1 — Proxy HTTP-path test suite** · P1 · M · ✅ MOSTLY COMPLETED (2026-07-11)
+- **Done:** `tests/test_proxy_image_and_failsafe.py` now covers the `/v1/messages` path via a handler harness (mocked upstream): OpenAI→Anthropic text translation, tool_call→tool_use block + `stop_reason` mapping, usage/cost, and over-budget block before upstream. Proxy coverage rose (overall 55%). **Remaining:** streaming-path assertions depend on PR-1.9 (true streaming).
+
+**PR-3.2 — Auth-enforcement HTTP tests** · P1 · M · ✅ COMPLETED (2026-07-11)
+- **Done:** `tests/test_auth_http_enforcement.py` starts the real console with auth enabled + role tokens and asserts over HTTP: viewer→403 on chat/generate/tmux-capture/terminal-read/agentboard/serverless-catalog (and never dispatched); owner→non-403; missing/bad token→401; plus a static route-parity test that every sensitive route maps to a permission some non-owner role grants. 11 tests.
+
+### Phase 4 — UX, visual design, and accessibility (P1/P2)
+
+**PR-4.1 — Confirm cost-bearing Dedicated build in the UI** · P1 · S · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** The console "Build / Rebuild" button confirms with an explicit hourly cost before firing.
+- **Files:** `templates/main.html` (`~908`). **Acceptance:** a confirm dialog shows `$/hr` and daily budget; cancel aborts. **Dependencies:** none. **Complexity:** S.
+
+**PR-4.2 — Keep-alive control on idle/teardown countdown** · P1 · S · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** The idle-teardown alert offers the keep-alive action the backend already supports.
+- **Files:** `templates/main.html` (`~889`). **Dependencies:** PR-1.4. **Complexity:** S.
+
+**PR-4.3 — Dark-mode Create wallpaper + remove hardcoded remote Unsplash** · P1 · S · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** Dark mode keeps the rotating wallpaper instead of a hardcoded external image; drop the CSP-fragile remote URL.
+- **Files:** `templates/main.html` (`~132`). **Dependencies:** none. **Complexity:** S.
+
+**PR-4.4 — Interactive Code terminal (retire dead Focus button / polled read)** · P1 · M · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** Use the existing WebSocket xterm in the Code tab instead of a read-only 900ms poll; remove the dead Focus control.
+- **Files:** `templates/main.html` (`~700`). **Dependencies:** PR-0.3. **Complexity:** M.
+
+**PR-4.5 — Accessibility pass** · P2 · M · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Objective:** Keyboard navigation, focus states, ARIA roles for tabs/dialogs, and WCAG-AA contrast on the console.
+- **Files:** `templates/main.html`. **Acceptance:** tablist/tab/dialog roles present; visible focus rings; contrast checked on key surfaces. **Dependencies:** none. **Complexity:** M.
+
+### Phase 5 — Consistency and documentation (P2/P3)
+
+**PR-5.1 — Unify product/service naming** · P2 · S · ⚠️ PARTIALLY RESOLVED / NEEDS OPERATOR
+- **Finding update:** The `/health` vs `/version` code mismatch is already resolved — both report `matts-unified-console` in the current code (the `mde-llm-proxy-console` seen at runtime was a stale operator-launched instance, not this tree). What remains is a **product branding decision**, not a code bug: the UI title is "Mackes Code : FOR PRIVATE USE", the service id is `matts-unified-console`, and the product/docs say "Matts Value Set". Picking one canonical brand is an operator choice (recorded in `docs/NEEDS-OPERATOR.md`); the code is internally consistent.
+
+**PR-5.2 — Documentation drift + pricing/model-state reconciliation** · P2 · M · ✅ MOSTLY COMPLETED (2026-07-11)
+- **Done:** Full verification of README.md, CLAUDE.md, docs/THREAT_MODEL.md, docs/api-versioning.md, docs/trace-redaction-policy.md against the code — **zero drift found**; every documented command, flag, endpoint, env var, and path exists and matches, and the docs don't contradict the new budget/authz/reconcile/atomic-write behavior. Fixed one real code nuance the audit surfaced: the proxy argparse `--port` fallback was `18080` while the whole system uses `18081` (now `18081`). **Remaining:** pricing/enabled drift across `models.json`/`default-models.json`/proxy hardcoded tables (config reconciliation — separate, config-file work).
+
+**PR-5.3 — Audit MAIN-WORKLIST COMPLETED claims** · P3 · S
+- **Objective:** Verify or downgrade COMPLETED claims that lack runtime evidence (GOVERNANCE forbids claims without evidence). **Complexity:** S.
+
+### Phase 6 — Strategic / long-term (P2/P3)
+
+**PR-6.1 — Modularize the 942-line `main.html`** · P2 · L · SUPERSEDED BY V2 (V1-only worktree evidence)
+- **Disposition:** The source worktree extracted `templates/main.css` and
+  `templates/main.js` for the old V1 template, but that change was not ported to
+  current `main` because ADR-0003 makes the React V2 console the current product
+  surface. Keep any future UI modularization work in `frontend/`.
+- **Superseded objective:**
+- **Objective:** Split inline CSS/JS into maintainable modules with a shared component layer (buttons, cards, tables, states) so surfaces stop being built ad hoc. **Complexity:** L.
+
+**PR-6.2 — Centralize the registry write path** · P2 · M · ✅ MOSTLY COMPLETED (2026-07-11)
+- **Done:** The single `ModelRegistryService.save()` is now the one guarded write path for every caller — atomic (temp+fsync+os.replace), lock-serialized (PR-0.1), AND centrally non-churning: it compares the rendered payload to the on-disk content and skips the write when identical, so no caller (status poll, catalog sync, dedicated update) can churn the file regardless of its own change detection. Test: `test_save_is_a_noop_when_content_is_unchanged`. **Remaining (optional):** collapsing the separate injected `load_model_registry`/`save_model_registry` callables into a single `mutate(fn)` API is a cosmetic DI refactor; the safety objective is fully met.
+
+**PR-6.3 — Retire the `image-studio.py`/`src` duplication** · P2 · M · ⚠️ PREMISE LARGELY RESOLVED (2026-07-11)
+- **Finding update:** AST analysis shows `image-studio.py` is 223 one-line delegating wrappers + 35 multi-line functions, and the only large functions are `do_GET`/`do_POST`/`main` (the legitimate HTTP dispatch + startup). The business logic already lives in `src/console/**`; there is no large block of duplicated, drift-prone logic — the wrappers are a thin facade that wires services to the HTTP handler. Collapsing them would couple the handler to service internals for negligible benefit. **Recommendation:** ACCEPTED — the src/ refactor already achieved single-source logic; the remaining wrapper layer is intentional and low-risk. Any future trimming is cosmetic.
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Codex*
-*Timestamp: 2026-07-07*
+*Last updated by: Codex; Platform review remediation appended 2026-07-11.*
+*Timestamp: 2026-07-11*

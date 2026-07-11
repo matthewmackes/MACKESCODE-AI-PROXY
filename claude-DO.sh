@@ -472,8 +472,21 @@ if [[ "$has_permission_arg" == "0" ]]; then
   if [[ "${EUID:-$(id -u)}" == "0" || -n "${SUDO_UID:-}" ]]; then
     claude_args+=(--permission-mode acceptEdits)
   else
+    if [[ "${MATTS_REQUIRE_PERMISSION_PROMPTS:-0}" == "1" ]]; then
+      echo "ERROR: MATTS_REQUIRE_PERMISSION_PROMPTS=1 is set; refusing to auto-enable --dangerously-skip-permissions." >&2
+      echo "       Pass an explicit --permission-mode <mode> (e.g. acceptEdits) to launch." >&2
+      exit 1
+    fi
+    echo "WARNING: defaulting to --dangerously-skip-permissions; Claude Code permission prompts are disabled for this session." >&2
+    echo "         Pass --permission-mode <mode> to override, or set MATTS_REQUIRE_PERMISSION_PROMPTS=1 to refuse this default." >&2
     claude_args+=(--dangerously-skip-permissions)
   fi
+fi
+
+if ! proxy_is_listening 2>/dev/null; then
+  echo "ERROR: proxy is not listening on ${proxy_host}:${proxy_port}; not launching Claude Code against a dead proxy." >&2
+  echo "       Inspect the proxy log (tmux session '${tmux_session}' or /tmp/matts-value-set-proxy.log) and retry, or run: $0 --doctor" >&2
+  exit 1
 fi
 
 exec claude "${claude_args[@]}" "${claude_passthrough[@]}"

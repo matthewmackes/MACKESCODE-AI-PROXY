@@ -67,3 +67,39 @@ Do not edit old entries except to fix typos. Supersede them with a newer entry.
 - **Verification:** Extended release gate (V2 tests, OpenAPI drift, React
   build, bundle/audit checks, V2 browser smoke) green on `main`; V2 verified
   operating without V1.
+
+## ADR-0004 - Platform Review Hardening: registry integrity, authz, packaging, cost safety (2026-07-11)
+
+- **Symptom:** A full architecture/UX review (see
+  `docs/PLATFORM-REVIEW-2026-07-11.md`) found the governance-locked model
+  registry written non-atomically on hot read paths (torn read → silent reset to
+  bundled defaults), cost-bearing and terminal-exposing console surfaces
+  under-authorized on the `0.0.0.0`-bound console, a Dedicated build that was not
+  idempotent (double build orphans a billing GPU), a proxy image endpoint that
+  bypassed budget + allowlist, request threads that crashed on malformed
+  JSON/upstream, a packaged install that never shipped `src/`/`templates/`/
+  `config/`, and a decorative coverage gate (`--fail-under 1`).
+- **Decision:** Treat these as governance-lock reinforcements, not features:
+  (1) all `config/models.json` writes are atomic (temp + fsync + `os.replace`)
+  and serialized; (2) the WebSocket terminal bridge, cost-bearing routes, and
+  live-terminal-read routes are permission-checked and audit-logged like other
+  sensitive actions; (3) Dedicated `build()` refuses a second server unless
+  `rebuild=true`, and the background worker reconciles live DigitalOcean state +
+  applies idle/unhealthy policy headlessly (no browser-poll dependency);
+  (4) the release coverage gate stays a real floor with
+  `MATTS_COVERAGE_FLOOR` override while the V2 baseline continues to raise
+  measured coverage;
+  (5) the packaged install ships the full runtime tree and keeps the writable
+  registry under the data dir, not the read-only prefix.
+- **Scope:** Reinforces existing GOVERNANCE locks (source-of-truth integrity,
+  permission-checked + audit-logged sensitive actions, cost safety, definition of
+  done). No lock was reopened or weakened.
+- **Affected files:** `src/console/services/model_registry.py`,
+  `src/console/services/dedicated.py`, `src/console/handlers/auth_handler.py`,
+  `image-studio.py`, `do-anthropic-proxy.py`, `claude-DO.sh`,
+  `scripts/coverage-report.py`, `scripts/release-check.sh`, `install/*`,
+  `SECURITY.md`, `CHANGELOG.md`.
+- **Verification:** The original Claude worktree passed `scripts/release-check.sh`
+  at 55.53% coverage before porting. The V2-main port must pass the current
+  release gate before push. The packaged-install fix needs a real root install
+  acceptance test — recorded in `docs/NEEDS-OPERATOR.md`.

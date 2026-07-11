@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -23,21 +24,19 @@ DEFAULT_LOG_FILE = "/tmp/matts-value-set-proxy.jsonl"
 DEFAULT_TRACE_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/studio/traces.jsonl")
 DEFAULT_BUDGET_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/budgets.json")
 DEFAULT_GATEWAY_POLICY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "gateway-policy.json")
+# Only keys the proxy actually reads are declared here. Previously-advertised but
+# never-consumed keys (failover.max_attempts/dedicated_preference/
+# fallback_reason_codes, retries.enabled/max_retries/backoff_seconds, and the
+# whole budget block) were removed so the /v1/claude-do/gateway-policy state no
+# longer promises behavior the code does not implement. `retries.retry_statuses`
+# is retained because it is read to decide which upstream statuses trigger
+# serverless failover.
 DEFAULT_GATEWAY_POLICY = {
     "schema_version": 1,
     "enabled": True,
     "failover": {
         "enabled": True,
-        "max_attempts": 2,
-        "dedicated_preference": "active_only",
         "serverless_fallback": True,
-        "fallback_reason_codes": [
-            "budget_blocked_fallback",
-            "dedicated_unhealthy",
-            "dedicated_endpoint_unreachable",
-            "provider_5xx",
-            "provider_rate_limited",
-        ],
     },
     "circuit_breakers": {
         "enabled": False,
@@ -58,15 +57,7 @@ DEFAULT_GATEWAY_POLICY = {
         "routes": {"chat": False, "images": False, "model_list": True},
     },
     "retries": {
-        "enabled": True,
-        "max_retries": 1,
         "retry_statuses": [429, 500, 502, 503, 504],
-        "backoff_seconds": 1,
-    },
-    "budget": {
-        "enforce_proxy_budget_file": True,
-        "trace_budget_blocks": True,
-        "dedicated_budget_fallback": True,
     },
     "slo_routing": {
         "enabled": True,
@@ -1569,9 +1560,80 @@ def _usage_totals(cost_file):
     return totals
 
 
-def _budget_error(cost_file, budget_file):
+class _UsageAggregator:
+    """Incremental usage totals for the hot-path budget check.
+
+    The naive budget check re-parsed the entire (unbounded) usage.jsonl on every
+    request. This keeps per-day / per-month / all-time cost buckets in memory and,
+    on each call, reads only the bytes appended since the last read (tracked by
+    byte offset), so a busy proxy does O(new lines) work per request instead of
+    O(whole file). Rotation/truncation is detected by inode change or the file
+    shrinking below the last offset, which resets and re-seeds the buckets."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._offset = 0
+        self._inode = None
+        self._by_day = {}
+        self._by_month = {}
+        self._all = 0.0
+
+    def _reset(self):
+        self._offset = 0
+        self._inode = None
+        self._by_day = {}
+        self._by_month = {}
+        self._all = 0.0
+
+    def _ingest(self, chunk):
+        for line in chunk.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            cost = float((row.get("cost") or {}).get("total_cost_usd") or 0.0)
+            if not cost:
+                continue
+            ts = time.localtime(float(row.get("ts", 0) or 0))
+            day = (ts.tm_year, ts.tm_yday)
+            month = (ts.tm_year, ts.tm_mon)
+            self._by_day[day] = self._by_day.get(day, 0.0) + cost
+            self._by_month[month] = self._by_month.get(month, 0.0) + cost
+            self._all += cost
+
+    def totals(self, cost_file):
+        now = time.localtime()
+        today = (now.tm_year, now.tm_yday)
+        month = (now.tm_year, now.tm_mon)
+        with self._lock:
+            try:
+                st = os.stat(cost_file)
+            except OSError:
+                return {"all": self._all, "today": self._by_day.get(today, 0.0), "month": self._by_month.get(month, 0.0)}
+            if st.st_ino != self._inode or st.st_size < self._offset:
+                self._reset()
+                self._inode = st.st_ino
+            if st.st_size > self._offset:
+                try:
+                    with open(cost_file, "rb") as f:
+                        f.seek(self._offset)
+                        data = f.read()
+                except OSError:
+                    data = b""
+                last_nl = data.rfind(b"\n")
+                if last_nl >= 0:
+                    consumed = data[:last_nl + 1]
+                    self._offset += len(consumed)
+                    self._ingest(consumed.decode("utf-8", errors="replace"))
+            return {"all": self._all, "today": self._by_day.get(today, 0.0), "month": self._by_month.get(month, 0.0)}
+
+
+def _budget_error(cost_file, budget_file, aggregator=None):
     budgets = _read_json_file(budget_file, {})
-    totals = _usage_totals(cost_file)
+    totals = aggregator.totals(cost_file) if aggregator is not None else _usage_totals(cost_file)
     for key, total_key in (("daily_usd", "today"), ("monthly_usd", "month"), ("total_usd", "all")):
         limit = budgets.get(key)
         if limit is None or str(limit) == "":
@@ -1668,6 +1730,97 @@ def _write_anthropic_stream(wfile, anthropic):
     event("message_stop", {"type": "message_stop"})
 
 
+def _stream_openai_to_anthropic(wfile, model, line_iter):
+    """Translate an OpenAI streaming (SSE) chat completion into the Anthropic SSE
+    event protocol incrementally, forwarding each delta as it arrives so the
+    client sees tokens with real time-to-first-byte instead of one buffered burst.
+    Returns accumulated {text, usage, finish_reason, has_tool_calls} for cost/trace."""
+    def event(name, payload):
+        wfile.write(("event: %s\n" % name).encode("utf-8"))
+        wfile.write(("data: %s\n\n" % json.dumps(payload)).encode("utf-8"))
+        wfile.flush()
+
+    message = {
+        "id": "msg_" + uuid.uuid4().hex[:24],
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [],
+        "stop_reason": None,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
+    event("message_start", {"type": "message_start", "message": message})
+
+    text_index = None
+    tool_blocks = {}
+    next_index = 0
+    finish_reason = None
+    usage = {}
+    text_accum = []
+    for raw in line_iter:
+        if not raw:
+            continue
+        line = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else raw
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        data_str = line[len("data:"):].strip()
+        if data_str == "[DONE]":
+            break
+        try:
+            chunk = json.loads(data_str)
+        except ValueError:
+            continue
+        if isinstance(chunk.get("usage"), dict):
+            usage = chunk["usage"]
+        choices = chunk.get("choices") or []
+        if not choices:
+            continue
+        choice = choices[0]
+        delta = choice.get("delta") or {}
+        if choice.get("finish_reason"):
+            finish_reason = choice["finish_reason"]
+        content = delta.get("content")
+        if content:
+            if text_index is None:
+                text_index = next_index
+                next_index += 1
+                event("content_block_start", {"type": "content_block_start", "index": text_index, "content_block": {"type": "text", "text": ""}})
+            text_accum.append(content)
+            event("content_block_delta", {"type": "content_block_delta", "index": text_index, "delta": {"type": "text_delta", "text": content}})
+        for tool_call in delta.get("tool_calls") or []:
+            tc_index = tool_call.get("index", 0)
+            fn = tool_call.get("function") or {}
+            if tc_index not in tool_blocks:
+                block_index = next_index
+                next_index += 1
+                tool_blocks[tc_index] = block_index
+                event("content_block_start", {"type": "content_block_start", "index": block_index, "content_block": {
+                    "type": "tool_use",
+                    "id": tool_call.get("id") or ("toolu_" + uuid.uuid4().hex[:20]),
+                    "name": fn.get("name") or "",
+                    "input": {},
+                }})
+            args = fn.get("arguments")
+            if args:
+                event("content_block_delta", {"type": "content_block_delta", "index": tool_blocks[tc_index], "delta": {"type": "input_json_delta", "partial_json": args}})
+
+    if text_index is not None:
+        event("content_block_stop", {"type": "content_block_stop", "index": text_index})
+    for block_index in tool_blocks.values():
+        event("content_block_stop", {"type": "content_block_stop", "index": block_index})
+
+    stop_reason = _stop_reason_from_openai(finish_reason, has_tool_calls=bool(tool_blocks))
+    event("message_delta", {
+        "type": "message_delta",
+        "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+        "usage": {"output_tokens": int(usage.get("completion_tokens") or 0)},
+    })
+    event("message_stop", {"type": "message_stop"})
+    return {"text": "".join(text_accum), "usage": usage, "finish_reason": finish_reason, "has_tool_calls": bool(tool_blocks)}
+
+
 def _model_display_name(model_id):
     return model_id.replace("-", " ").replace("_", " ").title()
 
@@ -1736,6 +1889,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, status, payload):
         data = json.dumps(payload).encode("utf-8")
+        self._responded = True
         self.send_response(status)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(data)))
@@ -1743,11 +1897,38 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _raw(self, status, data, content_type="application/json"):
+        self._responded = True
         self.send_response(status)
         self.send_header("content-type", content_type)
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _fail_safe(self, exc):
+        """Convert an unhandled request-handler exception into a logged 502 instead
+        of letting the exception escape and drop the client connection with no
+        response and no trace."""
+        try:
+            _write_jsonl(getattr(self.server, "log_file", None), {
+                "ts": time.time(),
+                "provider": getattr(self.server, "provider", ""),
+                "status": 502,
+                "error_category": "unhandled_exception",
+                "detail": str(exc),
+                "path": getattr(self, "path", ""),
+            })
+        except Exception:
+            pass
+        if getattr(self, "_responded", False):
+            return
+        try:
+            self._json(502, {"type": "error", "error": {
+                "type": "api_error",
+                "message": "proxy failed to handle the request or upstream response",
+                "detail": str(exc),
+            }})
+        except Exception:
+            pass
 
     def _read_json(self):
         length = int(self.headers.get("content-length", "0"))
@@ -1764,7 +1945,64 @@ class Handler(BaseHTTPRequestHandler):
     def _refresh_gateway_policy(self):
         _refresh_gateway_policy(self.server)
 
+    def _chat_stream(self, body, payload, upstream_url, upstream_token, model, payload_model, requested_model, route, token_clamp, started):
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+        stream_payload["stream_options"] = {"include_usage": True}
+        try:
+            resp = requests.post(
+                upstream_url,
+                headers={
+                    "authorization": "Bearer " + upstream_token,
+                    "content-type": "application/json",
+                    "user-agent": "matts-claude-code-proxy/1.0",
+                },
+                json=stream_payload,
+                stream=True,
+                timeout=600,
+            )
+        except Exception as exc:
+            _write_jsonl(self.server.log_file, {"ts": time.time(), "provider": self.server.provider, "model": payload.get("model"), "upstream_url": upstream_url, "status": 502, "latency_ms": int((time.time() - started) * 1000), "error": str(exc)})
+            _gateway_record_circuit_result(self.server, "chat", payload_model, 502, now=time.time())
+            payload_error = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
+            trace = _trace_request(self.server, action="proxy.chat", status=502, body=body, requested_model=requested_model, routed_model=payload_model, endpoint_mode="dedicated" if route else "serverless", routing_reason="upstream_exception", upstream_url=upstream_url, started_at=started, error_category="network_error", human_message=str(exc))
+            return self._json(502, _attach_trace(payload_error, trace))
+        # Error status: headers not yet sent, so respond with a normal JSON error
+        # (no streaming) exactly like the buffered path.
+        if resp.status_code >= 400:
+            error_text = resp.text
+            _write_jsonl(self.server.log_file, {"ts": time.time(), "provider": self.server.provider, "model": payload.get("model"), "upstream_url": upstream_url, "status": resp.status_code, "latency_ms": int((time.time() - started) * 1000), "error": error_text[:1000]})
+            _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), resp.status_code, now=time.time())
+            friendly = _friendly_error(resp.status_code, error_text)
+            payload_error = {"type": "error", "error": friendly}
+            trace = _trace_request(self.server, action="proxy.chat", status=resp.status_code, body=body, requested_model=requested_model, routed_model=payload_model, endpoint_mode="dedicated" if route else "serverless", routing_reason="upstream_error", upstream_url=upstream_url, started_at=started, error_category=friendly.get("type") or "api_error", human_message=friendly.get("message") or "")
+            return self._json(resp.status_code, _attach_trace(payload_error, trace))
+        # OK: commit to the stream and forward tokens incrementally.
+        self._responded = True
+        self.send_response(200)
+        self.send_header("content-type", "text/event-stream")
+        self.send_header("cache-control", "no-cache")
+        self.end_headers()
+        result = _stream_openai_to_anthropic(self.wfile, payload.get("model", model), resp.iter_lines())
+        usage = result.get("usage") or {}
+        cost = _cost_for_usage(payload.get("model", model), usage, self.server.costs)
+        _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), 200, now=time.time())
+        record = {"ts": time.time(), "provider": self.server.provider, "requested_model": requested_model, "upstream_model": payload.get("model"), "upstream_url": upstream_url, "status": 200, "latency_ms": int((time.time() - started) * 1000), "stream": True, "cost": cost}
+        if token_clamp:
+            record["token_clamp"] = token_clamp
+        _write_jsonl(self.server.log_file, record)
+        _write_jsonl(self.server.cost_file, record)
+        _trace_request(self.server, action="proxy.chat", status=200, body=body, requested_model=requested_model, routed_model=payload.get("model"), endpoint_mode="dedicated" if route else "serverless", routing_reason=(token_clamp.get("reason") if isinstance(token_clamp, dict) else "stream"), upstream_url=upstream_url, usage=usage, cost=cost, started_at=started)
+        return
+
     def do_GET(self):
+        self._responded = False
+        try:
+            return self._handle_get()
+        except Exception as exc:
+            self._fail_safe(exc)
+
+    def _handle_get(self):
         self._refresh_models()
         self._refresh_gateway_policy()
         parsed = urlparse(self.path)
@@ -1815,6 +2053,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        self._responded = False
+        try:
+            return self._handle_post()
+        except Exception as exc:
+            self._fail_safe(exc)
+
+    def _handle_post(self):
         self._refresh_models()
         self._refresh_gateway_policy()
         path = urlparse(self.path).path
@@ -1849,6 +2094,51 @@ class Handler(BaseHTTPRequestHandler):
             requested_model = body.get("model", model)
             body["model"] = model
             started = time.time()
+            if model not in self.server.models:
+                policy_decision = _unavailable_model_policy(self.server, model)
+                payload = {
+                    "type": "error",
+                    "error": {
+                        "type": "not_found_error",
+                        "message": "model is not configured for Matts Value Set",
+                        "model": model,
+                        "policy_decision": policy_decision,
+                    },
+                    "routing": {"requested": requested_model, "used": None, "backend": "proxy", "reason": policy_decision.get("reason") or "model_not_configured", "policy_decision": policy_decision},
+                }
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=404,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="proxy",
+                    routing_reason="model_not_configured",
+                    started_at=started,
+                    error_category="not_found_error",
+                    human_message="model is not configured for Matts Value Set",
+                    extra={"gateway_policy": policy_decision},
+                )
+                return self._json(404, _attach_trace(payload, trace))
+            budget_error = _budget_error(self.server.cost_file, self.server.budget_file, getattr(self.server, "usage_aggregator", None))
+            if budget_error:
+                payload = {"type": "error", "error": budget_error}
+                trace = _trace_request(
+                    self.server,
+                    action="proxy.image",
+                    status=402,
+                    body=body,
+                    requested_model=requested_model,
+                    routed_model=model,
+                    endpoint_mode="budget",
+                    routing_reason="budget_exceeded",
+                    started_at=started,
+                    error_category=budget_error.get("type") or "budget_exceeded",
+                    human_message=budget_error.get("message") or "",
+                    extra={"gateway_policy": {"decision": "budget_exceeded_rejection", "model": model, "reason": "budget_exceeded"}},
+                )
+                return self._json(402, _attach_trace(payload, trace))
             rate_limit_error = _gateway_rate_limit_error(self.server, body, model, "images", now=started)
             if rate_limit_error:
                 payload = {"type": "error", "error": rate_limit_error}
@@ -2001,7 +2291,7 @@ class Handler(BaseHTTPRequestHandler):
 
         body = self._read_json()
         request_started = time.time()
-        budget_error = _budget_error(self.server.cost_file, self.server.budget_file)
+        budget_error = _budget_error(self.server.cost_file, self.server.budget_file, getattr(self.server, "usage_aggregator", None))
         requested_model = body.get("model", self.server.default_model)
         model = _resolve_model(requested_model, self.server.model_aliases)
         model, slo_proof, slo_error = _gateway_select_slo_model(self.server, requested_model, model, body)
@@ -2160,6 +2450,11 @@ class Handler(BaseHTTPRequestHandler):
                 extra={"gateway_policy": {"decision": "circuit_open", "route": "chat", "slo_routing": slo_proof} if slo_proof else {"decision": "circuit_open", "route": "chat"}},
             )
             return self._json(503, _attach_trace(payload_error, trace))
+        if body.get("stream"):
+            # Real streaming: forward tokens as they arrive (true TTFB). Streamed
+            # requests forgo context-retry/failover because those require the full
+            # response and cannot be applied once bytes have been sent to the client.
+            return self._chat_stream(body, payload, upstream_url, upstream_token, model, payload_model, requested_model, route, token_clamp, started)
         try:
             resp = requests.post(
                 upstream_url,
@@ -2443,6 +2738,7 @@ class Handler(BaseHTTPRequestHandler):
         _attach_trace(anthropic, trace)
 
         if body.get("stream"):
+            self._responded = True
             self.send_response(200)
             self.send_header("content-type", "text/event-stream")
             self.send_header("cache-control", "no-cache")
@@ -2456,6 +2752,9 @@ class Handler(BaseHTTPRequestHandler):
 def _build_arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
+    # Match the shipped default used by claude-DO.sh, the console, and
+    # config/console.json (18081); running the proxy bare previously bound 18080,
+    # which the launcher/console would then fail to find.
     parser.add_argument("--port", type=int, default=18081)
     parser.add_argument("--provider", default=os.environ.get("CLAUDE_DO_PROVIDER", "private"))
     parser.add_argument("--default-model", default=os.environ.get("CLAUDE_DO_DEFAULT_MODEL", DEFAULT_MODEL))
@@ -2503,6 +2802,7 @@ def main():
     server.model_config_last_error = ""
     server.cost_file = args.cost_file
     server.budget_file = args.budget_file
+    server.usage_aggregator = _UsageAggregator()
     server.log_file = args.log_file
     server.trace_file = args.trace_file
     server.gateway_policy_file = args.gateway_policy_file

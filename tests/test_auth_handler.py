@@ -160,6 +160,36 @@ class AuthHandlerTests(unittest.TestCase):
         self.assertEqual(identity["source"], "jwt-session")
         self.assertTrue(handler.has_permission(identity, "tmux_control"))
 
+    def test_cost_bearing_and_terminal_read_routes_require_permissions(self):
+        handler = self.handler()
+        # Cost-bearing model calls must be gated on model_use, not merely "any token".
+        self.assertEqual(handler.permission_for("POST", "/api/chat"), ("model_use", "chat.completion"))
+        self.assertEqual(handler.permission_for("POST", "/api/chat/compare"), ("model_use", "chat.compare"))
+        self.assertEqual(handler.permission_for("POST", "/api/generate"), ("model_use", "image.generate"))
+        # Reading live terminal contents is a security surface, like writing.
+        self.assertEqual(handler.permission_for("POST", "/api/tmux/capture"), ("tmux_control", "tmux.capture"))
+        self.assertEqual(handler.permission_for("POST", "/api/terminal/read"), ("tmux_control", "terminal.read"))
+
+    def test_state_mutating_get_route_is_permission_checked(self):
+        handler = self.handler()
+        self.assertEqual(
+            handler.permission_for("GET", "/api/models/serverless-catalog"),
+            ("model_admin", "model_catalog.refresh"),
+        )
+        # Agentboard exposes live tmux pane contents; gate like a terminal read.
+        self.assertEqual(
+            handler.permission_for("GET", "/api/agentboard"),
+            ("tmux_control", "agentboard.view"),
+        )
+        # Read-only GETs remain ungated by fine-grained permission.
+        self.assertIsNone(handler.permission_for("GET", "/api/cost-summary"))
+
+    def test_viewer_cannot_spend_or_read_terminals(self):
+        handler = self.handler(role_tokens={"viewer-token": {"id": "v", "roles": ["viewer"]}})
+        viewer = handler.identity("/", {"authorization": "Bearer viewer-token"})
+        self.assertFalse(handler.has_permission(viewer, "model_use"))
+        self.assertFalse(handler.has_permission(viewer, "tmux_control"))
+
 
 if __name__ == "__main__":
     unittest.main()

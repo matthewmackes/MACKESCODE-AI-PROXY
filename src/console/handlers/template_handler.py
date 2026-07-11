@@ -22,6 +22,26 @@ class TemplateHandler:
         html = self.load(name)
         for key, value in (replacements or {}).items():
             if not isinstance(value, str):
-                value = json.dumps(value)
+                value = self._script_safe_json(value)
             html = html.replace("__%s__" % key, value)
         return html
+
+    @staticmethod
+    def _script_safe_json(value):
+        """JSON-encode a value for interpolation inside a <script> block.
+
+        json.dumps alone does NOT neutralize ``</script>`` or HTML comment
+        sequences, so a model id/display name containing ``</script>`` could
+        close the script tag and inject markup (stored XSS). Escaping the
+        HTML-significant characters (and the JS line separators U+2028/U+2029)
+        as unicode escapes keeps the payload valid JSON/JS -- the JS parser turns
+        ``\\u003c`` back into ``<`` -- while the HTML tokenizer never sees a
+        closing tag."""
+        encoded = json.dumps(value)
+        return (
+            encoded.replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+            .replace(" ", "\\u2028")
+            .replace(" ", "\\u2029")
+        )

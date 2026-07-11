@@ -328,7 +328,11 @@ class ServerlessCatalogService:
             "created": item.get("created") or existing.get("created") or 0,
             "max_output_tokens": item.get("max_output_tokens") or existing.get("max_output_tokens") or 0,
             "pricing_source": pricing_source or "unknown",
-            "auto_managed": not bool(existing),
+            # Preserve the flag across syncs; a catalog-managed model must not flip
+            # to auto_managed=False on the next sync (that made the entry non-
+            # idempotent and forced a registry rewrite on every poll). New catalog
+            # entries default to auto_managed=True.
+            "auto_managed": bool(existing.get("auto_managed", True)) if existing else True,
             "access_status": existing.get("access_status") or "not_checked",
             "last_error": existing.get("last_error") or "",
         }
@@ -490,8 +494,18 @@ class ServerlessCatalogService:
         merged = list(by_id.values()) + dedicated
         access = self.validate_serverless_access(merged) if validate_access else {"checked": 0, "disabled": 0}
         merged.sort(key=lambda model: (0 if model.get("serverless") else 1, str(model.get("type") or ""), str(model.get("id") or "")))
-        saved = self.save_model_registry(merged)
-        self.refresh_model_globals()
+        # Only rewrite the governance-locked registry when something actually
+        # changed. This is triggered by every GET /api/models, /api/status, and
+        # /api/dedicated/status via models_payload(refresh_catalog=True); an
+        # unconditional save churned the file (and refreshed globals) on every
+        # poll from multiple threads. The explicit access-audit path (validate_access)
+        # always persists because probing can mutate access_status in place.
+        changed = bool(added or updated or removed) or validate_access
+        if changed:
+            saved = self.save_model_registry(merged)
+            self.refresh_model_globals()
+        else:
+            saved = list(merged)
         return {
             "ok": True,
             "added": added,

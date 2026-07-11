@@ -69,17 +69,18 @@ class AgentBoardServiceTests(unittest.TestCase):
 
     def test_sessions_groups_tmux_panes_and_extracts_prompt(self):
         captures = {
-            "work:0.0": "> Build the thing\nOutput",
-            "work:0.1": "background pane",
-            "idle:0.0": "waiting",
+            "matts-work:0.0": "> Build the thing\nOutput",
+            "matts-work:0.1": "background pane",
+            "matts-idle:0.0": "waiting",
         }
 
         def tmux_cmd(args, check=True):
             if args[:2] == ["list-panes", "-a"]:
                 return 0, "\n".join([
-                    "work\t0\tmain\t0\tbash\t/home/project\t100\t30\t111\t1",
-                    "work\t0\tmain\t1\tpython\t/home/project\tbad\tbad\t112\t0",
-                    "idle\t0\tmain\t0\tbash\t/tmp\t80\t20\t113\t1",
+                    "matts-work\t0\tmain\t0\tbash\t/home/project\t100\t30\t111\t1",
+                    "matts-work\t0\tmain\t1\tpython\t/home/project\tbad\tbad\t112\t0",
+                    "matts-idle\t0\tmain\t0\tbash\t/tmp\t80\t20\t113\t1",
+                    "default\t0\tzsh\t0\tzsh\t/root\t80\t20\t114\t1",
                     "too-short",
                 ]), ""
             if args[:1] == ["capture-pane"]:
@@ -88,19 +89,21 @@ class AgentBoardServiceTests(unittest.TestCase):
 
         class Monitor:
             def summarize(self, name, project_dir="", idle_seconds=0, panes=None):
-                return {"cpu_percent": 7, "rss_mb": 128, "pane_count": len(panes or []), "warnings": [{"code": "runaway_cpu"}] if name == "work" else []}
+                return {"cpu_percent": 7, "rss_mb": 128, "pane_count": len(panes or []), "warnings": [{"code": "runaway_cpu"}] if name == "matts-work" else []}
         service, _, _ = self.service(tmux_cmd=tmux_cmd, resource_monitor=lambda: Monitor())
         sessions, error = service.sessions()
         by_name = {item["name"]: item for item in sessions}
 
         self.assertEqual(error, "")
-        self.assertEqual(by_name["work"]["last_prompt"], "> Build the thing")
-        self.assertEqual(len(by_name["work"]["panes"]), 2)
-        self.assertEqual(by_name["work"]["panes"][1]["width"], 0)
-        self.assertTrue(by_name["work"]["active"])
-        self.assertEqual(by_name["work"]["resource_metrics"]["pane_count"], 2)
-        self.assertEqual(by_name["work"]["resource_warnings"][0]["code"], "runaway_cpu")
-        self.assertIn("idle", by_name)
+        self.assertEqual(by_name["matts-work"]["last_prompt"], "> Build the thing")
+        self.assertEqual(len(by_name["matts-work"]["panes"]), 2)
+        self.assertEqual(by_name["matts-work"]["panes"][1]["width"], 0)
+        self.assertTrue(by_name["matts-work"]["active"])
+        self.assertEqual(by_name["matts-work"]["resource_metrics"]["pane_count"], 2)
+        self.assertEqual(by_name["matts-work"]["resource_warnings"][0]["code"], "runaway_cpu")
+        self.assertIn("matts-idle", by_name)
+        self.assertNotIn("default", by_name)
+        self.assertNotIn("/root", str(sessions))
 
     def test_sessions_reports_tmux_error(self):
         service, _, _ = self.service(tmux_cmd=lambda args, check=True: (1, "", "no tmux"))
@@ -124,7 +127,7 @@ class AgentBoardServiceTests(unittest.TestCase):
     def test_payload_counts_sessions_and_builds_leaderboard(self):
         def tmux_cmd(args, check=True):
             if args[:2] == ["list-panes", "-a"]:
-                return 0, "work\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
+                return 0, "matts-work\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
             if args[:1] == ["capture-pane"]:
                 return 0, "task: Ship it", ""
             return 1, "", "unsupported"
@@ -136,14 +139,14 @@ class AgentBoardServiceTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["waiting"], 1)
         self.assertEqual(payload["tasks"][0]["last_prompt"], "task: Ship it")
         self.assertGreaterEqual(payload["tasks"][0]["events"], 1)
-        self.assertEqual(payload["graphs"][0]["session"], "work")
+        self.assertEqual(payload["graphs"][0]["session"], "matts-work")
         self.assertEqual(payload["evals"]["requests_ok"], 1)
         self.assertEqual(payload["leaderboard"][0], {"name": "model-a", "score": 1.25, "metric": "local spend usd"})
 
     def test_execution_graph_merges_tmux_traces_and_audit_without_full_output(self):
         def tmux_cmd(args, check=True):
             if args[:2] == ["list-panes", "-a"]:
-                return 0, "work\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
+                return 0, "matts-work\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
             if args[:1] == ["capture-pane"]:
                 return 0, "task: Deploy safely\nsecret terminal output that should only be summarized", ""
             return 1, "", "unsupported"
@@ -152,7 +155,7 @@ class AgentBoardServiceTests(unittest.TestCase):
             "trace_id": "trace-a",
             "timestamp": 990,
             "status": "success",
-            "session_id": "work",
+            "session_id": "matts-work",
             "requested_model": "model-a",
             "routed_model": "model-b",
             "endpoint_mode": "serverless",
@@ -168,7 +171,7 @@ class AgentBoardServiceTests(unittest.TestCase):
             "permission": "tmux_control",
             "status": 200,
             "actor": {"id": "operator"},
-            "request": {"path": "/api/tmux/send", "body": {"name": "work", "text": "secret command value"}},
+            "request": {"path": "/api/tmux/send", "body": {"name": "matts-work", "text": "secret command value"}},
         }]
         service, _, _ = self.service(tmux_cmd=tmux_cmd, traces=traces, audit_rows=audit_rows, now=1000)
         payload = service.payload()
@@ -188,7 +191,7 @@ class AgentBoardServiceTests(unittest.TestCase):
     def test_permission_screen_creates_honest_inferred_approval_event(self):
         def tmux_cmd(args, check=True):
             if args[:2] == ["list-panes", "-a"]:
-                return 0, "needs-input\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
+                return 0, "matts-needs-input\t0\tmain\t0\tbash\t/home\t80\t20\t111\t1", ""
             if args[:1] == ["capture-pane"]:
                 return 0, "Do you want to proceed? [y/n]", ""
             return 1, "", "unsupported"

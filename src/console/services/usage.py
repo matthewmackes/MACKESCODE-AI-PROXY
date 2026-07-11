@@ -1,8 +1,55 @@
 """Usage, cost, budget, and billing report helpers."""
 import datetime
 import json
+import threading
 import time
 from urllib.parse import quote
+
+
+class _TTLCache:
+    """Thread-safe expiring cache keyed on an explicit clock value.
+
+    Values are stored with an absolute ``expires_at`` timestamp computed by the
+    caller from the injected clock, so cache behaviour is deterministic under
+    test (no reliance on wall-clock ``time.time``). The lock makes it safe to
+    share a single instance across ``ThreadingHTTPServer`` request threads.
+    A stored value is never ``None`` in this module, so ``get`` returns ``None``
+    to mean "miss" without ambiguity.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._store = {}
+
+    def get(self, key, now):
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            expires_at, value = entry
+            if now >= expires_at:
+                self._store.pop(key, None)
+                return None
+            return value
+
+    def set(self, key, value, expires_at):
+        with self._lock:
+            self._store[key] = (expires_at, value)
+
+    def clear(self):
+        with self._lock:
+            self._store.clear()
+
+
+# Module-level caches shared across the short-lived ``UsageService`` instances
+# that the console rebuilds on every request. Because ``/api/cost-summary`` is
+# polled roughly every 60s per open tab (and ``/api/analytics`` constructs its
+# own instances), a per-instance cache would never survive between polls; these
+# shared singletons let repeated polls reuse a live DigitalOcean billing result
+# and a single usage-log parse. Tests inject their own fresh caches for
+# isolation.
+_INSIGHTS_TTL_CACHE = _TTLCache()
+_USAGE_ROWS_CACHE = _TTLCache()
 
 
 class UsageService:
@@ -20,6 +67,11 @@ class UsageService:
         load_dedicated_config,
         dedicated_runtime_cost_summary,
         clock=None,
+        insights_cache=None,
+        usage_rows_cache=None,
+        insights_cache_ttl=90.0,
+        insights_cache_negative_ttl=15.0,
+        usage_rows_cache_ttl=5.0,
     ):
         self.cost_file = cost_file
         self.budget_file = budget_file
@@ -31,6 +83,13 @@ class UsageService:
         self.load_dedicated_config = load_dedicated_config
         self.dedicated_runtime_cost_summary = dedicated_runtime_cost_summary
         self.clock = clock or time.time
+        # Default to the shared module-level singletons so caching survives the
+        # per-request instance churn; tests pass fresh caches for isolation.
+        self.insights_cache = insights_cache if insights_cache is not None else _INSIGHTS_TTL_CACHE
+        self.usage_rows_cache = usage_rows_cache if usage_rows_cache is not None else _USAGE_ROWS_CACHE
+        self.insights_cache_ttl = insights_cache_ttl
+        self.insights_cache_negative_ttl = insights_cache_negative_ttl
+        self.usage_rows_cache_ttl = usage_rows_cache_ttl
 
     def parse_date(self, value, default):
         try:
@@ -38,8 +97,35 @@ class UsageService:
         except (TypeError, ValueError):
             return default
 
+    def _read_usage_rows(self, limit=100000):
+        """Read (and briefly cache) the parsed usage-log rows.
+
+        The cache key includes the file's mtime and size, so any append to the
+        log invalidates it immediately; the short TTL only bounds how long a
+        stale-but-identical read is retained. This collapses the multiple
+        parses of the same file within one request (e.g. ``local_usage_report``
+        plus ``local_usage_since`` via ``cost_summary_payload``) into a single
+        read+decode pass.
+        """
+        path = self.cost_file()
+        signature = None
+        try:
+            stat = path.stat()
+            signature = (str(path), stat.st_mtime_ns, stat.st_size, limit)
+        except OSError:
+            signature = None
+        now = self.clock()
+        if signature is not None:
+            cached = self.usage_rows_cache.get(signature, now)
+            if cached is not None:
+                return cached
+        rows = self.tail_jsonl(path, limit=limit)
+        if signature is not None:
+            self.usage_rows_cache.set(signature, rows, now + self.usage_rows_cache_ttl)
+        return rows
+
     def local_usage_report(self, start_date, end_date):
-        rows = self.tail_jsonl(self.cost_file(), limit=100000)
+        rows = self._read_usage_rows(limit=100000)
         daily = {}
         by_model = {}
         total = 0.0
@@ -65,7 +151,7 @@ class UsageService:
     def local_usage_since(self, since_ts, now=None):
         now = now or self.clock()
         total = 0.0
-        for row in self.tail_jsonl(self.cost_file(), limit=100000):
+        for row in self._read_usage_rows(limit=100000):
             try:
                 ts = float(row.get("ts", 0))
             except (TypeError, ValueError):
@@ -95,6 +181,20 @@ class UsageService:
     def digitalocean_insights_total(self, token, account_urn, start_date, end_date):
         if not token or not account_urn:
             return None, "missing_account_urn"
+        now = self.clock()
+        cache_key = (token, account_urn, start_date.isoformat(), end_date.isoformat())
+        cached = self.insights_cache.get(cache_key, now)
+        if cached is not None:
+            return cached
+        result = self._fetch_digitalocean_insights_total(token, account_urn, start_date, end_date)
+        # Never cache a failed/empty live result as if authoritative: successful
+        # totals live for the full TTL, errors get a short negative TTL so we
+        # neither hammer DigitalOcean on every poll nor mask a recovered API.
+        ttl = self.insights_cache_ttl if result[0] is not None else self.insights_cache_negative_ttl
+        self.insights_cache.set(cache_key, result, now + ttl)
+        return result
+
+    def _fetch_digitalocean_insights_total(self, token, account_urn, start_date, end_date):
         path = "/v2/billing/%s/insights/%s/%s" % (
             quote(account_urn, safe=":"),
             start_date.isoformat(),

@@ -103,13 +103,16 @@ class TmuxControlServiceTests(unittest.TestCase):
         self.assertIn("--verbose", args)
 
     def test_start_attaches_existing_live_session_and_records_registry(self):
+        # The live session is the managed (matts-work) one; the requested name is
+        # scoped to it, and the raw foreign "work" session is never addressed.
         with tempfile.TemporaryDirectory() as tmp:
-            service, records, _, _ = self.service(tmp, tmux_existing={"work"})
+            service, records, _, _ = self.service(tmp, tmux_existing={"matts-work"})
             status, payload = service.start({"name": "work", "display_name": "Work"})
 
         self.assertEqual(status, HTTPStatus.OK)
         self.assertTrue(payload["attached"])
-        self.assertEqual(records["upserts"][0][0][0], "work")
+        self.assertEqual(payload["name"], "matts-work")
+        self.assertEqual(records["upserts"][0][0][0], "matts-work")
 
     def test_start_creates_new_session_and_records_registry(self):
         commands = []
@@ -130,9 +133,9 @@ class TmuxControlServiceTests(unittest.TestCase):
 
         self.assertEqual(status, HTTPStatus.OK)
         self.assertFalse(payload["attached"])
-        self.assertEqual(payload["name"], "work-2")
+        self.assertEqual(payload["name"], "matts-work-2")
         self.assertTrue(any(cmd[:1] == ["new-session"] for cmd in commands))
-        self.assertEqual(records["upserts"][0][0][0], "work-2")
+        self.assertEqual(records["upserts"][0][0][0], "matts-work-2")
 
     def test_start_rejects_bad_launcher_project_and_tmux_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,15 +182,80 @@ class TmuxControlServiceTests(unittest.TestCase):
             sessions = service.sessions()
 
         self.assertEqual(capture_status, HTTPStatus.OK)
-        self.assertIn("screen for work", capture["screen"])
+        # The unprefixed "work" request is scoped to the managed "matts-work".
+        self.assertIn("screen for matts-work", capture["screen"])
+        self.assertEqual(capture["name"], "matts-work")
         self.assertEqual(text_status, HTTPStatus.OK)
         self.assertEqual(key_status, HTTPStatus.OK)
         self.assertEqual(bad_key_status, HTTPStatus.BAD_REQUEST)
         self.assertEqual(bad_key["error"], "key is not allowed")
         self.assertEqual(stop_status, HTTPStatus.OK)
-        self.assertEqual(records["upserts"][-1][0][0], "work")
+        self.assertEqual(records["upserts"][-1][0][0], "matts-work")
         self.assertEqual(sessions, ["live-a"])
         self.assertTrue(any(cmd[:1] == ["paste-buffer"] for cmd in commands))
+        # Every tmux target that carried a session name stayed in the namespace.
+        for cmd in commands:
+            for flag in ("-t", "-b"):
+                if flag in cmd:
+                    value = cmd[cmd.index(flag) + 1]
+                    self.assertTrue(value.startswith("matts-"), value)
+
+    def test_scoped_target_namespaces_foreign_sessions_and_keeps_managed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _, _, _ = self.service(tmp)
+            # Foreign / unmanaged names are namespaced into the console prefix so
+            # they can never resolve to a host session outside the console.
+            self.assertEqual(service.scoped_target("default"), "matts-default")
+            self.assertEqual(service.scoped_target("root"), "matts-root")
+            # Already-managed names are preserved unchanged (backward compatible).
+            self.assertEqual(service.scoped_target("matts-work"), "matts-work")
+            # Pane targets keep their window/pane suffix; only the session scopes.
+            self.assertEqual(service.scoped_target("evil:0.1"), "matts-evil:0.1")
+            self.assertEqual(service.scoped_target("matts-work:1.2"), "matts-work:1.2")
+            # Empty / stripped-away input falls back to the managed default.
+            self.assertEqual(service.scoped_target(""), "matts-claude")
+
+    def test_operations_reject_foreign_targets_by_namespacing(self):
+        commands = []
+
+        def tmux_cmd(args, check=True):
+            commands.append(args)
+            return 0, "", ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, records, _, _ = self.service(tmp, tmux_cmd=tmux_cmd)
+            # A caller attempts to capture/kill a foreign host session named
+            # "default"; every tmux target must stay inside the managed prefix.
+            capture_status, capture = service.capture("default")
+            service.send_text("default", "payload", enter=True)
+            service.send_key("default", "Enter")
+            stop_status, _ = service.stop("default")
+
+        self.assertEqual(capture_status, HTTPStatus.OK)
+        self.assertEqual(capture["name"], "matts-default")
+        self.assertEqual(stop_status, HTTPStatus.OK)
+        self.assertEqual(records["upserts"][-1][0][0], "matts-default")
+        # No raw "default" target ever reached tmux.
+        for cmd in commands:
+            if "-t" in cmd:
+                self.assertTrue(cmd[cmd.index("-t") + 1].startswith("matts-"), cmd)
+            self.assertNotIn("default", cmd)
+
+    def test_start_does_not_attach_foreign_session(self):
+        # A foreign host session literally named "default" exists. Requesting it
+        # must NOT attach/capture it; the request is scoped to matts-default,
+        # which does not exist, so a fresh managed session is created instead.
+        with tempfile.TemporaryDirectory() as tmp:
+            service, records, existing, _ = self.service(tmp, tmux_existing={"default"})
+            status, payload = service.start({"name": "default", "project_dir": tmp, "run_mode": "print", "print_prompt": "hi"})
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertFalse(payload["attached"])
+        self.assertEqual(payload["name"], "matts-default")
+        # The foreign "default" session was never killed or reused.
+        self.assertIn("default", existing)
+        self.assertIn("matts-default", existing)
+        self.assertEqual(records["upserts"][0][0][0], "matts-default")
 
 
 if __name__ == "__main__":
