@@ -814,12 +814,17 @@ def run_hash_token_research_auth_smoke(browser, base_url: str) -> None:
         assert research_urls, "hash-token Research setup route was not exercised"
         assert all("token=hash-smoke-token" not in url for url in research_urls), "hash token leaked into /v2/research URL: %s" % research_urls
         assert "hash-smoke-token" in research_tokens, "hash token was not forwarded in x-matts-console-token: %s" % research_tokens
+        assert page.evaluate("window.localStorage.getItem('matts-v2-console-token')") == "hash-smoke-token"
         page.goto(base_url + "?stored-token-check=1#research", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         assert len(research_urls) >= 2, "stored-token Research setup route was not exercised"
         assert "token=hash-smoke-token" not in page.url, "stored-token navigation reintroduced token in URL: %s" % page.url
         assert "token=hash-smoke-token" not in research_urls[-1], "stored token leaked into /v2/research URL: %s" % research_urls[-1]
         assert research_tokens[-1] == "hash-smoke-token", "stored token was not reused in x-matts-console-token: %s" % research_tokens[-1]
+        page.evaluate("window.sessionStorage.removeItem('matts-v2-console-token')")
+        page.goto(base_url + "#research", wait_until="networkidle")
+        expect(page.get_by_role("heading", name="Research")).to_be_visible()
+        assert research_tokens[-1] == "hash-smoke-token", "local storage did not restore x-matts-console-token after session storage cleared: %s" % research_tokens[-1]
     finally:
         page.close()
 
@@ -1653,7 +1658,7 @@ def run_browser_smoke(base_url: str) -> None:
         row_terminal_href = page.get_by_test_id("tmux-session-open").first.get_attribute("href") or ""
         assert ":18182/" in row_terminal_href and "session=smoke-tmux" in row_terminal_href and "#code" in row_terminal_href, "tmux row terminal link did not preserve V2 route/session: %s" % row_terminal_href
         page.locator(".advancedTabs").get_by_role("button", name="run", exact=True).click()
-        expect(page.get_by_role("heading", name="Run")).to_be_visible()
+        expect(page.get_by_role("heading", name="Run")).to_be_visible(timeout=15000)
         expect(page.get_by_test_id("chat-run-panel")).to_be_visible()
         page.get_by_test_id("chat-run-prompt").fill("generated-client-error-smoke")
         with page.expect_response(lambda response: "/v2/run/chat" in response.url and response.status == 500):

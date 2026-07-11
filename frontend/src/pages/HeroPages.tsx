@@ -2205,6 +2205,26 @@ export function CodePage() {
         </button>
       </div>
       <input ref={fileInput} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files && void handleFiles(event.target.files)} />
+      <div className="codeTerminalSection" data-testid="code-tui-section">
+        <div className="codeTerminalHeader">
+          <div>
+            <span>TMux Console</span>
+            <strong>MDE LLM-PROXY TUI bridge</strong>
+            <small>{terminalOpen ? (terminalController ? 'Local control active' : 'Read-only view') : 'Console hidden'}</small>
+          </div>
+          <div className="codeTerminalActions">
+            {terminalOpen ? (
+              <button className="secondaryButton" type="button" onClick={() => setTerminalController(!terminalController)}>{terminalController ? 'Release Local Control' : 'Take Local Control'}</button>
+            ) : null}
+            <button className="secondaryButton" type="button" aria-expanded={terminalOpen} data-testid="code-tui-toggle" onClick={() => setTerminalOpen(!terminalOpen)}>{terminalOpen ? 'Hide TMux' : 'Open TMux Console'}</button>
+          </div>
+        </div>
+        {terminalOpen ? (
+          <Suspense fallback={<AdvancedLoading label="terminal" />}>
+            <TuiTerminal clientId={terminalClient} controller={terminalController} />
+          </Suspense>
+        ) : null}
+      </div>
       <div className="workspaceGrid twoColumn">
         <div className="composerPanel">
           {code.isLoading ? <StatusPanel tone="loading" title="Loading code workspace" /> : null}
@@ -2279,26 +2299,6 @@ export function CodePage() {
             </article>
           )) : <div className="emptyState">Session output and image review responses will appear here.</div>}
         </div>
-      </div>
-      <div className="codeTerminalSection" data-testid="code-tui-section">
-        <div className="codeTerminalHeader">
-          <div>
-            <span>TMux Console</span>
-            <strong>MDE LLM-PROXY TUI bridge</strong>
-            <small>{terminalOpen ? (terminalController ? 'Local control active' : 'Read-only view') : 'Console hidden'}</small>
-          </div>
-          <div className="codeTerminalActions">
-            {terminalOpen ? (
-              <button className="secondaryButton" type="button" onClick={() => setTerminalController(!terminalController)}>{terminalController ? 'Release Local Control' : 'Take Local Control'}</button>
-            ) : null}
-            <button className="secondaryButton" type="button" aria-expanded={terminalOpen} data-testid="code-tui-toggle" onClick={() => setTerminalOpen(!terminalOpen)}>{terminalOpen ? 'Hide Console' : 'Show Console'}</button>
-          </div>
-        </div>
-        {terminalOpen ? (
-          <Suspense fallback={<AdvancedLoading label="terminal" />}>
-            <TuiTerminal clientId={terminalClient} controller={terminalController} />
-          </Suspense>
-        ) : null}
       </div>
     </section>
   );

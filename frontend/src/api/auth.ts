@@ -1,4 +1,5 @@
 const CONSOLE_TOKEN_STORAGE_KEY = 'matts-v2-console-token';
+let cachedConsoleToken = '';
 
 function tokenFromSearch(search: string): string {
   if (!search) return '';
@@ -16,20 +17,57 @@ function tokenFromHash(hash: string): string {
 }
 
 function storedConsoleToken(): string {
+  if (cachedConsoleToken) return cachedConsoleToken;
   try {
-    return window.sessionStorage.getItem(CONSOLE_TOKEN_STORAGE_KEY) || '';
+    const token = window.sessionStorage.getItem(CONSOLE_TOKEN_STORAGE_KEY) || '';
+    if (token) {
+      cachedConsoleToken = token;
+      return token;
+    }
+  } catch {
+    // Private or locked-down remote browsers can disable sessionStorage.
+  }
+  try {
+    const token = window.localStorage.getItem(CONSOLE_TOKEN_STORAGE_KEY) || '';
+    if (token) cachedConsoleToken = token;
+    return token;
   } catch {
     return '';
   }
 }
 
-function rememberConsoleToken(token: string): void {
-  if (!token) return;
+export function rememberConsoleToken(token: string): void {
+  const cleaned = token.trim();
+  if (!cleaned) return;
+  cachedConsoleToken = cleaned;
   try {
-    window.sessionStorage.setItem(CONSOLE_TOKEN_STORAGE_KEY, token);
+    window.sessionStorage.setItem(CONSOLE_TOKEN_STORAGE_KEY, cleaned);
   } catch {
     // Private or locked-down remote browsers can disable sessionStorage.
   }
+  try {
+    window.localStorage.setItem(CONSOLE_TOKEN_STORAGE_KEY, cleaned);
+  } catch {
+    // Local storage is only a resilience layer for reopened remote browsers.
+  }
+}
+
+export function forgetConsoleToken(): void {
+  cachedConsoleToken = '';
+  try {
+    window.sessionStorage.removeItem(CONSOLE_TOKEN_STORAGE_KEY);
+  } catch {
+    // Storage cleanup is best-effort.
+  }
+  try {
+    window.localStorage.removeItem(CONSOLE_TOKEN_STORAGE_KEY);
+  } catch {
+    // Storage cleanup is best-effort.
+  }
+}
+
+export function hasConsoleToken(): boolean {
+  return Boolean(consoleToken());
 }
 
 function scrubBootstrapToken(): void {

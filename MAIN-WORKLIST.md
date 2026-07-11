@@ -41,6 +41,41 @@ The interface refactoring work consolidates previously separate components into 
 
 ## Active Tasks
 
+### Task ID: INT-162
+**Title:** Add visible V2 sign-in, settings, and Code TMux entry points
+**Status:** ✅ `COMPLETED`
+**Priority:** P0
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+**Estimated Duration:** 45 minutes
+
+**Description:** Operator use surfaced three V2 discoverability/auth failures after the V1 removal drain: Chat can show `v2 request failed: 403` with no obvious login path, the shell has no recognizable settings icon, and the Code workspace's TMux console is too easy to miss below the main composer/output grid.
+
+**Implementation Steps:**
+1. Add a visible in-app Sign In dialog that accepts the console token and refreshes V2 queries.
+2. Persist discovered bootstrap tokens in memory plus browser storage after scrubbing token URLs so same-browser reloads and reopened scrubbed URLs do not become anonymous.
+3. Add a visible Settings gear in the rail that opens Advanced/Console settings.
+4. Move the Code TMux console section into the first viewport and use an explicit `Open TMux Console` control.
+5. Extend V2 browser smoke coverage for token storage fallback and the visible Code TMux entry.
+
+**Completion Criteria:**
+- [x] Operators can sign in without manually reconstructing a `?token=...` URL
+- [x] Scrubbed token URLs continue to authenticate via header tokens after browser storage fallback
+- [x] Settings has a visible rail icon
+- [x] Code shows a visible TMux console entry point before the composer/output grid
+- [x] Frontend build, bundle/audit checks, release-script tests, and V2 browser smoke pass
+
+**Progress Notes:**
+- 2026-07-11: Added browser-storage and in-memory token retention in `frontend/src/api/auth.ts`, plus Sign In/Sign Out rail controls and a token dialog in `App.tsx`.
+- 2026-07-11: Added a Settings rail icon that routes to Advanced/Console and moved the Code TMux console section above the Code workspace grid with an explicit `Open TMux Console` button.
+- 2026-07-11: Verification passed: `npm run build --prefix frontend`, `MATTS_BROWSER_SMOKE_REQUIRED=1 python3 scripts/v2-browser-smoke.py --required`, `python3 -m unittest tests.test_release_scripts -v`, `python3 scripts/check-v2-frontend-bundles.py`, `python3 scripts/check-v2-frontend-audit.py`, and `python3 -m py_compile scripts/v2-browser-smoke.py`.
+
+**Dependencies:** INT-161
+**Blocks:** Reliable first-use V2 login, settings discovery, and Code/TMux discovery
+
+---
+
 ### Task ID: INT-153
 **Title:** Preserve V2 auth token for Research and remote navigation
 **Status:** ✅ `COMPLETED`

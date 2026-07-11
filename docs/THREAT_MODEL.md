@@ -69,9 +69,10 @@ lifecycle, or token handling, update this file and `SECURITY.md`.
 - The console binds to `0.0.0.0` by default for headless access; token auth is
   therefore mandatory for any non-local network.
 - Browser URLs may contain console tokens briefly during bootstrap; the V2
-  frontend scrubs them after token discovery and uses header auth for fetch
-  requests. Native WebSocket clients still use query-token compatibility
-  fallback because browser WebSocket APIs cannot set arbitrary headers.
+  frontend stores discovered tokens in browser storage, scrubs them after
+  discovery, and uses header auth for fetch requests. Native WebSocket clients
+  still use query-token compatibility fallback because browser WebSocket APIs
+  cannot set arbitrary headers.
 - LLM prompts and code sent to external providers follow the chosen model route.
   The platform can show routing proof, but it cannot make external inference
   private after the request is sent.

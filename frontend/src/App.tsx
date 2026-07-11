@@ -1,6 +1,7 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, HomeSummary, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
+import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
 import { getModels, getWhatsNew } from './api/v2';
 import { getOperate, OperatePayload } from './api/generated/v2Client';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
@@ -190,6 +191,11 @@ function shouldTriggerFatalDiagnostic(): boolean {
   }
 }
 
+function looksLikeAuthError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /403|missing_permission|anonymous|token/i.test(message);
+}
+
 function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: OperatePayload; loading: boolean; error: unknown; onOpen: () => void }) {
   const releaseCandidate = record(payload?.release_candidate);
   const summary = record(releaseCandidate.summary);
@@ -275,10 +281,54 @@ function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: 
   );
 }
 
+function ConsoleSignInDialog({ onSubmit }: { onSubmit: (token: string) => void }) {
+  const [token, setToken] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+  const submit = () => {
+    const value = token.trim();
+    if (!value) return;
+    onSubmit(value);
+    setToken('');
+  };
+  return (
+    <div className="modalBackdrop authBackdrop">
+      <div className="authDialog" role="dialog" aria-modal="true" aria-labelledby="console-sign-in-title">
+        <div className="authDialogHeader">
+          <CarbonIcon path="apps/user--settings.svg" label="Sign in" />
+          <div>
+            <span>Console Access</span>
+            <h2 id="console-sign-in-title">Sign In</h2>
+          </div>
+        </div>
+        <label className="field authTokenField">
+          <span>Console Token</span>
+          <input
+            ref={inputRef}
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submit();
+            }}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <div className="authDialogActions">
+          <button className="primaryButton" type="button" disabled={!token.trim()} onClick={submit}>Sign In</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   if (shouldTriggerFatalDiagnostic()) {
     throw new Error('V2 shell diagnostic render failure');
   }
+  const queryClient = useQueryClient();
   const [active, setActive] = useState(activeFromHash);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickQuery, setQuickQuery] = useState('');
@@ -286,6 +336,8 @@ export default function App() {
   const [recentWorkspaceKeys, setRecentWorkspaceKeys] = useState(loadRecentWorkspaceKeys);
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
   const [savedStateVersion, setSavedStateVersion] = useState(0);
+  const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(() => hasConsoleToken());
   const [showStartupWhatsNew, setShowStartupWhatsNew] = useState(() => {
     try {
       return window.sessionStorage.getItem(WHATS_NEW_DISMISSED_KEY) !== '1';
@@ -309,6 +361,12 @@ export default function App() {
   const savedStateCount = useMemo(savedWorkspaceStateCount, [quickOpen, savedStateVersion]);
   const [savedStateStatus, setSavedStateStatus] = useState(savedStateCount ? 'State ready' : 'No saved state');
   const [workspaceLinkStatus, setWorkspaceLinkStatus] = useState('Link ready');
+  useEffect(() => {
+    if (signedIn || authPromptOpen) return;
+    if ([modelPayload.error, operatePayload.error].some(looksLikeAuthError)) {
+      setAuthPromptOpen(true);
+    }
+  }, [authPromptOpen, modelPayload.error, operatePayload.error, signedIn]);
   useEffect(() => {
     const syncFromHash = () => setActive(activeFromHash());
     window.addEventListener('hashchange', syncFromHash);
@@ -359,6 +417,27 @@ export default function App() {
     }
     activate('advanced');
     window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'operate' } }));
+  };
+  const openSettingsWorkspace = () => {
+    try {
+      window.sessionStorage.setItem(V2_WORKSPACE_SESSION_KEYS.advancedTab, 'console');
+    } catch {
+      // Advanced can still open if browser storage is restricted.
+    }
+    activate('advanced');
+    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'console' } }));
+  };
+  const submitConsoleToken = (token: string) => {
+    rememberConsoleToken(token);
+    setSignedIn(true);
+    setAuthPromptOpen(false);
+    queryClient.invalidateQueries();
+  };
+  const signOut = () => {
+    forgetConsoleToken();
+    setSignedIn(false);
+    setAuthPromptOpen(true);
+    queryClient.invalidateQueries();
   };
   const closeQuickSwitcher = () => {
     setQuickOpen(false);
@@ -486,6 +565,7 @@ export default function App() {
   };
   return (
     <div className="carbonShell">
+      {authPromptOpen ? <ConsoleSignInDialog onSubmit={submitConsoleToken} /> : null}
       {showStartupWhatsNew && whatsNew.data ? <WhatsNewModal data={whatsNew.data} onClose={dismissStartupWhatsNew} /> : null}
       {quickOpen ? (
         <div className="modalBackdrop quickSwitcherBackdrop">
@@ -573,9 +653,17 @@ export default function App() {
             <strong>MDE</strong>
             <span>LLM-PROXY Console v2</span>
           </div>
-          <button className="railIconButton" type="button" aria-label="Open Switch Workspace" onClick={() => setQuickOpen(true)}>
-            <CarbonIcon path="actions/edit-find-symbolic.svg" label="Switch" />
-          </button>
+          <div className="brandActions">
+            <button className="railIconButton" type="button" aria-label="Open Switch Workspace" title="Switch Workspace" onClick={() => setQuickOpen(true)}>
+              <CarbonIcon path="actions/edit-find-symbolic.svg" label="Switch" />
+            </button>
+            <button className="railIconButton" type="button" aria-label="Open Settings" title="Settings" onClick={openSettingsWorkspace}>
+              <CarbonIcon path="apps/settings.svg" label="Settings" />
+            </button>
+            <button className="railIconButton" type="button" aria-label={signedIn ? 'Sign Out' : 'Sign In'} title={signedIn ? 'Sign Out' : 'Sign In'} onClick={signedIn ? signOut : () => setAuthPromptOpen(true)}>
+              <CarbonIcon path="apps/user--settings.svg" label={signedIn ? 'Sign Out' : 'Sign In'} />
+            </button>
+          </div>
         </div>
         <nav className="heroNav" aria-label="Primary">
           {navItems.map((item) => (
