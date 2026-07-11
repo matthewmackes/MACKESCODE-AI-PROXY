@@ -202,6 +202,7 @@ python3 -m py_compile \
   tests/test_audit_service.py \
   tests/test_agentboard_service.py \
   tests/test_automation_rules_service.py \
+  tests/test_bootstrap_fallbacks.py \
   tests/test_chat_service.py \
   tests/test_comparison_report_service.py \
   tests/test_console_smoke.py \

@@ -66,13 +66,13 @@ def start_proxy_if_needed():
         return
     script_dir = Path(__file__).resolve().parent
     proxy_script = Path(os.environ.get("MATTS_VALUE_SET_PROXY_SCRIPT", script_dir / "do-anthropic-proxy.py"))
+    # The proxy loads the active model registry (config/models.json) itself and
+    # falls back to config/default-models.json, so no model list is passed here.
     cmd = [
         sys.executable,
         str(proxy_script),
         "--provider",
         "matts-value-set",
-        "--default-model",
-        "deepseek-3.2",
         "--host",
         proxy_host(),
         "--port",
@@ -81,15 +81,6 @@ def start_proxy_if_needed():
         str(token_file()),
         "--base-url",
         os.environ.get("MATTS_VALUE_SET_BASE_URL", "https://inference.do-ai.run"),
-        "--models",
-        json.dumps([
-            "deepseek-3.2",
-            "deepseek-v4-pro",
-            "glm-5",
-            "mistral-3-14B",
-            "openai-gpt-5.3-codex",
-            MODEL,
-        ]),
         "--cost-file",
         os.environ.get("MATTS_VALUE_SET_COST_FILE", str(home_dir() / ".cache/matts-value-set/usage.jsonl")),
         "--budget-file",

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -85,36 +86,17 @@ DEFAULT_GATEWAY_POLICY = {
         "latency_targets_ms": {}
     },
 }
-MATTS_VALUE_SET_MODELS = [
-    "deepseek-3.2",
-    "deepseek-v4-pro",
-    "glm-5",
-    "mistral-3-14B",
-    "openai-gpt-5.3-codex",
-    "stable-diffusion-3.5-large",
-]
-DEFAULT_ALIASES = {
-    "deepseek": "deepseek-3.2",
-    "deepseek-v4": "deepseek-v4-pro",
-    "glm": "glm-5",
-    "mistral": "mistral-3-14B",
-    "codex": "openai-gpt-5.3-codex",
-    "sd35": "stable-diffusion-3.5-large",
-}
-DEFAULT_COSTS_PER_MTOK = {
-    "deepseek-3.2": {"input": 0.27, "output": 1.1},
-    "deepseek-v4-pro": {"input": 0.27, "output": 1.1},
-    "glm-5": {"input": 0.27, "output": 1.1},
-    "mistral-3-14B": {"input": 0.27, "output": 1.1},
-    "openai-gpt-5.3-codex": {"input": 1.75, "output": 14.0},
-    "stable-diffusion-3.5-large": {"input": 0.0, "output": 0.0, "image": 0.08},
-}
-
-
 def _model_config_path():
     return os.environ.get(
         "MATTS_MODEL_CONFIG_FILE",
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "models.json"),
+    )
+
+
+def _default_model_config_path():
+    return os.environ.get(
+        "MATTS_DEFAULT_MODEL_CONFIG_FILE",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "default-models.json"),
     )
 
 
@@ -168,6 +150,30 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
         if pricing:
             costs[model_id] = {key: float(value or 0) for key, value in pricing.items() if key in ("input", "output", "image")}
     return text + image, aliases, costs, True, records, ""
+
+
+def _load_bootstrap_fallbacks(path=None):
+    """Load the bootstrap fallback model/alias/pricing data.
+
+    GOVERNANCE: `config/models.json` stays the active source of truth; this
+    data is only used when that registry cannot provide any route-enabled
+    model. `config/default-models.json` is the single sanctioned bootstrap
+    fallback source. If it is unreadable too, degrade to a minimal
+    model-id-only structure with no pricing (costs report `priced: false`)
+    instead of keeping a divergent hardcoded price table.
+
+    Returns (models, aliases, costs, warning).
+    """
+    path = path or _default_model_config_path()
+    models, aliases, costs, loaded, _records, error = _load_model_registry(path, [DEFAULT_MODEL], {}, {})
+    warning = ""
+    if not loaded:
+        warning = (
+            "bootstrap fallback file %s could not be loaded (%s); "
+            "degrading to minimal fallback model list %s with no pricing data"
+            % (path, error or "no active models", json.dumps([DEFAULT_MODEL]))
+        )
+    return models, aliases, costs, warning
 
 
 def _model_config_fingerprint(path):
@@ -2447,10 +2453,10 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, anthropic)
 
 
-def main():
+def _build_arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=18080)
+    parser.add_argument("--port", type=int, default=18081)
     parser.add_argument("--provider", default=os.environ.get("CLAUDE_DO_PROVIDER", "private"))
     parser.add_argument("--default-model", default=os.environ.get("CLAUDE_DO_DEFAULT_MODEL", DEFAULT_MODEL))
     parser.add_argument("--token-file", default=os.path.join(os.path.expanduser("~"), ".mcnf-do-token"))
@@ -2465,17 +2471,25 @@ def main():
     parser.add_argument("--log-file", default=os.environ.get("CLAUDE_DO_LOG_FILE", DEFAULT_LOG_FILE))
     parser.add_argument("--trace-file", default=os.environ.get("MATTS_TRACE_FILE", DEFAULT_TRACE_FILE))
     parser.add_argument("--gateway-policy-file", default=os.environ.get("MATTS_GATEWAY_POLICY_FILE", DEFAULT_GATEWAY_POLICY_FILE))
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = _build_arg_parser().parse_args()
+
+    fallback_models, fallback_aliases, fallback_costs, bootstrap_warning = _load_bootstrap_fallbacks()
+    if bootstrap_warning:
+        print("warning: %s" % bootstrap_warning, file=sys.stderr, flush=True)
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.provider = args.provider
     server.default_model = args.default_model
     server.token_file = args.token_file
     server.capabilities = _load_json_env(args.capabilities, {})
-    server.fallback_model_aliases = dict(DEFAULT_ALIASES)
+    server.fallback_model_aliases = dict(fallback_aliases)
     server.fallback_model_aliases.update(_load_json_env(args.model_aliases, {}))
-    server.fallback_models = _load_json_env(args.models, MATTS_VALUE_SET_MODELS)
-    server.fallback_costs = dict(DEFAULT_COSTS_PER_MTOK)
+    server.fallback_models = _load_json_env(args.models, fallback_models)
+    server.fallback_costs = dict(fallback_costs)
     server.fallback_costs.update(_load_json_env(args.costs, {}))
     server.model_aliases = dict(server.fallback_model_aliases)
     server.models = list(server.fallback_models)

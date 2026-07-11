@@ -23,45 +23,50 @@ tmux_session="${MATTS_VALUE_SET_TMUX_SESSION:-matts-value-set-proxy}"
 
 model="${MATTS_VALUE_SET_MODEL:-deepseek-3.2}"
 model_config_file="${MATTS_MODEL_CONFIG_FILE:-$script_dir/config/models.json}"
-models='["deepseek-3.2","deepseek-v4-pro","glm-5","mistral-3-14B","openai-gpt-5.3-codex","stable-diffusion-3.5-large"]'
-text_models=("deepseek-3.2" "deepseek-v4-pro" "glm-5" "mistral-3-14B" "openai-gpt-5.3-codex")
-image_models=("stable-diffusion-3.5-large")
-declare -A model_aliases=(
-  [deepseek]="deepseek-3.2"
-  [deepseek-v4]="deepseek-v4-pro"
-  [glm]="glm-5"
-  [mistral]="mistral-3-14B"
-  [codex]="openai-gpt-5.3-codex"
-  [sd35]="stable-diffusion-3.5-large"
-)
+default_model_config_file="${MATTS_DEFAULT_MODEL_CONFIG_FILE:-$script_dir/config/default-models.json}"
+# Filled by load_model_registry from config/models.json, falling back to the
+# sanctioned bootstrap data in config/default-models.json.
+models='[]'
+text_models=()
+image_models=()
+declare -A model_aliases=()
 load_model_registry() {
   local output
-  output="$(python3 - "$model_config_file" <<'REGISTRYPY'
+  output="$(python3 - "$model_config_file" "$default_model_config_file" <<'REGISTRYPY'
 import json, shlex, sys
-fallback = [
- {"id":"deepseek-3.2","type":"text","enabled":True,"aliases":["deepseek"]},
- {"id":"deepseek-v4-pro","type":"text","enabled":True,"aliases":["deepseek-v4"]},
- {"id":"glm-5","type":"text","enabled":True,"aliases":["glm"]},
- {"id":"mistral-3-14B","type":"text","enabled":True,"aliases":["mistral"]},
- {"id":"openai-gpt-5.3-codex","type":"text","enabled":True,"aliases":["codex"]},
- {"id":"stable-diffusion-3.5-large","type":"image","enabled":True,"aliases":["sd35"]},
-]
-try:
-    data=json.load(open(sys.argv[1], encoding='utf-8'))
-    rows=data.get('models', data) if isinstance(data, dict) else data
-except Exception:
-    rows=fallback
+
 def route_enabled(m):
     if not isinstance(m, dict) or not m.get('enabled', True) or not m.get('id'):
         return False
     if m.get('serverless') and m.get('type', 'text') == 'text':
         return m.get('access_status') == 'ok'
     return True
-active=[m for m in rows if route_enabled(m)]
+
+def active_models(path):
+    with open(path, encoding='utf-8') as handle:
+        data = json.load(handle)
+    rows = data.get('models', data) if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        return []
+    return [m for m in rows if route_enabled(m)]
+
+registry_file, bootstrap_file = sys.argv[1], sys.argv[2]
+try:
+    active = active_models(registry_file)
+except Exception:
+    active = []
 if not active:
-    active=fallback
-text=[m['id'] for m in active if m.get('type','text') == 'text']
-image=[m['id'] for m in active if m.get('type') == 'image']
+    try:
+        active = active_models(bootstrap_file)
+    except Exception:
+        active = []
+    if active:
+        print('claude-DO: model registry %s is unavailable; using bootstrap fallback %s' % (registry_file, bootstrap_file), file=sys.stderr)
+if not active:
+    print('claude-DO: model registry %s and bootstrap fallback %s are unavailable; using minimal fallback model list' % (registry_file, bootstrap_file), file=sys.stderr)
+    active = [{'id': 'deepseek-3.2', 'type': 'text'}]
+text=[str(m['id']) for m in active if m.get('type','text') == 'text']
+image=[str(m['id']) for m in active if m.get('type') == 'image']
 all_ids=text+image
 aliases=[]
 for m in active:
