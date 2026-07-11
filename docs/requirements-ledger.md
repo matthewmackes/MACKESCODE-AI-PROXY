@@ -67,13 +67,13 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 
 | Decision | Evidence | Owner |
 | --- | --- | --- |
-| `config/models.json` is the private-operator source of truth for model availability, metadata, access state, pricing, and enabled policy. | Confirmed | `INT-015`, `INT-018` |
+| `config/models.json` is the private-operator source of truth for model availability metadata, pricing, and enabled policy; key-specific access state is runtime-owned and merged at read time. | Confirmed | `INT-015`, `INT-018`, `DRN-005` |
 | Serverless catalog sync should add all DigitalOcean models, retain removed models as unavailable records, and avoid routing disabled or forbidden models. | Confirmed | `INT-015` |
-| Newly discovered DigitalOcean text LLMs should become routable by default after a live access probe succeeds; failed probes remain visible but disabled regardless of price. | Confirmed | `INT-015`, `V2-007` |
+| Newly discovered DigitalOcean text LLMs should become routable when registry policy enables them and runtime access state shows a successful live probe; failed probes remain visible but unroutable regardless of price. | Confirmed | `INT-015`, `V2-007`, `DRN-005` |
 | Model labels should include human-readable cost, training-origin country, brand/provider identity, access state, and use-case/comparison context. | Confirmed | `INT-015`, `INT-017` |
 | New models should receive a seven-day global sparkle treatment and generated style fallback when no curated provider style exists. | Confirmed | `INT-014`, `INT-015`, `INT-017` |
 | Each chat message should expose a Show Detail view with requested model, routed model, fallback reason, provider, endpoint mode, trace ID, cost, and latency where available. | Confirmed | `INT-015`, `INT-020` |
-| Model access key verification should be automatable and should record allowed/forbidden model status back into the registry. | Confirmed | `INT-015`, `INT-019` |
+| Model access key verification should be automatable and should record allowed/forbidden model status into runtime access state, not the committed registry. | Confirmed | `INT-015`, `INT-019`, `DRN-005` |
 
 ## Dedicated Inference And Cost Controls
 

@@ -32,7 +32,7 @@ import {
 } from '../api/generated/v2Client';
 import TmuxTerminal from '../components/TmuxTerminal';
 import TuiTerminal from '../components/TuiTerminal';
-import { apiEndpointUrl, consoleToken } from '../api/auth';
+import { apiEndpointUrl } from '../api/auth';
 import { errorText } from '../utils/errors';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
@@ -76,8 +76,6 @@ function terminalUrl(name: string, workspace?: TmuxWorkspacePayload): string {
   const terminal = workspace?.terminal;
   const url = new URL(apiEndpointUrl(terminal?.path || '/terminal', { defaultPort: terminal?.default_legacy_port }));
   url.searchParams.set(terminal?.query_param || 'name', name);
-  const token = consoleToken();
-  if (token) url.searchParams.set('token', token);
   return url.toString();
 }
 
@@ -660,7 +658,7 @@ export default function ConsolePage() {
             <Alert
               type="warning"
               showIcon
-              message="Some legacy console state could not be loaded"
+              message="Some service adapter state could not be loaded"
               description={errors.map(([key, value]) => `${key}: ${value}`).join(' · ')}
             />
           ) : null}

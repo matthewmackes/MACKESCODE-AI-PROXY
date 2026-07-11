@@ -98,11 +98,10 @@ class HealthValidateScriptTests(unittest.TestCase):
 
     def args(self, **overrides):
         defaults = {
-            "console_url": "http://console",
+            "legacy_console_url": "",
             "v2_url": "http://v2",
             "proxy_url": "http://proxy",
             "timeout": 1.0,
-            "console_only": False,
             "proxy_only": False,
             "v2_only": False,
             "no_v2": False,
@@ -120,9 +119,6 @@ class HealthValidateScriptTests(unittest.TestCase):
 
     def healthy_bodies(self):
         return {
-            "http://console/health": '{"status":"ok"}',
-            "http://console/ready": '{"status":"ok"}',
-            "http://console/version": '{"version":"1"}',
             "http://v2/v2/health": '{"status":"ok","version":"2.0.0"}',
             "http://v2/": '<!doctype html><div id="root"><section data-testid="v2-boot-fallback">Starting</section></div><script type="module" src="/assets/index.js"></script>',
             "http://proxy/v1/claude-do/capabilities": '{"provider":"test"}',
@@ -183,14 +179,35 @@ class HealthValidateScriptTests(unittest.TestCase):
     def test_no_v2_skips_v2_but_keeps_legacy_console_and_proxy_checks(self):
         script = load_script("health-validate.py")
         calls = []
-        bodies = {key: value for key, value in self.healthy_bodies().items() if not key.startswith("http://v2/")}
+        bodies = {
+            "http://proxy/v1/claude-do/capabilities": '{"provider":"test"}',
+            "http://proxy/v1/models": '{"data":[]}',
+        }
         with patch.object(script, "urlopen", self.fake_urlopen(bodies, calls)):
             result = script.validate(self.args(no_v2=True))
 
         self.assertTrue(result["ok"])
         self.assertNotIn("v2_health", result["checks"])
-        self.assertIn("console_health", result["checks"])
+        self.assertNotIn("legacy_console_health", result["checks"])
         self.assertIn("proxy_models", result["checks"])
+
+    def test_legacy_console_validation_is_explicit(self):
+        script = load_script("health-validate.py")
+        calls = []
+        bodies = dict(self.healthy_bodies())
+        bodies.update(
+            {
+                "http://legacy/health": '{"status":"ok"}',
+                "http://legacy/ready": '{"status":"ok"}',
+                "http://legacy/version": '{"version":"1"}',
+            }
+        )
+        with patch.object(script, "urlopen", self.fake_urlopen(bodies, calls)):
+            result = script.validate(self.args(legacy_console_url="http://legacy"))
+
+        self.assertTrue(result["ok"])
+        self.assertIn("legacy_console_health", result["checks"])
+        self.assertIn(("http://legacy/health", 1.0), calls)
 
 
 class FrontendProductionAuditScriptTests(unittest.TestCase):
@@ -325,6 +342,16 @@ class V2FrontendBundleCheckScriptTests(unittest.TestCase):
 
 
 class V2BrowserSmokeFrontendInstallTests(unittest.TestCase):
+    def test_v2_browser_smoke_runs_health_validate_against_ephemeral_server(self):
+        script = load_script("v2-browser-smoke.py")
+        run = Mock()
+        with patch.object(script.subprocess, "run", run):
+            script.run_health_validate("http://127.0.0.1:12345/")
+
+        self.assertEqual(run.call_args.args[0][1:], [str(ROOT / "scripts" / "health-validate.py"), "--v2-only", "--v2-url", "http://127.0.0.1:12345"])
+        self.assertEqual(run.call_args.kwargs["cwd"], str(ROOT))
+        self.assertTrue(run.call_args.kwargs["check"])
+
     def test_ensure_frontend_uses_npm_ci_when_lockfile_exists(self):
         script = load_script("v2-browser-smoke.py")
         with tempfile.TemporaryDirectory() as tmp:
@@ -373,11 +400,12 @@ class ReleaseCheckScriptTests(unittest.TestCase):
         self.assertIn("npm ci --prefix frontend --no-audit", script)
         self.assertIn("npm install --prefix frontend --no-audit", script)
 
-    def test_release_gate_uses_quiet_legacy_browser_smoke(self):
+    def test_release_gate_is_v2_browser_smoke_only(self):
         script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")
 
-        self.assertIn("python3 scripts/browser-smoke.py --required --quiet", script)
-        self.assertIn("python3 scripts/browser-smoke.py --quiet", script)
+        self.assertIn("python3 scripts/v2-browser-smoke.py --required", script)
+        self.assertIn("python3 scripts/v2-browser-smoke.py", script)
+        self.assertNotIn("scripts/browser-smoke.py", script)
 
     def test_release_gate_isolates_runtime_state(self):
         script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")
@@ -386,8 +414,15 @@ class ReleaseCheckScriptTests(unittest.TestCase):
         self.assertIn("export MATTS_STUDIO_DIR=\"$RELEASE_RUNTIME_ROOT/studio\"", script)
         self.assertIn("export MATTS_TRACE_FILE=\"$MATTS_STUDIO_DIR/traces.jsonl\"", script)
         self.assertIn("export MATTS_TMUX_SESSION_REGISTRY_FILE=\"$MATTS_STUDIO_DIR/tmux-sessions.json\"", script)
+        self.assertIn("export MATTS_MODEL_ACCESS_STATE_FILE=\"$MATTS_STUDIO_DIR/model-access-state.json\"", script)
+        self.assertIn("release_check_seed", script)
         self.assertIn("export MATTS_VALUE_SET_BUDGET_FILE=\"$RELEASE_RUNTIME_ROOT/budgets.json\"", script)
         self.assertIn("export MATTS_V2_RUN_DB=\"$MATTS_STUDIO_DIR/v2-run.sqlite3\"", script)
+
+    def test_release_gate_coverage_floor_is_configurable(self):
+        script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")
+
+        self.assertIn('python3 scripts/coverage-report.py --fail-under "${MATTS_COVERAGE_FLOOR:-50}"', script)
 
     def test_release_gate_cleans_release_runtime_proxy_processes(self):
         script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")
@@ -411,67 +446,8 @@ class ReleaseCheckScriptTests(unittest.TestCase):
     def test_release_gate_required_mode_fails_when_frontend_tooling_is_missing(self):
         script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")
 
-        self.assertIn("Template JavaScript syntax requires node when MATTS_BROWSER_SMOKE_REQUIRED=1", script)
         self.assertIn("React frontend build requires npm when MATTS_BROWSER_SMOKE_REQUIRED=1", script)
-        self.assertIn("Template JavaScript syntax skipped: node is not installed", script)
         self.assertIn("React frontend build skipped: npm is not installed", script)
-
-
-class BrowserSmokeHarnessTests(unittest.TestCase):
-    def test_smoke_handler_defaults_to_verbose_and_quiets_only_access_logs(self):
-        script = load_script("browser-smoke.py")
-
-        class Handler:
-            calls = []
-
-            def log_message(self, fmt, *args):
-                self.calls.append((fmt, args))
-
-        studio = types.SimpleNamespace(StudioHandler=Handler)
-
-        self.assertIs(script.smoke_handler_class(studio), Handler)
-        quiet_handler = script.smoke_handler_class(studio, quiet=True)
-        self.assertTrue(issubclass(quiet_handler, Handler))
-        self.assertIsNot(quiet_handler, Handler)
-
-        quiet = object.__new__(quiet_handler)
-        quiet.calls = []
-        quiet.log_message("GET %s", "/")
-        self.assertEqual(quiet.calls, [])
-
-    def test_terminal_smoke_uses_no_autoconnect_preview_url(self):
-        script = load_script("browser-smoke.py")
-
-        self.assertEqual(
-            script.terminal_smoke_url("http://127.0.0.1:12345/"),
-            "http://127.0.0.1:12345/terminal?name=browser-smoke&autoconnect=0",
-        )
-        self.assertEqual(
-            script.terminal_smoke_url("http://127.0.0.1:12345"),
-            "http://127.0.0.1:12345/terminal?name=browser-smoke&autoconnect=0",
-        )
-
-    def test_patch_for_smoke_disables_quota_planner(self):
-        script = load_script("browser-smoke.py")
-        studio = types.SimpleNamespace(
-            ALL_MODELS=["model-a"],
-            load_model_registry=lambda include_disabled=False: [{"id": "model-a"}],
-            models_payload=lambda refresh_catalog=False: {"models": [{"id": "model-a"}]},
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            script.patch_for_smoke(studio, Path(tmp))
-
-        payload = studio.quota_planner_payload(actor={"id": "smoke"}, actor_key="smoke-key")
-        preview = studio.quota_planner_preview("/api/context-window", {"action": "chat"}, actor={"id": "smoke"}, actor_key="smoke-key")
-        consume = studio.quota_planner_consume("/api/chat", {"action": "chat"}, actor={"id": "smoke"}, actor_key="smoke-key")
-
-        self.assertFalse(payload["enabled"])
-        self.assertEqual(payload["quotas"], [])
-        for decision in (preview, consume):
-            self.assertTrue(decision["allowed"])
-            self.assertFalse(decision["enabled"])
-            self.assertFalse(decision["managed"])
-            self.assertEqual(decision["policy_decision"]["reason"], "browser_smoke_quota_disabled")
 
 
 if __name__ == "__main__":

@@ -16,9 +16,10 @@ Findings should use one of these verdicts:
 
 - No untracked secrets, endpoint credentials, generated auth tokens, live cloud
   identifiers, traces, usage logs, or runtime cache files are committed.
-- `config/models.json` remains the single selectable model source of truth.
+- `config/models.json` remains the single selectable model config source, with
+  runtime model-access audit state kept under the app cache.
 - Code/Create/Console selectors, proxy `/v1/models`, and model hero cards agree
-  on enabled/access state.
+  on merged enabled/access state.
 - Dedicated lifecycle UI, proxy errors, and trace records explain build,
   budget, idle, unhealthy, fallback, and teardown decisions.
 - Every sensitive action is permission checked and audit logged.

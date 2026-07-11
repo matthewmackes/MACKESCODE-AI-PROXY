@@ -13,7 +13,7 @@ upgrade or restore.
 - model access audit evidence from available text models
 - budget limits
 - console auth and scoped role-token setup
-- release-check and browser-smoke command readiness
+- release-check and V2 browser-smoke command readiness
 - runtime-state backup availability
 - Dedicated Inference state
 - Serverless catalog or selectable model readiness
@@ -39,7 +39,7 @@ location.
 
 1. Write the model access key to `$HOME/.mcnf-do-model-access-token`, or set
    `MATTS_VALUE_SET_ACCESS_KEY` for a deliberate one-time setup.
-2. Start the console with `./matts-console.py --no-open`.
+2. Start the console with `./matts-v2-console.py --build-frontend`.
 3. Open the printed token-protected URL from a workstation browser.
 4. Open System Operations and refresh Golden Path Onboarding.
 5. Run model access audit, configure budgets, add scoped role tokens, run

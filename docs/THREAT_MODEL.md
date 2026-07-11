@@ -13,7 +13,8 @@ lifecycle, or token handling, update this file and `SECURITY.md`.
 | Component | Trust | Notes |
 | --- | --- | --- |
 | `do-anthropic-proxy.py` | Trusted local service | Translates Anthropic-style requests to OpenAI-compatible upstream calls and records usage. |
-| `image-studio.py` / Console | Trusted operator UI | Exposes model management, terminal control, Dedicated lifecycle, billing, traces, and chat/image workflows. |
+| React V2 Console | Trusted operator UI | Exposes model management, terminal control, Dedicated lifecycle, billing, traces, chat, research, image creation, and operations workflows through `matts-v2-console.py` and `/v2/*`. |
+| `image-studio.py` service adapter | Trusted local composition layer | Supplies shared service functions imported by the V2 backend; not a supported standalone V1 UI. |
 | Browser session | Partially trusted | Must authenticate with owner/scoped token or JWT. Browser scripts can be affected by local cache/extensions. |
 | Embedded tmux terminal | High risk trusted action | Sends operator input to local shell/Claude Code sessions. Treat as command execution. |
 | DigitalOcean APIs | External privileged service | Can create/destroy paid cloud resources and reveal account/billing metadata. |
@@ -40,7 +41,10 @@ lifecycle, or token handling, update this file and `SECURITY.md`.
 
 ## Controls
 
-- Proxy binds to `127.0.0.1` by default.
+- Proxy binds to `127.0.0.1` by default. Non-loopback proxy binds require
+  `MATTS_PROXY_AUTH_TOKEN` / `--inbound-auth-token` and `x-matts-proxy-token`
+  or `Authorization: Bearer ...` on inbound requests, unless the operator uses
+  the explicit unauthenticated-remote override.
 - Console uses generated owner token authentication by default, optional scoped
   role tokens, and short-lived JWT sessions with rotating refresh tokens.
 - Sensitive actions are permission checked and written to the audit log.
@@ -55,8 +59,8 @@ lifecycle, or token handling, update this file and `SECURITY.md`.
 - Idle/unhealthy teardown policies limit cost exposure.
 - Default traces avoid full prompts and full assistant responses; see
   `docs/trace-redaction-policy.md`.
-- Release checks include unit tests, syntax checks, template JavaScript checks,
-  and browser smoke when Playwright is available.
+- Release checks include unit tests, syntax checks, React build/bundle/audit
+  checks, and V2 browser smoke when Playwright is available.
 
 ## Accepted Residual Risks
 
@@ -64,8 +68,10 @@ lifecycle, or token handling, update this file and `SECURITY.md`.
   read runtime state, tmux sessions, and token files owned by that user.
 - The console binds to `0.0.0.0` by default for headless access; token auth is
   therefore mandatory for any non-local network.
-- URLs may contain console tokens for convenience. Prefer headers/JWT sessions
-  for shared or monitored environments.
+- Browser URLs may contain console tokens briefly during bootstrap; the V2
+  frontend scrubs them after token discovery and uses header auth for fetch
+  requests. Native WebSocket clients still use query-token compatibility
+  fallback because browser WebSocket APIs cannot set arbitrary headers.
 - LLM prompts and code sent to external providers follow the chosen model route.
   The platform can show routing proof, but it cannot make external inference
   private after the request is sent.

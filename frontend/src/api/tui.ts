@@ -1,4 +1,4 @@
-import { withConsoleToken } from './auth';
+import { consoleAuthHeaders, withConsoleToken } from './auth';
 import { responseJsonOrThrow } from './errors';
 
 export type TuiStatus = {
@@ -14,14 +14,14 @@ export type TuiStatus = {
 };
 
 export async function getTuiStatus(): Promise<TuiStatus> {
-  const response = await fetch(withConsoleToken('/v2/console/tui/status'));
+  const response = await fetch(withConsoleToken('/v2/console/tui/status'), { headers: consoleAuthHeaders() });
   return responseJsonOrThrow<TuiStatus>(response, 'TUI status failed');
 }
 
 export async function acquireTuiControl(clientId: string): Promise<TuiStatus['lease']> {
   const response = await fetch(withConsoleToken('/v2/console/tui/control/acquire'), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...consoleAuthHeaders() },
     body: JSON.stringify({ client_id: clientId })
   });
   const payload = await responseJsonOrThrow<{ lease: TuiStatus['lease'] }>(response, 'TUI control acquire failed');
@@ -31,7 +31,7 @@ export async function acquireTuiControl(clientId: string): Promise<TuiStatus['le
 export async function releaseTuiControl(clientId: string): Promise<TuiStatus['lease']> {
   const response = await fetch(withConsoleToken('/v2/console/tui/control/release'), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...consoleAuthHeaders() },
     body: JSON.stringify({ client_id: clientId })
   });
   const payload = await responseJsonOrThrow<{ lease: TuiStatus['lease'] }>(response, 'TUI control release failed');

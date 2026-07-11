@@ -3,7 +3,7 @@
 **Purpose:** Central tracking document for all development work in the MDE LLM-PROXY project. All AI assistants should document planned work here before execution and update status during/after completion.
 
 **Created:** 2026-07-07
-**Last Updated:** 2026-07-10
+**Last Updated:** 2026-07-11
 
 ## Work Tracking System
 
@@ -2713,22 +2713,22 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-09: Started manifest-based plugin framework with safe discovery, extension point definitions, API exposure, example plugin, docs, and tests.
 - 2026-07-09: Added manifest-only plugin registry service, configured plugin directories and extension points, example disabled plugin manifest, `/api/plugins` payload, documentation, and plugin/API tests. Passed `./scripts/release-check.sh` with 218 tests and browser smoke.
 
-**Description:** Create plugin system for modular interface components and third-party extensions.
+**Description:** Create a manifest-based plugin catalog for modular interface component metadata and future extension inventory. This task does not execute third-party code and does not provide plugin lifecycle management.
 
 **Features:**
-- Plugin lifecycle management
-- Extension points
-- Third-party plugin support
-- Plugin configuration
+- Manifest discovery and validation
+- Extension point metadata
+- Third-party plugin inventory before execution is supported
+- Plugin configuration metadata
 
 **Files to Create:**
-- Plugin framework
+- Plugin catalog service
 - Plugin registry
 - Extension point definitions
 - Plugin examples
 
 **Completion Criteria:**
-- [x] Plugin framework created
+- [x] Manifest catalog created
 - [x] Extension points defined
 - [x] Example plugins
 - [x] Documentation
@@ -9395,18 +9395,24 @@ evidence lives in `docs/COMPLIANCE.md` (Sweep 2026-07-11) and ADR-0002/0003.
 
 ### Task ID: INT-161
 **Title:** Remove the V1 console UI; V2 React is the only console
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** Claude (V1-removal thread, worktree `v2-v1removal`)
+**Assigned To:** Claude (V1-removal thread, worktree `v2-v1removal`) / Codex (main drain)
 **Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
 
 **Description:** Operator directive (ADR-0003): "V1 should be removed. V2 (React) is the current version." Phase 1 maps every symbol/HTTP dependency `backend/v2` takes on the image-studio module and 18181 (written to `docs/v1-retirement-map.md`); phase 2 deletes templates/, `matts-console.py`, and V1-UI-only code while preserving the service layer V2 imports; phase 3 re-scopes the release gate (drop V1 smoke, keep all V2 gates) and proves V2 works without V1 via ephemeral-port Playwright evidence. Commits on the branch carry the pre-renumbering prefix `[INT-105]`.
 
 **Completion Criteria:**
-- [ ] Dependency map recorded; nothing V2 uses is deleted
-- [ ] V1 UI surfaces, entrypoint, and V1-only tests removed; gate re-scoped and green
-- [ ] README/CLAUDE.md/SECURITY.md describe V2 as the console; stale-doc list reported
-- [ ] V2 verified without V1; evidence committed; landed on `main`
+- [x] Dependency map recorded; nothing V2 uses is deleted
+- [x] V1 UI surfaces, entrypoint, and V1-only tests removed; gate re-scoped and green
+- [x] README/CLAUDE.md/SECURITY.md describe V2 as the console; stale-doc list reported
+- [x] V2 verified without V1; evidence committed; landed on `main`
+
+**Progress Notes:**
+- 2026-07-11: Added `docs/v1-retirement-map.md`, removed the V1 entrypoint/templates/browser-smoke harness, re-scoped release checks to V2/OpenAPI/React/bundle/audit/V2 browser smoke, and kept `image-studio.py` only as the V2 service-adapter composition layer.
+- 2026-07-11: Updated installer, systemd, RPM spec, README, CLAUDE.md, SECURITY.md, RELEASE, and operator docs so the supported console is `matts-v2-console.py` on port 18182; compatibility symlinks now point `matts-console` at V2.
+- 2026-07-11: Verification passed with `python3 -m unittest discover -s tests -v` (561 tests), `python3 scripts/coverage-report.py --fail-under 40` (54.88%), `python3 -m unittest tests.test_release_scripts -v`, and `MATTS_BROWSER_SMOKE_REQUIRED=1 ./scripts/release-check.sh` (561 tests, 54.89% coverage, V2 OpenAPI/current, React build, bundle/audit checks, V2 browser smoke).
 
 ---
 
@@ -9500,7 +9506,7 @@ Status: IN_PROGRESS
 - Chat interface for text models
 
 ### Next Immediate Actions (Reconciled 2026-07-10):
-1. Keep the V2 release gate green after each change: Python tests, coverage, React build, bundle boundary, legacy browser smoke, and V2 browser smoke.
+1. Keep the V2 release gate green after each change: Python tests, coverage, OpenAPI drift, React build, bundle boundary, production audit, and V2 browser smoke.
 2. Continue opportunistic polish on the V2 hero shell when audits reveal concrete UX, resilience, accessibility, or performance gaps.
 3. Promote any newly discovered gaps into new `V2-*` or `INT-*` tasks before implementation.
 4. Preserve the current completed INT/V2 task history as evidence; do not resurrect completed early refactor tasks as active work.
@@ -9514,12 +9520,14 @@ Completed major streams now include the early INT refactor/governance/reporting 
 ### Current File Organization:
 ```
 DO-ClaudeCode-Proxy/
-├── image-studio.py          # Unified web console (1873 lines)
+├── image-studio.py          # V2 service-adapter composition module
 ├── do-anthropic-proxy.py    # API proxy server
 ├── claude-DO.sh            # Main launcher script
-├── matts-console.py         # Console entry point
+├── matts-v2-console.py      # React V2 console entry point
 ├── matts-image              # Image generator CLI
 ├── claude-*                # Model wrapper scripts
+├── backend/v2/             # FastAPI V2 console API/static host
+├── frontend/               # React V2 console source and dist
 └── MAIN-WORKLIST.md        # This file
 ```
 
@@ -9529,7 +9537,6 @@ DO-ClaudeCode-Proxy/
 ├── src/
 │   ├── console/
 │   │   ├── handlers/       # HTTP handlers
-│   │   ├── templates/      # HTML templates
 │   │   ├── websocket/      # WebSocket handling
 │   │   └── utils/         # Utility functions
 │   ├── proxy/             # API proxy logic
@@ -9605,12 +9612,12 @@ not ported as current-product changes.
 | PR-6.1 | Modularize main.html: extract CSS/JS to cacheable /assets | P2 | SUPERSEDED BY V2 (V1-only worktree evidence) |
 | PR-6.2 | Centralized non-churning registry write (no-op guard in save) | P2 | ✅ COMPLETED |
 | PR-0.3 | WebSocket terminal bridge requires `tmux_control` + audit log | P0 | ✅ COMPLETED |
-| PR-0.4 | Installer ships `src/`,`templates/`,`config/` + writable registry seed | P0 | ✅ COMPLETED (needs packaged-install acceptance — see NEEDS-OPERATOR) |
+| PR-0.4 | Installer ships `src/`,`backend/`,`frontend/dist`,`config/` + writable runtime dirs | P0 | ✅ COMPLETED (needs packaged-install acceptance — see NEEDS-OPERATOR) |
 | PR-0.5 | Proxy image endpoint: budget + model allowlist | P1 | ✅ COMPLETED |
 | PR-0.6 | Proxy request-thread fail-safe (malformed JSON/upstream/token) | P1 | ✅ COMPLETED |
 | PR-0.7 | Auth gates cost-bearing + terminal-read + agentboard + catalog GET | P1 | ✅ COMPLETED |
 | PR-0.8 | Launcher: skip-permissions warning + dead-proxy guard | P0/P1 | ✅ COMPLETED |
-| PR-0.9 | Coverage gate real floor (current V2 floor 40%) + expanded module set measured | P1 | ✅ COMPLETED |
+| PR-0.9 | Coverage gate real floor (current V2 floor 50%) + expanded module set measured | P1 | ✅ COMPLETED |
 
 ### Phase 1 — Critical stability, security, and data integrity (remaining P0/P1)
 
@@ -9718,6 +9725,281 @@ not ported as current-product changes.
 
 **PR-6.3 — Retire the `image-studio.py`/`src` duplication** · P2 · M · ⚠️ PREMISE LARGELY RESOLVED (2026-07-11)
 - **Finding update:** AST analysis shows `image-studio.py` is 223 one-line delegating wrappers + 35 multi-line functions, and the only large functions are `do_GET`/`do_POST`/`main` (the legitimate HTTP dispatch + startup). The business logic already lives in `src/console/**`; there is no large block of duplicated, drift-prone logic — the wrappers are a thin facade that wires services to the HTTP handler. Collapsing them would couple the handler to service internals for negligible benefit. **Recommendation:** ACCEPTED — the src/ refactor already achieved single-source logic; the remaining wrapper layer is intentional and low-risk. Any future trimming is cosmetic.
+
+---
+
+## Platform Review Follow-up Drain Worklist (2026-07-11)
+
+Source: Codex platform completeness / fit-for-purpose / design review on current `main`
+(`91c1e41e`). These `DRN-*` items are the ten review recommendations converted into
+implementation work. Code-owned items must be completed here with evidence; operator-only
+decisions must be moved to `docs/NEEDS-OPERATOR.md` with exact closure evidence so the
+development worklist does not pretend they are locally closable.
+
+### Task ID: DRN-001
+**Title:** Align operator docs with ADR-0003 V2 scope
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** The README and operator docs still describe legacy Create/Advanced behavior in places. Current governance says Create is image-only and TUI belongs in Code. Remove contradictory language and preserve a concise operator map for the V2 React console.
+
+**Implementation Steps:**
+1. Audit README, CLAUDE, SECURITY, RELEASE, and V2 docs for Create Chat/Research, Advanced TUI, V1-console, and stale service-map language.
+2. Update docs so Create means image creation only, Code owns the TUI/TMux console, and Advanced excludes TUI.
+3. Keep Chat and Research documented as their own workspaces.
+4. Run a docs drift check (`git diff --check` plus targeted searches).
+
+**Completion Criteria:**
+- [x] No operator-facing doc claims Create has Chat/Research modes
+- [x] No operator-facing doc claims Advanced hosts the TUI
+- [x] V2 workspace map matches current React routes
+- [x] Documentation checks pass
+
+**Progress Notes:**
+- 2026-07-11: Updated README, CLAUDE.md, RELEASE, SECURITY, and V2/operator docs so V2 is the supported console, Create is image-only, Chat/Research are standalone workspaces, and TMux/TUI controls live under Code.
+- 2026-07-11: Targeted searches for current operator-facing Create Chat/Research and Advanced TUI claims are clean outside historical worklist/requirements/audit records.
+- 2026-07-11: Verification passed with `git diff --check`, `python3 -m unittest discover -s tests -v`, and full `MATTS_BROWSER_SMOKE_REQUIRED=1 ./scripts/release-check.sh`.
+
+### Task ID: DRN-002
+**Title:** Normalize operator-gated pre-GA checklist
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** `docs/NEEDS-OPERATOR.md` has stale V1/Playwright text and mixes decisions, live-cloud checks, and packaging acceptance without structured evidence. Convert it into the pre-GA operator checklist for items code cannot honestly close.
+
+**Implementation Steps:**
+1. Remove stale V1 visual-polish rows that no longer describe current V2 work.
+2. Preserve live-cloud, billing, release/version, GitHub admin, packaging, and brand decisions with owners and evidence.
+3. Add any operator-only remnants from the drain worklist rather than leaving code TODOs open.
+4. Run documentation checks.
+
+**Completion Criteria:**
+- [x] No stale V1-only acceptance rows remain
+- [x] Every operator-gated row lists exact evidence needed to close
+- [x] Worklist points to `NEEDS-OPERATOR.md` only for genuinely non-local work
+
+**Progress Notes:**
+- 2026-07-11: Reworked `docs/NEEDS-OPERATOR.md` into a pre-GA operator checklist for live-cloud, billing, GitHub/admin, packaging, release/version, and branding items with explicit owners and closure evidence.
+- 2026-07-11: Removed stale V1 visual-polish acceptance language and kept packaged-install acceptance as operator-gated because it requires target-system/root validation outside the local code gate.
+- 2026-07-11: Verification passed with documentation searches, `git diff --check`, and full release gate.
+
+### Task ID: DRN-003
+**Title:** Move browser console tokens out of persistent URLs
+**Status:** ✅ `COMPLETED`
+**Priority:** P0
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** V2 still accepts and propagates `?token=...` in browser/API/WebSocket URLs. Keep a bootstrap path for remote operators, but remove persistent address-bar/API/WS query-token use after initial token discovery.
+
+**Implementation Steps:**
+1. Strip bootstrap tokens from the browser URL with `history.replaceState` after resolving them.
+2. Send API tokens in headers for fetch calls instead of appending query parameters.
+3. Avoid query tokens in WebSocket URLs where protocol support allows; otherwise keep a documented short-term compatibility fallback.
+4. Add V2 browser smoke coverage proving hash/query bootstrap still works and follow-up requests are header-authenticated.
+5. Update README/SECURITY token guidance.
+
+**Completion Criteria:**
+- [x] Browser address bar is scrubbed after token bootstrap
+- [x] V2 fetch requests use token headers, not query strings
+- [x] WebSocket token handling is no worse than before and documented if a compatibility fallback remains
+- [x] V2 browser smoke and docs checks pass
+
+**Progress Notes:**
+- 2026-07-11: `frontend/src/api/auth.ts` now scrubs query/hash bootstrap tokens with `history.replaceState`, keeps fetch URLs token-free, and sends `x-matts-console-token` via shared API headers.
+- 2026-07-11: Updated generated/client API callers and V2 browser smoke to assert `/v2/research` requests carry the token header while URLs remain scrubbed; WebSocket query-token compatibility is documented as a short-term browser limitation.
+- 2026-07-11: Verification passed with `npm run build --prefix frontend`, `python3 scripts/generate-v2-openapi.py --check`, V2 browser smoke inside full release gate, and full release gate.
+
+### Task ID: DRN-004
+**Title:** Fail closed on exposed standalone proxy without inbound auth
+**Status:** ✅ `COMPLETED`
+**Priority:** P0
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** The provider-compatible proxy defaults to loopback but can be bound to `0.0.0.0` without inbound authentication. Broader exposure must require an explicit inbound token/header guard.
+
+**Implementation Steps:**
+1. Add an inbound proxy auth option and environment variable.
+2. Require inbound auth for non-loopback `--host` unless an explicit unsafe override is provided.
+3. Enforce inbound auth on cost-bearing and management endpoints.
+4. Add proxy tests for loopback compatibility, non-loopback refusal, 401 without auth, and success with auth.
+5. Update README/SECURITY/GOVERNANCE references as needed.
+
+**Completion Criteria:**
+- [x] `--host 0.0.0.0` fails closed without inbound auth or explicit unsafe override
+- [x] Authenticated remote proxy use is documented
+- [x] Proxy tests and release checks pass
+
+**Progress Notes:**
+- 2026-07-11: Added `MATTS_PROXY_AUTH_TOKEN` / `--inbound-auth-token`, explicit `MATTS_PROXY_ALLOW_UNAUTHENTICATED_REMOTE` / `--allow-unauthenticated-remote`, host-bind refusal for exposed unauthenticated proxy binds, and request checks for `x-matts-proxy-token` or bearer auth.
+- 2026-07-11: Documented authenticated remote proxy use in README, SECURITY, and threat-model docs.
+- 2026-07-11: Verification passed with `python3 -m unittest tests.test_proxy_image_and_failsafe -v`, full unittest discovery, and full release gate.
+
+### Task ID: DRN-005
+**Title:** Split runtime model-access audit state out of committed registry
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** `config/models.json` still contains live access probe state (`access_status`, `last_error`) that governance classifies as sensitive runtime metadata. Durable model config should stay committed; access-audit results belong under runtime cache and should merge at read time.
+
+**Implementation Steps:**
+1. Add a runtime access-state repository under the existing cache/runtime-state boundary.
+2. Persist probe `access_status`/`last_error` there instead of in the committed registry.
+3. Merge runtime state into API/UI payloads without dirtying `config/models.json`.
+4. Strip committed access-state fields from `config/models.json`.
+5. Add tests for persistence, merge behavior, and no registry churn.
+
+**Completion Criteria:**
+- [x] Committed `config/models.json` contains no `last_error` fields
+- [x] Runtime access probe state persists outside the repo
+- [x] UI/API can still display access state when runtime state exists
+- [x] Tests and release checks pass
+
+**Progress Notes:**
+- 2026-07-11: Sanitized `config/models.json`; runtime access fields are stripped on registry save and persisted/merged through `model-access-state.json` under the studio runtime directory.
+- 2026-07-11: Threaded access-state overlay through `ModelRegistryService`, `image-studio.py`, serverless catalog audits, proxy registry reload, `claude-DO.sh`, V2 proxy CLI, V2 model showcase, app config, runtime-state backup, installer environment, and release/V2 smoke isolated runtimes.
+- 2026-07-11: Verification passed with model registry/serverless/proxy reload suites, full unittest discovery, and full release gate.
+
+### Task ID: DRN-006
+**Title:** Raise and ratchet coverage for runtime entry points
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** The release coverage gate is real but low, and the largest entry points remain under-covered. Add targeted tests and make the release floor configurable per `docs/DECISIONS.md`.
+
+**Implementation Steps:**
+1. Implement the documented `MATTS_COVERAGE_FLOOR` release override or update the decision record if rejected.
+2. Add focused tests for low-coverage runtime paths before raising the default floor.
+3. Raise the default floor only to a value proven by the suite.
+4. Update worklist evidence with measured coverage.
+
+**Completion Criteria:**
+- [x] Coverage floor behavior matches docs
+- [x] Total measured coverage increases or floor is ratcheted with evidence
+- [x] Newly covered paths are meaningful runtime behavior, not superficial imports
+
+**Progress Notes:**
+- 2026-07-11: Kept the documented `MATTS_COVERAGE_FLOOR` override and raised the default release floor from 40% to 50% after measured coverage was 54.88% in `python3 scripts/coverage-report.py --fail-under 40`.
+- 2026-07-11: Runtime coverage was expanded by real behavior tests for proxy inbound auth, model access-state split/merge/no-churn behavior, V2 proxy/model showcase overlays, and bootstrap environment isolation.
+- 2026-07-11: Full release gate passed with the new default: 561 tests, 54.89% coverage, OpenAPI/current, React build, bundle/audit checks, V2 browser smoke.
+
+### Task ID: DRN-007
+**Title:** Modularize large runtime and V2 UI hotspots
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** `do-anthropic-proxy.py`, `image-studio.py`, `frontend/src/pages/HeroPages.tsx`, and `scripts/v2-browser-smoke.py` are large enough to slow review and increase regression risk. Split only where ownership and test seams are clear.
+
+**Implementation Steps:**
+1. Identify the highest-value extraction that preserves behavior.
+2. Move code behind existing APIs; avoid broad style churn.
+3. Add or preserve focused tests around the extracted boundary.
+4. Run the relevant build/test gates.
+
+**Completion Criteria:**
+- [x] At least one hotspot is materially smaller or has a clear extraction plan with first module landed
+- [x] Behavior is covered by existing or new tests
+- [x] No unrelated refactor churn
+
+**Progress Notes:**
+- 2026-07-11: Extracted proxy runtime policy helpers into `src/console/services/proxy_runtime.py`, including bind/auth policy, env parsing, and model access-state load/apply helpers used by `do-anthropic-proxy.py`.
+- 2026-07-11: Kept the extraction narrow and behavior-preserving; public proxy helper aliases remain for existing tests and callers.
+- 2026-07-11: Verification passed with focused proxy suites, full unittest discovery, and full release gate.
+
+### Task ID: DRN-008
+**Title:** Finish or downgrade plugin lifecycle claims
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** The implemented plugin service is a manifest catalog, not an executable lifecycle/runtime. Either implement a safe declarative V2 extension host or downgrade all completed claims and docs to “plugin catalog.”
+
+**Implementation Steps:**
+1. Audit plugin docs, worklist INT-011 language, and V2 API/UI behavior.
+2. Choose the least-risk path: manifest catalog downgrade unless a safe extension host is already present.
+3. Update docs/worklist/API labels so claims match delivered behavior.
+4. Preserve tests for manifest loading and extension-point metadata.
+
+**Completion Criteria:**
+- [x] No completed claim implies executable third-party plugin lifecycle unless implemented
+- [x] Docs and UI labels match manifest-catalog behavior
+- [x] Plugin tests pass
+
+**Progress Notes:**
+- 2026-07-11: Downgraded plugin documentation and worklist language to describe the implemented manifest catalog and metadata discovery behavior, not an executable third-party lifecycle/runtime.
+- 2026-07-11: Preserved manifest-loading and extension-point metadata behavior; no extension host was invented during the drain.
+- 2026-07-11: Verification passed with plugin-related tests included in full unittest discovery and full release gate.
+
+### Task ID: DRN-009
+**Title:** Promote release gate to deployability verification
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** The release gate covers tests/build/smoke, but deployability should also prove an isolated health path and package/install acceptance where local permissions allow. Code should run what is locally verifiable and push live/root-only checks to `NEEDS-OPERATOR.md`.
+
+**Implementation Steps:**
+1. Add an isolated health validation step to `scripts/release-check.sh` or a release-check mode.
+2. Ensure package/install smoke is represented as a local or operator-gated check with exact evidence.
+3. Update RELEASE and worklist documentation.
+4. Run release verification or the strongest focused subset if the full gate is too expensive for the turn.
+
+**Completion Criteria:**
+- [x] Release gate exercises runtime health validation, not just static checks
+- [x] Packaged-install acceptance is either automated or explicitly operator-gated
+- [x] Release docs match the gate
+
+**Progress Notes:**
+- 2026-07-11: `scripts/v2-browser-smoke.py` now runs `scripts/health-validate.py --v2-only` against the ephemeral V2 server, and `scripts/release-check.sh` is V2-only with isolated runtime state.
+- 2026-07-11: Local install scripts/specs now package V2/backend/frontend runtime files; target-system packaged-install acceptance remains explicitly operator-gated in `docs/NEEDS-OPERATOR.md`.
+- 2026-07-11: Verification passed with release-script unit tests and full `MATTS_BROWSER_SMOKE_REQUIRED=1 ./scripts/release-check.sh`.
+
+### Task ID: DRN-010
+**Title:** Harden frontend/dev exposure defaults
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Codex
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** V2’s operator console intentionally supports remote access, but frontend dev/preview scripts also bind to `0.0.0.0`. Local development should bind loopback by default, and remote exposure should be an explicit operator choice.
+
+**Implementation Steps:**
+1. Change frontend dev/preview defaults to `127.0.0.1`.
+2. Add explicit remote dev/preview scripts if useful.
+3. Reconcile Node/Vite advisory guidance in RELEASE.
+4. Run frontend build/audit checks.
+
+**Completion Criteria:**
+- [x] Default frontend dev/preview bind loopback
+- [x] Remote bind remains available through explicit script/flag
+- [x] Frontend build checks pass
+
+**Progress Notes:**
+- 2026-07-11: Changed frontend `dev` and `preview` scripts to bind `127.0.0.1` by default and added explicit `dev:remote` / `preview:remote` scripts for intentional `0.0.0.0` exposure.
+- 2026-07-11: Verification passed with `npm run build --prefix frontend`, frontend bundle/audit checks, and full release gate.
 
 ---
 

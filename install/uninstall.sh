@@ -49,6 +49,7 @@ systemctl disable matts-value-set-proxy.service 2>/dev/null || true
 echo "Removing symlinks..."
 rm -f "$BIN_DIR/claude-do"
 rm -f "$BIN_DIR/matts-value-set-proxy"
+rm -f "$BIN_DIR/matts-v2-console"
 rm -f "$BIN_DIR/matts-console"
 rm -f "$BIN_DIR/matts-image-studio"
 

@@ -4,10 +4,12 @@
   "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1",
+    "dev:remote": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "generate:api": "cd .. && python3 scripts/generate-v2-openapi.py",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 127.0.0.1",
+    "preview:remote": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.2",

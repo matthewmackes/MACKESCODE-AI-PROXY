@@ -15,7 +15,6 @@ if str(ROOT) not in sys.path:
 DEFAULT_FILES = [
     "image-studio.py",
     "do-anthropic-proxy.py",
-    "matts-console.py",
     "src/console/handlers/api_handler.py",
     "src/console/handlers/auth_handler.py",
     "src/console/handlers/static_handler.py",
@@ -31,6 +30,7 @@ DEFAULT_FILES = [
     "src/console/services/model_registry.py",
     "src/console/services/persistence.py",
     "src/console/services/proxy_process.py",
+    "src/console/services/proxy_runtime.py",
     "src/console/services/runtime_config.py",
     "src/console/services/serverless_catalog.py",
     "src/console/services/session.py",

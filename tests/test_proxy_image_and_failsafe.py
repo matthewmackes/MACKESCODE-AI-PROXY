@@ -42,10 +42,11 @@ def make_server(tmp, models=("stable-diffusion-3.5-large",), budgets=None, usage
 
 
 class FakeImageHandler(proxy.Handler):
-    def __init__(self, server, path, body):
+    def __init__(self, server, path, body, headers=None):
         self.server = server
         self.path = path
         self._body = body
+        self.headers = headers or {}
         self.responses = []
         self._responded = False
 
@@ -292,6 +293,58 @@ class MessageTranslationTests(unittest.TestCase):
             status, payload = handler.responses[-1]
         self.assertEqual(status, 402)
         self.assertEqual(payload["error"]["type"], "budget_exceeded")
+
+
+class ProxyInboundAuthTests(unittest.TestCase):
+    def test_loopback_bind_remains_compatible_without_token(self):
+        allowed, reason = proxy._proxy_bind_allowed("127.0.0.1", "", False)
+        self.assertTrue(allowed)
+        self.assertEqual(reason, "loopback")
+
+    def test_non_loopback_bind_requires_token_or_explicit_override(self):
+        allowed, reason = proxy._proxy_bind_allowed("0.0.0.0", "", False)
+        self.assertFalse(allowed)
+        self.assertIn("inbound-auth-token", reason)
+        self.assertTrue(proxy._proxy_bind_allowed("0.0.0.0", "secret", False)[0])
+        self.assertTrue(proxy._proxy_bind_allowed("0.0.0.0", "", True)[0])
+
+    def test_required_inbound_token_rejects_missing_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            server = make_chat_server(tmp)
+            server.inbound_auth_token = "secret"
+            handler = FakeImageHandler(server, "/v1/messages/count_tokens", {"model": "deepseek-3.2"})
+            handler.do_POST()
+        status, payload = handler.responses[-1]
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["error"]["type"], "unauthorized")
+
+    def test_required_inbound_token_accepts_proxy_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            server = make_chat_server(tmp)
+            server.inbound_auth_token = "secret"
+            handler = FakeImageHandler(
+                server,
+                "/v1/messages/count_tokens",
+                {"model": "deepseek-3.2", "messages": [{"role": "user", "content": "hello"}]},
+                headers={"x-matts-proxy-token": "secret"},
+            )
+            handler.do_POST()
+        status, payload = handler.responses[-1]
+        self.assertEqual(status, 200)
+        self.assertGreater(payload["input_tokens"], 0)
+
+    def test_required_inbound_token_accepts_bearer_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            server = make_chat_server(tmp)
+            server.inbound_auth_token = "secret"
+            handler = FakeImageHandler(
+                server,
+                "/v1/messages/count_tokens",
+                {"model": "deepseek-3.2", "messages": [{"role": "user", "content": "hello"}]},
+                headers={"Authorization": "Bearer secret"},
+            )
+            handler.do_POST()
+        self.assertEqual(handler.responses[-1][0], 200)
 
 
 class ImageEndpointGatingTests(unittest.TestCase):

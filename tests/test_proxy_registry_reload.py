@@ -79,6 +79,7 @@ def write_mixed_registry(path):
 def server_for(path):
     return SimpleNamespace(
         model_config_file=str(path),
+        model_access_state_file=str(Path(path).with_name("model-access-state.json")),
         fallback_models=["fallback-model"],
         fallback_model_aliases={"fallback": "fallback-model"},
         fallback_costs={"fallback-model": {"input": 1.0, "output": 2.0}},
@@ -89,6 +90,7 @@ def server_for(path):
         default_model="fallback-model",
         model_config_loaded=False,
         model_config_fingerprint=None,
+        model_access_state_fingerprint=None,
         model_config_last_check_at=0,
         model_config_last_loaded_at=0,
         model_config_last_error="",
@@ -136,6 +138,36 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertEqual(server.model_aliases["primary"], "model-b")
         self.assertFalse(fresh_state["stale"])
         self.assertTrue(fresh_state["loaded"])
+
+    def test_refresh_applies_runtime_access_state_without_dirtying_registry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            access_state = Path(tmp) / "model-access-state.json"
+            path.write_text(json.dumps({
+                "schema_version": 1,
+                "models": [{
+                    "id": "clean-model",
+                    "type": "text",
+                    "enabled": True,
+                    "serverless": True,
+                    "aliases": ["primary"],
+                    "pricing": {"input": 0.11, "output": 0.22},
+                }],
+            }), encoding="utf-8")
+            access_state.write_text(json.dumps({"schema_version": 1, "models": {"clean-model": {"access_status": "ok"}}}), encoding="utf-8")
+            server = server_for(path)
+
+            proxy._refresh_model_registry(server, force=True)
+            first_loaded_at = server.model_config_last_loaded_at
+            time.sleep(0.01)
+            access_state.write_text(json.dumps({"schema_version": 1, "models": {"clean-model": {"access_status": "forbidden"}}}), encoding="utf-8")
+            proxy._refresh_model_registry(server)
+            raw_registry = path.read_text(encoding="utf-8")
+
+        self.assertEqual(server.models, ["fallback-model"])
+        self.assertGreater(server.model_config_last_loaded_at, first_loaded_at)
+        self.assertEqual(server.model_registry_records[0]["access_status"], "forbidden")
+        self.assertNotIn("access_status", raw_registry)
 
     def test_missing_registry_reports_load_error_and_uses_fallbacks(self):
         with tempfile.TemporaryDirectory() as tmp:

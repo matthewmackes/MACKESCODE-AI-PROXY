@@ -310,10 +310,10 @@ class LegacyConsoleAdapter:
             "sessions": sessions,
             "allowed_keys": list(TMUX_ALLOWED_KEYS),
             "terminal": {
-                "path": "/terminal",
-                "query_param": "name",
+                "path": "/#code",
+                "query_param": "session",
                 "websocket_path": "/ws/tmux",
-                "default_legacy_port": 18181,
+                "default_legacy_port": 18182,
             },
             "summary": {
                 "sessions_total": len(sessions),

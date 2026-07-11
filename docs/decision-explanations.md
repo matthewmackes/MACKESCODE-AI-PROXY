@@ -16,7 +16,7 @@ notifications, reviews, and eval response rows.
   override state
 - `dedicated_lifecycle`: Dedicated endpoint state, budget, idle, unhealthy, and
   fallback policy
-- `model_access`: registry access status, deprecation, and availability policy
+- `model_access`: merged runtime access status, registry deprecation, and availability policy
 - `generic`: notification, review, audit, and other records with partial
   decision metadata
 

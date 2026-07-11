@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 DEFAULT_CONSOLE_CONFIG = {
-    "server": {"host": "0.0.0.0", "port": 18181},
+    "server": {"host": "0.0.0.0", "port": 18182},
     "auth": {"enabled": True},
     "logging": {"level": "INFO"},
     "models": {"auto_enable_max_usd": 0.45},
@@ -33,6 +33,8 @@ DEFAULT_CONSOLE_CONFIG = {
         "model_config_file": "config/models.json",
         "dedicated_config_file": "dedicated-inference.json",
         "serverless_catalog_cache_file": "serverless-model-catalog.json",
+        "model_access_state_file": "model-access-state.json",
+        "model_access_drift_file": "model-access-drift.json",
         "dedicated_events_file": "dedicated-events.jsonl",
         "tmux_session_registry_file": "tmux-sessions.json",
         "quota_file": "quotas.jsonl",

@@ -112,7 +112,8 @@ echo "Installing files..."
 cp "$PROJECT_DIR/claude-DO.sh" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/do-anthropic-proxy.py" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/image-studio.py" "$INSTALL_DIR/"
-cp "$PROJECT_DIR/matts-console.py" "$INSTALL_DIR/"
+cp "$PROJECT_DIR/matts-v2-console.py" "$INSTALL_DIR/"
+cp "$PROJECT_DIR/requirements-v2.txt" "$INSTALL_DIR/" 2>/dev/null || true
 
 # Wrapper scripts
 for script in claude-deepseek claude-deepseek-v4 claude-glm claude-mistral claude-codex claude-sd35; do
@@ -126,12 +127,20 @@ if [ -f "$PROJECT_DIR/matts-image" ]; then
     cp "$PROJECT_DIR/matts-image" "$INSTALL_DIR/"
 fi
 
-# Application package, templates, and read-only config (required at runtime:
-# image-studio.py imports src.console.*, serves templates/, and both launcher
-# and proxy resolve config/ relative to the install dir).
-rm -rf "$INSTALL_DIR/src" "$INSTALL_DIR/templates" "$INSTALL_DIR/config"
+# Application packages, built V2 frontend, and read-only config (required at
+# runtime: V2 imports backend.v2 and src.console services; launcher/proxy
+# resolve config/ relative to the install dir).
+rm -rf "$INSTALL_DIR/src" "$INSTALL_DIR/backend" "$INSTALL_DIR/frontend" "$INSTALL_DIR/config"
 cp -r "$PROJECT_DIR/src" "$INSTALL_DIR/"
-cp -r "$PROJECT_DIR/templates" "$INSTALL_DIR/"
+cp -r "$PROJECT_DIR/backend" "$INSTALL_DIR/"
+mkdir -p "$INSTALL_DIR/frontend"
+cp "$PROJECT_DIR/frontend/package.json" "$INSTALL_DIR/frontend/" 2>/dev/null || true
+cp "$PROJECT_DIR/frontend/package-lock.json" "$INSTALL_DIR/frontend/" 2>/dev/null || true
+if [ -d "$PROJECT_DIR/frontend/dist" ]; then
+    cp -r "$PROJECT_DIR/frontend/dist" "$INSTALL_DIR/frontend/"
+else
+    echo "WARNING: frontend/dist is missing. Run 'npm run build --prefix frontend' before installing the V2 console service." >&2
+fi
 cp -r "$PROJECT_DIR/config" "$INSTALL_DIR/"
 
 # Seed a writable model registry under the data dir. config/models.json is the
@@ -156,7 +165,8 @@ fi
 echo "Creating symlinks..."
 ln -sf ../lib/matts-value-set/claude-DO.sh "$BIN_DIR/claude-do"
 ln -sf ../lib/matts-value-set/do-anthropic-proxy.py "$BIN_DIR/matts-value-set-proxy"
-ln -sf ../lib/matts-value-set/matts-console.py "$BIN_DIR/matts-console"
+ln -sf ../lib/matts-value-set/matts-v2-console.py "$BIN_DIR/matts-v2-console"
+ln -sf ../lib/matts-value-set/matts-v2-console.py "$BIN_DIR/matts-console"
 ln -sf ../lib/matts-value-set/image-studio.py "$BIN_DIR/matts-image-studio"
 
 for model in deepseek deepseek-v4 glm mistral codex sd35; do
@@ -171,7 +181,7 @@ fi
 
 # Install configuration
 cp "$SCRIPT_DIR/environment.conf" "$CONFIG_DIR/"
-cp "$SCRIPT_DIR/matts-value-set.sh" "$PROFILE_DIR/"
+cp "$SCRIPT_DIR/profile.d/matts-value-set.sh" "$PROFILE_DIR/matts-value-set.sh"
 
 # Install systemd services
 cp "$SCRIPT_DIR/systemd/matts-value-set-proxy.service" "$SYSTEMD_DIR/"
@@ -223,15 +233,15 @@ echo -e "\n${GREEN}=== Installation Complete ===${NC}"
 echo
 echo "Services:"
 echo "  Proxy:      matts-value-set-proxy.service (enabled)"
-echo "  Web Console: matts-console.service (can be started manually)"
+echo "  V2 Console: matts-console.service (can be started manually)"
 echo
 echo "Quick Start:"
 echo "  1. Start services:"
 echo "     sudo systemctl start matts-value-set-proxy"
 echo "     sudo systemctl start matts-console"
 echo
-echo "  2. Access web console:"
-echo "     http://localhost:18181/?token=(check /var/lib/matts-value-set/studio/console-auth-token)"
+echo "  2. Access V2 console:"
+echo "     http://localhost:18182/?token=(check /var/lib/matts-value-set/studio/console-auth-token)"
 echo
 echo "  3. Use Claude Code:"
 echo "     claude-deepseek"

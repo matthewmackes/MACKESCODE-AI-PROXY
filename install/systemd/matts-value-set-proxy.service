@@ -28,6 +28,7 @@ StartLimitBurst=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=/var/lib/matts-value-set /var/log/matts-value-set /tmp
 PrivateTmp=true
 PrivateDevices=true
 ProtectKernelTunables=true

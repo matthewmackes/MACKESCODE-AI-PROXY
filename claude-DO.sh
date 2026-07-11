@@ -23,6 +23,7 @@ tmux_session="${MATTS_VALUE_SET_TMUX_SESSION:-matts-value-set-proxy}"
 
 model="${MATTS_VALUE_SET_MODEL:-deepseek-3.2}"
 model_config_file="${MATTS_MODEL_CONFIG_FILE:-$script_dir/config/models.json}"
+model_access_state_file="${MATTS_MODEL_ACCESS_STATE_FILE:-$home_dir/.cache/matts-value-set/studio/model-access-state.json}"
 default_model_config_file="${MATTS_DEFAULT_MODEL_CONFIG_FILE:-$script_dir/config/default-models.json}"
 # Filled by load_model_registry from config/models.json, falling back to the
 # sanctioned bootstrap data in config/default-models.json.
@@ -32,8 +33,34 @@ image_models=()
 declare -A model_aliases=()
 load_model_registry() {
   local output
-  output="$(python3 - "$model_config_file" "$default_model_config_file" <<'REGISTRYPY'
+  output="$(python3 - "$model_config_file" "$default_model_config_file" "$model_access_state_file" <<'REGISTRYPY'
 import json, shlex, sys
+
+def load_access_state(path):
+    try:
+        with open(path, encoding='utf-8') as handle:
+            data = json.load(handle)
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    models = data.get('models')
+    return models if isinstance(models, dict) else {}
+
+def apply_access_state(rows, state):
+    if not state:
+        return rows
+    out = []
+    for row in rows:
+        item = dict(row)
+        overlay = state.get(str(item.get('id') or ''))
+        if isinstance(overlay, dict):
+            if overlay.get('access_status'):
+                item['access_status'] = str(overlay.get('access_status'))
+            if overlay.get('last_error'):
+                item['last_error'] = str(overlay.get('last_error'))
+        out.append(item)
+    return out
 
 def route_enabled(m):
     if not isinstance(m, dict) or not m.get('enabled', True) or not m.get('id'):
@@ -42,17 +69,19 @@ def route_enabled(m):
         return m.get('access_status') == 'ok'
     return True
 
-def active_models(path):
+def active_models(path, access_state=None):
     with open(path, encoding='utf-8') as handle:
         data = json.load(handle)
     rows = data.get('models', data) if isinstance(data, dict) else data
     if not isinstance(rows, list):
         return []
+    rows = apply_access_state(rows, access_state or {})
     return [m for m in rows if route_enabled(m)]
 
-registry_file, bootstrap_file = sys.argv[1], sys.argv[2]
+registry_file, bootstrap_file, access_state_file = sys.argv[1], sys.argv[2], sys.argv[3]
+access_state = load_access_state(access_state_file)
 try:
-    active = active_models(registry_file)
+    active = active_models(registry_file, access_state)
 except Exception:
     active = []
 if not active:
@@ -195,7 +224,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$(is_known_model "$model")" != "yes" ]]; then
+if [[ "$list_models" != "1" && "$show_costs" != "1" && "$show_budget" != "1" && "$show_status" != "1" && "$doctor" != "1" && "$(is_known_model "$model")" != "yes" ]]; then
   echo "Unknown model: $model" >&2
   usage >&2
   exit 2

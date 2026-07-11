@@ -4,7 +4,8 @@ Model hero cards give operators a richer view of each LLM without creating a sec
 
 ## Source Of Truth
 
-- `config/models.json` remains the active model registry for IDs, enablement, access state, pricing, context, origin, provider identity, and generated style.
+- `config/models.json` remains the active model registry for IDs, enablement policy, pricing, context, origin, provider identity, and generated style.
+- `$HOME/.cache/matts-value-set/studio/model-access-state.json` stores key-specific access state that is merged into model cards at read time.
 - `config/model-descriptions/families.json` stores curated family-level descriptions: summary, best-fit use cases, strengths, weaknesses, and comparison families.
 - `src/console/services/model_hero.py` combines those two sources into per-model cards for every current registry entry.
 
@@ -27,4 +28,4 @@ Each modal includes cost, origin, provider identity, access state, deployment mo
 
 ## Updating Descriptions
 
-Prefer updating `config/model-descriptions/families.json` for broad provider or family behavior. Add registry facts to `config/models.json` only when the fact belongs to a specific model, such as pricing, access state, model type, context window, or Dedicated Inference lifecycle metadata.
+Prefer updating `config/model-descriptions/families.json` for broad provider or family behavior. Add registry facts to `config/models.json` only when the fact belongs to a specific model, such as pricing, model type, context window, or Dedicated Inference lifecycle metadata. Keep key-specific access audit results in runtime state.

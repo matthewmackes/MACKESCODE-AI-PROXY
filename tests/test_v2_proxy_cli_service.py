@@ -10,20 +10,25 @@ class ProxyCliServiceTests(unittest.TestCase):
     def test_list_models_filters_disabled_and_inaccessible_serverless(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
+            access_state = Path(tmp) / "model-access-state.json"
             path.write_text(
                 json.dumps(
                     {
                         "models": [
                             {"id": "enabled", "type": "text", "enabled": True},
                             {"id": "disabled", "type": "text", "enabled": False},
-                            {"id": "blocked", "type": "text", "serverless": True, "access_status": "forbidden"},
-                            {"id": "allowed", "type": "text", "serverless": True, "access_status": "ok"},
+                            {"id": "blocked", "type": "text", "enabled": True, "serverless": True},
+                            {"id": "allowed", "type": "text", "enabled": True, "serverless": True},
                         ]
                     }
                 ),
                 encoding="utf-8",
             )
-            service = ProxyCliService(model_config_file=path)
+            access_state.write_text(json.dumps({"schema_version": 1, "models": {
+                "blocked": {"access_status": "forbidden"},
+                "allowed": {"access_status": "ok"},
+            }}), encoding="utf-8")
+            service = ProxyCliService(model_config_file=path, model_access_state_file=access_state)
             result = service.list_models()
         self.assertTrue(result.ok)
         self.assertEqual([row["id"] for row in result.data["models"]], ["enabled", "allowed"])

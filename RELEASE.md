@@ -16,10 +16,9 @@ The gate runs:
 - line-hit coverage report
 - Python syntax checks
 - generated V2 OpenAPI/client freshness checks
-- template JavaScript syntax check when `node` is available
 - React frontend build when `npm` is available, using `npm ci --no-audit` if `frontend/package-lock.json` is present and dependencies are missing
 - V2 frontend bundle-boundary and production dependency audit checks
-- legacy and V2 headless browser smoke when Playwright is installed, including the V2 Console TUI bridge
+- V2 health validation and headless browser smoke when Playwright is installed, including the V2 Console TUI bridge
 
 The V2 launcher, V2 browser smoke, and release gate treat `frontend/package-lock.json` as authoritative. On clean hosts, missing `frontend/node_modules` is restored with `npm ci --no-audit`; plain `npm install --no-audit` is only a no-lockfile fallback. Install steps intentionally skip npm's implicit audit output because the release gate runs the explicit production audit check below.
 
@@ -37,10 +36,10 @@ From a fresh clone:
 
 ```bash
 ./claude-DO.sh --list-models
-python3 -m unittest tests.test_console_smoke.TemplateSmokeTests
+python3 -m unittest tests.test_v2_app_launcher tests.test_v2_openapi_generation
 ```
 
-`--list-models` must return the active route-enabled model registry without requiring a model access token.
+`--list-models` must return the active route-enabled model registry without requiring a model access token; the V2 launcher/OpenAPI checks must prove the current console can start from the checkout.
 
 ## Runtime-State Backup
 
@@ -85,8 +84,8 @@ Store secret-bearing archives outside the repository.
    - `$HOME/.cache/matts-value-set/studio/tmux-sessions.json`
    - `$HOME/.cache/matts-value-set/usage.jsonl`
    - `$HOME/.cache/matts-value-set/budgets.json`
-6. Start the proxy and Console.
-   - Legacy console: use the existing `claude-DO.sh`/`matts-console.py` path.
+6. Start the proxy and V2 Console.
+   - Proxy: use the existing `claude-DO.sh` path or run `do-anthropic-proxy.py` directly on `127.0.0.1:18081`.
    - V2 console: run `python3 matts-v2-console.py --host 127.0.0.1 --port 18182`; add `--build-frontend` to force a React rebuild before FastAPI starts.
 7. Run health validation:
 
@@ -94,10 +93,9 @@ Store secret-bearing archives outside the repository.
 scripts/health-validate.py
 ```
 
-The default validator checks the legacy Console, the React/FastAPI V2 console
-(`/v2/health` and the React shell on port `18182`), and the proxy. Use
-`--no-v2` only for intentional legacy-only deployments, or `--v2-only` when
-validating a V2 endpoint in isolation.
+The default validator checks the React/FastAPI V2 console (`/v2/health` and the
+React shell on port `18182`) and the proxy. Use `--v2-only` when validating a V2
+endpoint in isolation.
 
 If Console is up but proxy is intentionally offline:
 

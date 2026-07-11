@@ -1,8 +1,8 @@
 {
   "models": [
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 32768,
       "created": 1776717589,
       "display_name": "Qwen3 TTS Voicedesign",
@@ -21,8 +21,8 @@
       "type": "audio"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1727124486,
       "display_name": "All Mini Lm L6 V2",
@@ -38,8 +38,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1774281224,
       "display_name": "BGE M3",
@@ -55,8 +55,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1774281191,
       "display_name": "E5 Large V2",
@@ -72,8 +72,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1727124486,
       "display_name": "Gte Large En V1.5",
@@ -89,8 +89,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1727124486,
       "display_name": "Multi Qa Mpnet Base Dot V1",
@@ -106,8 +106,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1765803500,
       "display_name": "Qwen3 Embedding 0.6b",
@@ -123,8 +123,8 @@
       "type": "embedding"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1759330300,
       "display_name": "Openai Gpt Image 1",
@@ -143,8 +143,8 @@
       "type": "image"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1774645563,
       "display_name": "Openai Gpt Image 1.5",
@@ -163,8 +163,8 @@
       "type": "image"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1776952170,
       "display_name": "Openai Gpt Image 2",
@@ -183,10 +183,10 @@
       "type": "image"
     },
     {
-      "access_status": "not_checked",
       "aliases": [
         "sd35"
       ],
+      "auto_managed": true,
       "context_window": 256,
       "created": 1776529563,
       "display_name": "Stable Diffusion 3.5 Large",
@@ -203,8 +203,8 @@
       "type": "image"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1775636284,
       "display_name": "BGE Reranker V2 M3",
@@ -220,8 +220,8 @@
       "type": "rerank"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1775748006,
       "display_name": "Router General",
@@ -239,8 +239,8 @@
       "type": "router"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1776390534,
       "display_name": "Router Knowledge Base Document",
@@ -258,8 +258,8 @@
       "type": "router"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1775748006,
       "display_name": "Router Software Engineering",
@@ -277,8 +277,8 @@
       "type": "router"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 0,
       "created": 1775748006,
       "display_name": "Router Writing",
@@ -296,8 +296,8 @@
       "type": "router"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 32768,
       "created": 1752255238,
       "display_name": "Alibaba Qwen3 32b",
@@ -315,14 +315,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1762288203,
       "display_name": "Anthropic Claude 4.1 Opus",
       "enabled": false,
       "id": "anthropic-claude-4.1-opus",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -336,14 +335,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1762371241,
       "display_name": "Anthropic Claude 4.5 Sonnet",
       "enabled": false,
       "id": "anthropic-claude-4.5-sonnet",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "owned_by": "anthropic",
       "pricing": {
         "image": 0.0,
@@ -356,14 +354,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1771366786,
       "display_name": "Anthropic Claude 4.6 Sonnet",
       "enabled": false,
       "id": "anthropic-claude-4.6-sonnet",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -377,14 +374,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1000000,
       "created": 1782856178,
       "display_name": "Anthropic Claude 5 Sonnet",
       "enabled": false,
       "id": "anthropic-claude-5-sonnet",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "anthropic",
       "pricing": {
@@ -398,14 +394,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1000000,
       "created": 1781035402,
       "display_name": "Anthropic Claude Fable 5",
       "enabled": false,
       "id": "anthropic-claude-fable-5",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "anthropic",
       "pricing": {
@@ -419,14 +414,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1770276853,
       "display_name": "Anthropic Claude Haiku 4.5",
       "enabled": false,
       "id": "anthropic-claude-haiku-4.5",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -440,14 +434,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1764790378,
       "display_name": "Anthropic Claude Opus 4.5",
       "enabled": false,
       "id": "anthropic-claude-opus-4.5",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -461,14 +454,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1770333973,
       "display_name": "Anthropic Claude Opus 4.6",
       "enabled": false,
       "id": "anthropic-claude-opus-4.6",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -482,14 +474,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1776379334,
       "display_name": "Anthropic Claude Opus 4.7",
       "enabled": false,
       "id": "anthropic-claude-opus-4.7",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 8192,
       "owned_by": "anthropic",
       "pricing": {
@@ -503,14 +494,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1000000,
       "created": 1780009573,
       "display_name": "Anthropic Claude Opus 4.8",
       "enabled": false,
       "id": "anthropic-claude-opus-4.8",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "anthropic",
       "pricing": {
@@ -524,14 +514,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1775072224,
       "display_name": "Arcee Trinity Large Thinking",
       "enabled": false,
       "id": "arcee-trinity-large-thinking",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 32000,
       "owned_by": "digitalocean",
       "pricing": {
@@ -544,10 +533,10 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [
         "deepseek"
       ],
+      "auto_managed": true,
       "context_window": 131072,
       "created": 1776375302,
       "display_name": "DeepSeek 3.2",
@@ -565,14 +554,13 @@
       "type": "text"
     },
     {
-      "access_status": "rate_limited",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 65536,
       "created": 1779896095,
       "display_name": "Deepseek 4 Flash",
       "enabled": true,
       "id": "deepseek-4-flash",
-      "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
       "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
@@ -585,8 +573,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 32678,
       "created": 1738947921,
       "display_name": "Deepseek R1 Distill Llama 70b",
@@ -604,10 +592,10 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [
         "deepseek-v4"
       ],
+      "auto_managed": true,
       "context_window": 87040,
       "created": 1777633630,
       "display_name": "DeepSeek V4 Pro",
@@ -625,8 +613,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 256000,
       "created": 1776195691,
       "display_name": "Gemma 4 31B It",
@@ -644,10 +632,10 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [
         "glm"
       ],
+      "auto_managed": true,
       "context_window": 64000,
       "created": 1773360634,
       "display_name": "GLM 5",
@@ -665,14 +653,13 @@
       "type": "text"
     },
     {
-      "access_status": "rate_limited",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 65536,
       "created": 1782322674,
       "display_name": "GLM 5.1",
       "enabled": false,
       "id": "glm-5.1",
-      "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
       "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
@@ -685,8 +672,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 262144,
       "created": 1782174301,
       "display_name": "GLM 5.2",
@@ -704,8 +691,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 256000,
       "created": 1773347767,
       "display_name": "Kimi K2.5",
@@ -723,8 +710,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 96000,
       "created": 1778000987,
       "display_name": "Kimi K2.6",
@@ -742,8 +729,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1776729457,
       "display_name": "Llama 4 Maverick",
@@ -761,8 +748,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1736801780,
       "display_name": "Llama3.3 70b Instruct",
@@ -780,8 +767,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 32000,
       "created": 1781303831,
       "display_name": "Mimo V2.5",
@@ -799,8 +786,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 87040,
       "created": 1781721728,
       "display_name": "Mimo V2.5 Pro",
@@ -818,8 +805,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 65536,
       "created": 1773360634,
       "display_name": "Minimax M2.5",
@@ -837,10 +824,10 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [
         "mistral"
       ],
+      "auto_managed": true,
       "context_window": 262144,
       "created": 1776471052,
       "display_name": "Mistral 3 14B",
@@ -857,8 +844,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 65536,
       "created": 1777148824,
       "display_name": "Nemotron 3 Nano Omni",
@@ -876,8 +863,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 131072,
       "created": 1780548582,
       "display_name": "Nemotron 3 Ultra 550b",
@@ -895,8 +882,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1777025607,
       "display_name": "Nemotron Nano 12b V2 VL",
@@ -914,8 +901,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1000000,
       "created": 1773783814,
       "display_name": "Nvidia Nemotron 3 Super 120b",
@@ -933,14 +920,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1047576,
       "created": 1753359599,
       "display_name": "Openai Gpt 4.1",
       "enabled": false,
       "id": "openai-gpt-4.1",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 32768,
       "owned_by": "openai",
       "pricing": {
@@ -953,14 +939,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1740436938,
       "display_name": "Openai Gpt 4o",
       "enabled": false,
       "id": "openai-gpt-4o",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 16384,
       "owned_by": "openai",
       "pricing": {
@@ -973,14 +958,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1740436938,
       "display_name": "Openai Gpt 4o Mini",
       "enabled": false,
       "id": "openai-gpt-4o-mini",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 16384,
       "owned_by": "openai",
       "pricing": {
@@ -993,14 +977,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1754595084,
       "display_name": "Openai Gpt 5",
       "enabled": false,
       "id": "openai-gpt-5",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1013,14 +996,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1757445018,
       "display_name": "Openai Gpt 5 Mini",
       "enabled": false,
       "id": "openai-gpt-5-mini",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1033,14 +1015,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1757445022,
       "display_name": "Openai Gpt 5 Nano",
       "enabled": false,
       "id": "openai-gpt-5-nano",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1053,14 +1034,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1769527931,
       "display_name": "Openai Gpt 5.1 Codex Max",
       "enabled": false,
       "id": "openai-gpt-5.1-codex-max",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1073,14 +1053,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1769527931,
       "display_name": "Openai Gpt 5.2",
       "enabled": false,
       "id": "openai-gpt-5.2",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1093,14 +1072,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1770208836,
       "display_name": "Openai Gpt 5.2 Pro",
       "enabled": false,
       "id": "openai-gpt-5.2-pro",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1113,16 +1091,15 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [
         "codex"
       ],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1772046998,
       "display_name": "GPT 5.3 Codex",
       "enabled": false,
       "id": "openai-gpt-5.3-codex",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1135,14 +1112,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1772819368,
       "display_name": "Openai Gpt 5.4",
       "enabled": false,
       "id": "openai-gpt-5.4",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1155,14 +1131,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1774645563,
       "display_name": "Openai Gpt 5.4 Mini",
       "enabled": false,
       "id": "openai-gpt-5.4-mini",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1175,14 +1150,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 400000,
       "created": 1774645564,
       "display_name": "Openai Gpt 5.4 Nano",
       "enabled": false,
       "id": "openai-gpt-5.4-nano",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1195,14 +1169,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1050000,
       "created": 1774645563,
       "display_name": "Openai Gpt 5.4 Pro",
       "enabled": false,
       "id": "openai-gpt-5.4-pro",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1215,14 +1188,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1000000,
       "created": 1777317140,
       "display_name": "Openai Gpt 5.5",
       "enabled": false,
       "id": "openai-gpt-5.5",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 128000,
       "owned_by": "openai",
       "pricing": {
@@ -1235,8 +1207,8 @@
       "type": "text"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1050000,
       "created": 1783634907,
       "display_name": "Openai Gpt 5.6 Luna",
@@ -1251,8 +1223,8 @@
       "type": "text"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1050000,
       "created": 1783716594,
       "display_name": "Openai Gpt 5.6 Sol",
@@ -1267,8 +1239,8 @@
       "type": "text"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 1050000,
       "created": 1783716611,
       "display_name": "Openai Gpt 5.6 Terra",
@@ -1283,8 +1255,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1754595080,
       "display_name": "Openai Gpt Oss 120b",
@@ -1302,8 +1274,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 128000,
       "created": 1754595075,
       "display_name": "Openai Gpt Oss 20b",
@@ -1321,14 +1293,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1740436938,
       "display_name": "Openai O1",
       "enabled": false,
       "id": "openai-o1",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 100000,
       "owned_by": "openai",
       "pricing": {
@@ -1341,14 +1312,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1751565087,
       "display_name": "Openai O3",
       "enabled": false,
       "id": "openai-o3",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 100000,
       "owned_by": "openai",
       "pricing": {
@@ -1361,14 +1331,13 @@
       "type": "text"
     },
     {
-      "access_status": "forbidden",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 200000,
       "created": 1740436938,
       "display_name": "Openai O3 Mini",
       "enabled": false,
       "id": "openai-o3-mini",
-      "last_error": "{\"error\":{\"message\":\"this model is not available for your subscription tier\",\"type\":\"forbidden_error\"},\"message\":\"this model is not available for your subscription tier\",\"status_code\":403}\n",
       "max_output_tokens": 100000,
       "owned_by": "openai",
       "pricing": {
@@ -1381,8 +1350,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 262144,
       "created": 1776366668,
       "display_name": "Qwen3 Coder Flash",
@@ -1400,8 +1369,8 @@
       "type": "text"
     },
     {
-      "access_status": "ok",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 131072,
       "created": 1776379991,
       "display_name": "Qwen3.5 397b A17b",
@@ -1419,8 +1388,8 @@
       "type": "text"
     },
     {
-      "access_status": "not_checked",
       "aliases": [],
+      "auto_managed": true,
       "context_window": 100,
       "created": 1776464527,
       "display_name": "Wan2 2 T2v A14b",

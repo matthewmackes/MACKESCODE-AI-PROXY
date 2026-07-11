@@ -37,7 +37,7 @@ Operators can create or edit datasets through the dataset APIs. Manual examples
 can be saved directly:
 
 ```bash
-curl -X POST http://127.0.0.1:18181/api/evals/datasets \
+curl -X POST http://127.0.0.1:18182/v2/operate/evals/datasets \
   -H 'content-type: application/json' \
   -d '{"id":"manual","name":"Manual","examples":[{"input":"Reply ok","expected":"ok"}]}'
 ```
@@ -46,7 +46,7 @@ Runtime-derived examples from traces, saved chats, and comparison runs must pass
 an explicit redaction review before saving:
 
 ```bash
-curl -X POST http://127.0.0.1:18181/api/evals/datasets/build \
+curl -X POST http://127.0.0.1:18182/v2/operate/evals/datasets/build \
   -H 'content-type: application/json' \
   -d '{
     "id": "from-trace",
@@ -92,7 +92,7 @@ Results include:
 The API equivalent is:
 
 ```bash
-curl -X POST http://127.0.0.1:18181/api/evals/run \
+curl -X POST http://127.0.0.1:18182/v2/operate/evals/run \
   -H 'content-type: application/json' \
   -d '{"dataset_id":"smoke","models":["qwen3-coder-flash"],"max_examples":2}'
 ```

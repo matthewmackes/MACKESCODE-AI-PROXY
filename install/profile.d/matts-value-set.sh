@@ -40,9 +40,9 @@ _matts_get_url() {
     local token
     token=$(_matts_get_token)
     if [ "$token" = "NOT_GENERATED_YET" ]; then
-        echo "http://localhost:18181/?token=(generate-with-first-start)"
+        echo "http://localhost:18182/?token=(generate-with-first-start)"
     else
-        echo "http://localhost:18181/?token=${token}"
+        echo "http://localhost:18182/?token=${token}"
     fi
 }
 
@@ -58,7 +58,7 @@ if command -v claude-do >/dev/null 2>&1; then
     # Access information
     echo -e "\n\033[1;34mAccess:\033[0m"
     echo "Proxy API:      http://127.0.0.1:18081/v1/"
-    echo "Web Console:    $(_matts_get_url)"
+    echo "V2 Console:     $(_matts_get_url)"
 
     # Quick commands
     echo -e "\n\033[1;34mQuick Commands:\033[0m"

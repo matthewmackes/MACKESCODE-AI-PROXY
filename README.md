@@ -30,10 +30,9 @@ Primary local services:
 | Surface | Command | Default address | Purpose |
 | --- | --- | --- | --- |
 | Local proxy | `./claude-DO.sh --doctor` or any `./claude-DO.sh --model ...` launch | `127.0.0.1:18081` | Anthropic-compatible model proxy |
-| Legacy console | `./matts-console.py` | `0.0.0.0:18181` | Pure Python console and compatibility UI |
 | React V2 console | `./matts-v2-console.py --build-frontend` | `0.0.0.0:18182` | Primary Carbon-styled operator interface and `/v2/*` API |
 
-Use V2 for normal work. Use the legacy console when validating compatibility paths or older operator workflows.
+Use V2 for console work. The Python `image-studio.py` module remains as a V2 service-adapter composition layer, not as a supported standalone V1 UI.
 
 ## Governance
 
@@ -125,16 +124,16 @@ Shortcut wrappers:
 ./claude-codex
 ```
 
-All local controls are exposed through the pure Python unified web console:
+All local controls are exposed through the React V2 console:
 
 ```bash
-./matts-console.py
+./matts-v2-console.py --build-frontend
 ```
 
-On a headless machine, the console binds to `0.0.0.0:18181` and prints a token-protected URL such as:
+On a headless machine, the console binds to `0.0.0.0:18182` and prints a token-protected bootstrap URL such as:
 
 ```text
-http://SERVER_IP:18181/?token=...
+http://SERVER_IP:18182/?token=...
 ```
 
 The React v2 console serves the built frontend and API from port `18182` and also binds to all interfaces by default:
@@ -145,7 +144,7 @@ The React v2 console serves the built frontend and API from port `18182` and als
 
 When `frontend/node_modules` is missing, the V2 launcher and release checks use `npm ci --no-audit` against `frontend/package-lock.json` for reproducible installs. `npm install --no-audit` is only used as a fallback if no lockfile exists; dependency audit enforcement is handled by the explicit production audit gate in `scripts/release-check.sh`.
 
-For remote browser sessions, open `18182/tcp` on the host firewall and use the printed token with `http://SERVER_IP:18182/?token=...`. Put the token before any hash route, for example `http://SERVER_IP:18182/?token=...#research`; V2 also recovers tokens from hash-style URLs and browser session storage when a remote session rewrites the route. If the frontend is served from a different origin, set `VITE_API_BASE_URL=http://SERVER_IP:18182` when building/serving the frontend, or allow explicit origins with repeated `--cors-origin` flags.
+For remote browser sessions, open `18182/tcp` on the host firewall and use the printed bootstrap URL. V2 stores the token in browser session storage, removes `?token=...` from the address bar after first load, and sends follow-up API requests with `x-matts-console-token` headers. Put the bootstrap token before any hash route, for example `http://SERVER_IP:18182/?token=...#research`; V2 also recovers tokens from hash-style URLs when a remote session rewrites the route. If the frontend is served from a different origin, set `VITE_API_BASE_URL=http://SERVER_IP:18182` when building/serving the frontend, or allow explicit origins with repeated `--cors-origin` flags.
 
 ## React V2 Console
 
@@ -156,24 +155,24 @@ Start with the workspace that matches the job:
 - Use **Chat** for direct model work and transcript handoff.
 - Use **Code** for Claude Code/tmux sessions, terminal command history, per-event packets, and screenshot review.
 - Use **Research** when an answer needs search, citations, images, examples, maps, Wikipedia, technical docs, DigitalOcean references, and multiple fast analyst models.
-- Use **Create** when the task moves between chat, research, and image generation and the output needs history reuse.
+- Use **Create** for image generation, image model selection, output metadata, and image history reuse.
 - Use **Models** to inspect route health, access, pricing, visual identity, and newly discovered LLMs.
-- Use **Advanced** for Console, Run, Observe, Operate, TUI, tmux, drift, release, and rollback operations.
+- Use **Advanced** for Console, Run, Observe, Operate, drift, release, and rollback operations.
 
 V2 workspaces:
 
 - **Chat** - model-selected conversation, voice profile controls, transcript copy/download, and direct composer input without canned suggestions. Use Ctrl/Command+Enter to send multiline prompts; plain Enter stays available for new lines.
-- **Code** - Claude Code/tmux session launch, terminal input, command output history, per-event copy packets, Code Brief export, and screenshot/image review. Use Ctrl/Command+Enter to send terminal input; paste, drop, or attach PNG/JPEG/WebP/GIF images so a selected model can inspect UI, terminal, or code screenshots.
+- **Code** - Claude Code/tmux session launch, the TMux/TUI console, terminal input, command output history, per-event copy packets, Code Brief export, and screenshot/image review. Use Ctrl/Command+Enter to send terminal input; paste, drop, or attach PNG/JPEG/WebP/GIF images so a selected model can inspect UI, terminal, or code screenshots.
 - **Research** - Bing-style search line with Enter-to-search, custom engine selection, at least two search engines per run, required source packs, three low-cost fast analyst LLMs, and a fourth coordinator LLM. Evidence includes search results, image sources, examples, mapping coordinates, Wikipedia, technical documentation, DigitalOcean LLM references, and local RAG when enabled. Research briefs and individual source packets are copyable.
-- **Create** - mode switch for Chat, Research, and Image generation. Research mode can require the full source pack, Image mode renders generated assets, Ctrl/Command+Enter submits the active mode, and history cards can restore or copy rich mode-aware output packets.
+- **Create** - image-only generation studio with image model selection, generated asset rendering, output metadata, Ctrl/Command+Enter submit, and image history restore/copy packets.
 - **Models** - LLM showcase with route status, pricing, access state, training-nation color palette, company artwork when configured, model comparison, discovery, and a startup **Whats New** modal with DigitalOcean LLM links.
-- **Advanced** - operational surfaces for Console, Run, Observe, Operate, and TUI. The Console area includes a standing proxy TUI bridge plus tmux session tables, capture, attach, send, key, rename, stop, and open-terminal controls.
+- **Advanced** - operational surfaces for Console, Run, Observe, and Operate. Terminal and tmux/TUI controls belong in Code.
 
 Model cards should remain a showcase for the available LLMs. When model metadata includes public company artwork or brand URLs, V2 displays that artwork with tracked source notes; otherwise it falls back to local brand marks or generated initials. Nation palettes are based on the model training nation, so USA, China, and other model families stay visually distinct.
 
 Copy/export behavior is intentionally broad: Chat transcripts, Research briefs, Research source packets, Code Briefs, per-event Code output packets, Create history packets, model details, and operational reports are designed to move cleanly into tickets, reviews, docs, or follow-up prompts.
 
-If a remote browser shows a blank page, first verify `http://SERVER_IP:18182/v2/health?token=...`, then confirm the host firewall allows `18182/tcp`, the URL includes the current token, and any split-origin frontend was built with `VITE_API_BASE_URL=http://SERVER_IP:18182`. Wrong-host API calls usually show as `api endpoint not found` or failed `/v2/*` requests in the browser developer console.
+If a remote browser shows a blank page, first verify `http://SERVER_IP:18182/v2/health` from the host, then confirm the host firewall allows `18182/tcp`, the browser has bootstrapped the current token, and any split-origin frontend was built with `VITE_API_BASE_URL=http://SERVER_IP:18182`. Wrong-host API calls usually show as `api endpoint not found` or failed `/v2/*` requests in the browser developer console.
 
 The console includes:
 
@@ -229,7 +228,7 @@ Stable Diffusion is also available through the one-shot helper:
 ./claude-DO.sh --budget
 ./claude-DO.sh --restart --doctor
 ./claude-DO.sh --test-models
-./matts-console.py --no-open
+./matts-v2-console.py --build-frontend
 ```
 
 The launcher requires an MDE LLM-PROXY model access key. Write it to:
@@ -252,6 +251,8 @@ The proxy listens on:
 127.0.0.1:18081
 ```
 
+Non-loopback proxy binds fail closed unless you set `MATTS_PROXY_AUTH_TOKEN` or pass `--inbound-auth-token`. Remote clients must send that value in `x-matts-proxy-token` or `Authorization: Bearer ...`. An explicit `--allow-unauthenticated-remote` / `MATTS_PROXY_ALLOW_UNAUTHENTICATED_REMOTE=1` override exists only for trusted, isolated networks.
+
 Console runtime defaults are stored in:
 
 ```text
@@ -260,9 +261,9 @@ config/console.json
 
 Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON config. Environment variables such as `MATTS_STUDIO_PORT`, `MATTS_VALUE_SET_PROXY_PORT`, `MATTS_MODEL_AUTO_ENABLE_MAX_USD`, and `MATTS_CONSOLE_LOG_LEVEL` still override the file. The `paths` section controls template, default model registry, active model registry, Dedicated, Serverless cache, tmux registry, wallpaper, usage, budget, and log locations; existing path-specific environment variables still take precedence. Model pricing comes from the configured model registry data. Secrets and tokens remain file/env based and are not stored in this config.
 
-The active model registry is `config/models.json`. `./claude-DO.sh --list-models`, the proxy `/v1/models` endpoint, Code/Create selectors, model hero cards, and Console LLM management all derive from that registry. Serverless catalog refresh can add new DigitalOcean-hosted models, and models priced below the configured auto-enable threshold are enabled by policy once access audit confirms the key can use them.
+The active model registry is `config/models.json`. `./claude-DO.sh --list-models`, the proxy `/v1/models` endpoint, Code/Create selectors, model hero cards, and Console LLM management all derive from that registry. Serverless catalog refresh can add new DigitalOcean-hosted models, and models priced below the configured auto-enable threshold are enabled by registry policy. Key-specific access audit results are runtime state under `$HOME/.cache/matts-value-set/studio/model-access-state.json` and are merged into UI/proxy reads without being committed to the registry.
 
-Use Console > LLM Management > key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
+Use Console > LLM Management > key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed in runtime state, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
 
 Console auth supports the generated owner token, optional scoped role tokens, and short-lived JWT sessions with rotating refresh tokens. Sensitive model, Dedicated, budget, billing, tmux, terminal, and auth-session actions are permission-checked and written to `$HOME/.cache/matts-value-set/studio/audit.jsonl`. Role-token and session setup is documented in `SECURITY.md`.
 
@@ -275,6 +276,7 @@ Release config and runtime state are intentionally separate:
 | Console defaults | `config/console.json` | `MATTS_CONSOLE_CONFIG_FILE` override when needed |
 | Default model bootstrap | `config/default-models.json` | Active registry below |
 | Active model registry | `config/models.json` | Operator-edited source of truth; schema_version `1` |
+| Model access audit state | none | `$HOME/.cache/matts-value-set/studio/model-access-state.json` |
 | Dedicated Inference | `config/dedicated-inference.example.json` | `$HOME/.cache/matts-value-set/studio/dedicated-inference.json` |
 | Serverless catalog cache | none | `$HOME/.cache/matts-value-set/studio/serverless-model-catalog.json` |
 | Model access drift | none | `$HOME/.cache/matts-value-set/studio/model-access-drift.json` |
@@ -353,7 +355,7 @@ Before committing or publishing a release, run the repeatable local release chec
 MATTS_BROWSER_SMOKE_REQUIRED=1 ./scripts/release-check.sh
 ```
 
-It runs the unit/smoke suite, coverage report, Python syntax checks, template JavaScript syntax checks when `node` is available, a React frontend build, a V2 frontend bundle-boundary check, a production frontend dependency audit with `npm audit --omit=dev`, and a headless browser smoke check when Playwright is installed. GitHub Actions installs Playwright and requires the browser smoke pass for Code, Create, Console, and terminal page navigation.
+It runs the unit/smoke suite, coverage report, Python syntax checks, V2 OpenAPI/client drift checks, a React frontend build, a V2 frontend bundle-boundary check, a production frontend dependency audit with `npm audit --omit=dev`, and a headless browser smoke check when Playwright is installed. GitHub Actions installs Playwright and requires the browser smoke pass for Code, Create, Console, and terminal page navigation.
 
 The v2 console is launched with `matts-v2-console.py`. It builds the React frontend when needed, starts the FastAPI app, serves the built React assets from `frontend/dist`, and exposes the generated `/v2/*` API surface. The release check also validates generated OpenAPI/client freshness and runs the V2 Playwright smoke including the standing Console TUI bridge.
 
@@ -366,7 +368,6 @@ To run the browser smoke locally:
 ```bash
 python3 -m pip install playwright
 python3 -m playwright install chromium
-scripts/browser-smoke.py --required
 MATTS_BROWSER_SMOKE_REQUIRED=1 python3 scripts/v2-browser-smoke.py --required
 ```
 
@@ -391,7 +392,7 @@ Dedicated Inference automation also requires a DigitalOcean API token with permi
 
 ## AgentBoard
 
-The console includes an AgentBoard-inspired tab built into the existing `18181` GUI. It discovers all local tmux sessions, captures pane previews, infers whether sessions are working, waiting, or asking for permission, and exposes full controls to open, send input, send common keys, or kill a selected session. The task, eval, and leaderboard views are derived from tmux pane state plus local proxy usage logs; no separate AgentBoard service or database is required.
+The V2 console includes AgentBoard-inspired tmux/session views. It discovers managed local tmux sessions, captures pane previews, infers whether sessions are working, waiting, or asking for permission, and exposes controls to open, send input, send common keys, or stop a selected session. The task, eval, and leaderboard views are derived from tmux pane state plus local proxy usage logs; no separate AgentBoard service or database is required.
 
 Real-time usage and estimated costs are appended to:
 

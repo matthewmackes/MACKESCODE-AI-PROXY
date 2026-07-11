@@ -14,6 +14,15 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from src.console.services.proxy_runtime import (
+    apply_model_access_state as _apply_model_access_state,
+    default_model_access_state_path as _default_model_access_state_path,
+    env_truthy as _env_truthy,
+    header_value as _proxy_header_value,
+    inbound_authorized as _proxy_inbound_authorized,
+    load_model_access_state as _load_model_access_state,
+    proxy_bind_allowed as _proxy_bind_allowed,
+)
 from src.console.services.streaming_metrics import StreamingMetricsService
 
 
@@ -91,6 +100,10 @@ def _default_model_config_path():
     )
 
 
+def _model_access_state_path():
+    return os.environ.get("MATTS_MODEL_ACCESS_STATE_FILE", _default_model_access_state_path())
+
+
 def _model_route_enabled(model):
     if not isinstance(model, dict) or not model.get("id") or model.get("enabled") is False:
         return False
@@ -99,7 +112,7 @@ def _model_route_enabled(model):
     return True
 
 
-def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs):
+def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs, access_state_path=None):
     error = ""
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -122,10 +135,11 @@ def _load_model_registry(path, fallback_models, fallback_aliases, fallback_costs
         rows = []
 
     records = [model for model in rows if isinstance(model, dict) and model.get("id")]
+    records = _apply_model_access_state(records, _load_model_access_state(access_state_path))
     active = [model for model in records if _model_route_enabled(model)]
     if not active:
         fallback_records = [{"id": model_id, "type": "text", "enabled": True, "access_status": "fallback"} for model_id in fallback_models]
-        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False, fallback_records, error
+        return list(fallback_models), dict(fallback_aliases), dict(fallback_costs), False, records or fallback_records, error
 
     text = [str(model["id"]) for model in active if model.get("type", "text") == "text"]
     image = [str(model["id"]) for model in active if model.get("type") == "image"]
@@ -202,15 +216,18 @@ def _refresh_model_registry(server, force=False):
     if not getattr(server, "model_config_file", ""):
         return
     fingerprint = _model_config_fingerprint(server.model_config_file)
+    access_fingerprint = _model_config_fingerprint(getattr(server, "model_access_state_file", ""))
     server.model_config_last_check_at = time.time()
     previous = getattr(server, "model_config_fingerprint", None)
-    if not force and _same_model_config_fingerprint(fingerprint, previous):
+    previous_access = getattr(server, "model_access_state_fingerprint", None)
+    if not force and _same_model_config_fingerprint(fingerprint, previous) and _same_model_config_fingerprint(access_fingerprint, previous_access):
         return
     models, aliases, costs, loaded, records, error = _load_model_registry(
         server.model_config_file,
         server.fallback_models,
         server.fallback_model_aliases,
         server.fallback_costs,
+        getattr(server, "model_access_state_file", ""),
     )
     server.models = models
     server.model_aliases = aliases
@@ -218,6 +235,7 @@ def _refresh_model_registry(server, force=False):
     server.model_registry_records = records
     server.model_config_loaded = loaded
     server.model_config_fingerprint = fingerprint
+    server.model_access_state_fingerprint = access_fingerprint
     server.model_config_last_loaded_at = time.time()
     server.model_config_last_error = "" if loaded else (error or fingerprint.get("error") or "No active route-enabled models loaded from registry.")
     if server.default_model not in server.models and server.models:
@@ -228,15 +246,22 @@ def _refresh_model_registry(server, force=False):
 def _model_config_state(server):
     fingerprint = getattr(server, "model_config_fingerprint", None) or _model_config_fingerprint(getattr(server, "model_config_file", ""))
     current = _model_config_fingerprint(getattr(server, "model_config_file", ""))
+    access_fingerprint = getattr(server, "model_access_state_fingerprint", None) or _model_config_fingerprint(getattr(server, "model_access_state_file", ""))
+    access_current = _model_config_fingerprint(getattr(server, "model_access_state_file", ""))
+    config_stale = not _same_model_config_fingerprint(fingerprint, current)
+    access_stale = not _same_model_config_fingerprint(access_fingerprint, access_current)
     return {
         "file": getattr(server, "model_config_file", ""),
+        "access_state_file": getattr(server, "model_access_state_file", ""),
         "loaded": bool(getattr(server, "model_config_loaded", False)),
         "loaded_at": getattr(server, "model_config_last_loaded_at", 0),
         "last_check_at": getattr(server, "model_config_last_check_at", 0),
         "last_error": getattr(server, "model_config_last_error", ""),
         "fingerprint": fingerprint,
         "current_fingerprint": current,
-        "stale": not _same_model_config_fingerprint(fingerprint, current),
+        "access_state_fingerprint": access_fingerprint,
+        "current_access_state_fingerprint": access_current,
+        "stale": config_stale or access_stale,
     }
 
 
@@ -1939,6 +1964,22 @@ class Handler(BaseHTTPRequestHandler):
         with open(self.server.token_file, "r", encoding="utf-8") as f:
             return f.read().strip()
 
+    def _header_value(self, name):
+        return _proxy_header_value(getattr(self, "headers", {}), name)
+
+    def _inbound_authorized(self):
+        expected = str(getattr(self.server, "inbound_auth_token", "") or "").strip()
+        return _proxy_inbound_authorized(getattr(self, "headers", {}), expected)
+
+    def _require_inbound_auth(self):
+        if self._inbound_authorized():
+            return False
+        self._json(401, {"type": "error", "error": {
+            "type": "unauthorized",
+            "message": "proxy inbound auth token required",
+        }})
+        return True
+
     def _refresh_models(self, force=False):
         _refresh_model_registry(self.server, force=force)
 
@@ -1998,6 +2039,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self._responded = False
         try:
+            if self._require_inbound_auth():
+                return
             return self._handle_get()
         except Exception as exc:
             self._fail_safe(exc)
@@ -2055,6 +2098,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._responded = False
         try:
+            if self._require_inbound_auth():
+                return
             return self._handle_post()
         except Exception as exc:
             self._fail_safe(exc)
@@ -2763,6 +2808,7 @@ def _build_arg_parser():
     parser.add_argument("--model-aliases", default=os.environ.get("CLAUDE_DO_MODEL_ALIASES", ""))
     parser.add_argument("--models", default=os.environ.get("CLAUDE_DO_MODELS", ""))
     parser.add_argument("--model-config-file", default=os.environ.get("MATTS_MODEL_CONFIG_FILE", _model_config_path()))
+    parser.add_argument("--model-access-state-file", default=os.environ.get("MATTS_MODEL_ACCESS_STATE_FILE", _model_access_state_path()))
     parser.add_argument("--capabilities", default=os.environ.get("CLAUDE_DO_CAPABILITIES", ""))
     parser.add_argument("--costs", default=os.environ.get("CLAUDE_DO_COSTS", ""))
     parser.add_argument("--cost-file", default=os.environ.get("CLAUDE_DO_COST_FILE", DEFAULT_COST_FILE))
@@ -2770,6 +2816,13 @@ def _build_arg_parser():
     parser.add_argument("--log-file", default=os.environ.get("CLAUDE_DO_LOG_FILE", DEFAULT_LOG_FILE))
     parser.add_argument("--trace-file", default=os.environ.get("MATTS_TRACE_FILE", DEFAULT_TRACE_FILE))
     parser.add_argument("--gateway-policy-file", default=os.environ.get("MATTS_GATEWAY_POLICY_FILE", DEFAULT_GATEWAY_POLICY_FILE))
+    parser.add_argument("--inbound-auth-token", default=os.environ.get("MATTS_PROXY_AUTH_TOKEN", ""))
+    parser.add_argument(
+        "--allow-unauthenticated-remote",
+        action="store_true",
+        default=_env_truthy("MATTS_PROXY_ALLOW_UNAUTHENTICATED_REMOTE"),
+        help="allow non-loopback binds without proxy inbound authentication",
+    )
     return parser
 
 
@@ -2780,9 +2833,15 @@ def main():
     if bootstrap_warning:
         print("warning: %s" % bootstrap_warning, file=sys.stderr, flush=True)
 
+    allowed, bind_reason = _proxy_bind_allowed(args.host, args.inbound_auth_token, args.allow_unauthenticated_remote)
+    if not allowed:
+        print("refusing to bind proxy on %s:%d: %s" % (args.host, args.port, bind_reason), file=sys.stderr, flush=True)
+        return 2
+
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.provider = args.provider
     server.default_model = args.default_model
+    server.inbound_auth_token = str(args.inbound_auth_token or "").strip()
     server.token_file = args.token_file
     server.capabilities = _load_json_env(args.capabilities, {})
     server.fallback_model_aliases = dict(fallback_aliases)
@@ -2795,8 +2854,10 @@ def main():
     server.model_registry_records = [{"id": model_id, "type": "text", "enabled": True, "access_status": "fallback"} for model_id in server.models]
     server.costs = dict(server.fallback_costs)
     server.model_config_file = args.model_config_file
+    server.model_access_state_file = args.model_access_state_file
     server.model_config_loaded = False
     server.model_config_fingerprint = None
+    server.model_access_state_fingerprint = None
     server.model_config_last_check_at = 0
     server.model_config_last_loaded_at = 0
     server.model_config_last_error = ""
@@ -2817,7 +2878,8 @@ def main():
     _refresh_gateway_policy(server)
     print("listening on http://%s:%d -> %s" % (args.host, args.port, server.chat_url), flush=True)
     server.serve_forever()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

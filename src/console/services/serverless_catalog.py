@@ -41,6 +41,7 @@ class ServerlessCatalogService:
         serverless_catalog_payload=None,
         probe_serverless_text_model=None,
         model_access_drift_file=None,
+        model_access_state_file=None,
         append_audit=None,
     ):
         self.env = env
@@ -71,6 +72,7 @@ class ServerlessCatalogService:
         self.serverless_catalog_payload_func = serverless_catalog_payload
         self.probe_serverless_text_model_func = probe_serverless_text_model
         self.model_access_drift_file = model_access_drift_file
+        self.model_access_state_file = model_access_state_file
         self.append_audit = append_audit or (lambda *args, **kwargs: None)
 
     def model_access_drift_path(self):
@@ -84,6 +86,45 @@ class ServerlessCatalogService:
 
     def default_access_drift_state(self):
         return {"schema_version": 1, "models": {}, "events": {}}
+
+    def model_access_state_path(self):
+        if self.model_access_state_file:
+            path = self.model_access_state_file()
+        else:
+            path = self.catalog_cache_file().parent / "model-access-state.json"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def default_access_state(self):
+        return {"schema_version": 1, "updated_at": 0, "models": {}}
+
+    def load_access_state(self):
+        path = self.model_access_state_path()
+        if not path.exists():
+            return self.default_access_state()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return self.default_access_state()
+        if not isinstance(data, dict):
+            return self.default_access_state()
+        return {
+            "schema_version": 1,
+            "updated_at": data.get("updated_at", 0),
+            "models": data.get("models") if isinstance(data.get("models"), dict) else {},
+        }
+
+    def save_access_state(self, models, updated_at=None):
+        path = self.model_access_state_path()
+        payload = {
+            "schema_version": 1,
+            "updated_at": float(updated_at if updated_at is not None else self.clock()),
+            "models": models if isinstance(models, dict) else {},
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.chmod(0o600)
+        return payload
 
     def load_access_drift_state(self):
         path = self.model_access_drift_path()
@@ -188,6 +229,7 @@ class ServerlessCatalogService:
                 new_events.append(event)
                 self.append_audit("model_access_drift.%s" % event["code"], actor={}, outcome="completed", permission="model_access.audit", request={"model": model_id, "access_status": current, "source": source}, status=200)
         self.save_access_drift_state(state)
+        self.save_access_state(models, updated_at=now)
         active = [event for event in events.values() if not event.get("acknowledged_at")]
         return {"events": new_events, "active_count": len(active), "state_file": str(self.model_access_drift_path())}
 
@@ -362,21 +404,33 @@ class ServerlessCatalogService:
     def validate_serverless_access(self, models):
         checked = 0
         disabled = 0
+        outcomes = []
         probe = self.probe_serverless_text_model_func or self.probe_serverless_text_model
         for model in models:
             if not model.get("serverless") or model.get("type") != "text":
                 continue
             checked += 1
             ok, status, detail = probe(model["id"])
+            row = {
+                "id": model["id"],
+                "display_name": model.get("display_name") or model["id"],
+                "owned_by": model.get("owned_by") or "",
+                "pricing": model.get("pricing") or {},
+                "status": int(status),
+                "error": detail,
+            }
             if ok:
-                model["enabled"] = True
                 model["access_status"] = "ok"
                 model["last_error"] = ""
+                row["access_status"] = "ok"
+                outcomes.append(row)
                 continue
             model["access_status"] = "forbidden" if int(status) in {401, 403} else ("rate_limited" if int(status) == 429 else "probe_failed")
             model["last_error"] = detail
-            model["enabled"] = False
+            row["access_status"] = model["access_status"]
+            outcomes.append(row)
             disabled += 1
+        self._last_access_validation_outcomes = outcomes
         return {"checked": checked, "disabled": disabled}
 
     def audit_model_access_key(self):
@@ -403,7 +457,6 @@ class ServerlessCatalogService:
             if ok:
                 model["access_status"] = "ok"
                 model["last_error"] = ""
-                model["enabled"] = True
                 row["access_status"] = "ok"
                 allowed.append(row)
                 continue
@@ -411,14 +464,12 @@ class ServerlessCatalogService:
             model["last_error"] = detail
             row["access_status"] = access_status
             row["error"] = detail
-            model["enabled"] = False
             if int(status) in {401, 403}:
                 blocked.append(row)
             else:
                 skipped.append(row)
         outcomes = allowed + blocked + skipped
         access_drift = self.record_access_drift(outcomes, source="audit")
-        self.save_model_registry(models)
         self.refresh_model_globals()
         sync = self.proxy_sync_payload(force=True)
         return {
@@ -468,8 +519,6 @@ class ServerlessCatalogService:
             if existing and isinstance(existing.get("dedicated"), dict):
                 continue
             entry = self.serverless_registry_entry(item, existing=existing)
-            if not validate_access and entry.get("access_status") == "ok":
-                entry["enabled"] = True
             if existing != entry:
                 updated += 1 if existing else 0
                 added += 0 if existing else 1
@@ -493,14 +542,17 @@ class ServerlessCatalogService:
         dedicated = [model for model in existing_models if isinstance(model.get("dedicated"), dict) and model["id"] not in by_id]
         merged = list(by_id.values()) + dedicated
         access = self.validate_serverless_access(merged) if validate_access else {"checked": 0, "disabled": 0}
+        if validate_access:
+            validation_outcomes = getattr(self, "_last_access_validation_outcomes", [])
+            access_drift = self.record_access_drift(validation_outcomes, source="catalog_sync") if validation_outcomes else access_drift
         merged.sort(key=lambda model: (0 if model.get("serverless") else 1, str(model.get("type") or ""), str(model.get("id") or "")))
         # Only rewrite the governance-locked registry when something actually
         # changed. This is triggered by every GET /api/models, /api/status, and
         # /api/dedicated/status via models_payload(refresh_catalog=True); an
         # unconditional save churned the file (and refreshed globals) on every
-        # poll from multiple threads. The explicit access-audit path (validate_access)
-        # always persists because probing can mutate access_status in place.
-        changed = bool(added or updated or removed) or validate_access
+        # poll from multiple threads. Access probes persist to the runtime
+        # model-access state file instead of rewriting the governed registry.
+        changed = bool(added or updated or removed)
         if changed:
             saved = self.save_model_registry(merged)
             self.refresh_model_globals()

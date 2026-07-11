@@ -11,6 +11,7 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
     def test_payload_enriches_origin_artwork_and_whats_new(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
+            access_state = Path(tmp) / "model-access-state.json"
             now = time.time()
             path.write_text(json.dumps({
                 "schema_version": 1,
@@ -22,7 +23,6 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
                         "provider": "DigitalOcean",
                         "enabled": True,
                         "serverless": True,
-                        "access_status": "ok",
                         "pricing": {"input": 0.1, "output": 0.2},
                         "created": now,
                     },
@@ -33,11 +33,14 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
                         "provider": "DigitalOcean",
                         "enabled": False,
                         "serverless": True,
-                        "access_status": "forbidden",
                     },
                 ],
             }), encoding="utf-8")
-            service = ModelShowcaseService(model_config=path, clock=lambda: 1000)
+            access_state.write_text(json.dumps({"schema_version": 1, "models": {
+                "deepseek-r1": {"access_status": "ok"},
+                "llama-4": {"access_status": "forbidden"},
+            }}), encoding="utf-8")
+            service = ModelShowcaseService(model_config=path, model_access_state=access_state, clock=lambda: 1000)
 
             payload = service.payload()
             whats_new = service.whats_new()
@@ -59,6 +62,7 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
     def test_payload_records_generated_fallback_when_logo_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
+            access_state = Path(tmp) / "model-access-state.json"
             path.write_text(json.dumps({
                 "schema_version": 1,
                 "models": [
@@ -69,11 +73,11 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
                         "provider": "DigitalOcean",
                         "enabled": True,
                         "serverless": True,
-                        "access_status": "ok",
                     },
                 ],
             }), encoding="utf-8")
-            service = ModelShowcaseService(model_config=path, clock=lambda: 1000)
+            access_state.write_text(json.dumps({"schema_version": 1, "models": {"glm-4.5": {"access_status": "ok"}}}), encoding="utf-8")
+            service = ModelShowcaseService(model_config=path, model_access_state=access_state, clock=lambda: 1000)
 
             payload = service.payload()
 

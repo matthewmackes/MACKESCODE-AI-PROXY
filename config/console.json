@@ -1,7 +1,7 @@
 {
   "server": {
     "host": "0.0.0.0",
-    "port": 18181
+    "port": 18182
   },
   "auth": {
     "enabled": true,
@@ -59,6 +59,8 @@
     "gateway_policy_file": "config/gateway-policy.json",
     "dedicated_config_file": "dedicated-inference.json",
     "serverless_catalog_cache_file": "serverless-model-catalog.json",
+    "model_access_state_file": "model-access-state.json",
+    "model_access_drift_file": "model-access-drift.json",
     "dedicated_events_file": "dedicated-events.jsonl",
     "audit_file": "audit.jsonl",
     "quota_file": "quotas.jsonl",

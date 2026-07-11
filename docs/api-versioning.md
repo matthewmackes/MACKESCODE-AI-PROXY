@@ -1,13 +1,19 @@
-# API Versioning
+# Legacy Adapter API Versioning
 
-The Console JSON API supports explicit v1 paths under `/api/v1/*`.
+The current operator console is the React/FastAPI V2 surface under `/v2/*`.
+This document records the versioning behavior of the legacy `/api/*` adapter
+that remains available only when `image-studio.py` is deliberately run as a
+compatibility service.
 
-Examples:
+Current V2 clients should use `/v2/*`:
 
 ```bash
-curl http://127.0.0.1:18181/api/v1/models
-curl -X POST http://127.0.0.1:18181/api/v1/chat -d '{"messages":[]}'
+curl http://127.0.0.1:18182/v2/models
+curl -X POST http://127.0.0.1:18182/v2/chat -d '{"messages":[]}'
 ```
+
+The legacy adapter supports explicit v1 paths under `/api/v1/*` when that
+compatibility service is intentionally launched.
 
 Legacy `/api/*` paths remain compatible and currently dispatch to v1. Legacy responses include:
 

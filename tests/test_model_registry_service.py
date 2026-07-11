@@ -1,3 +1,4 @@
+import json
 import tempfile
 from unittest.mock import patch
 import unittest
@@ -39,8 +40,13 @@ class ModelRegistryServiceTests(unittest.TestCase):
                 {"id": "forbidden", "type": "text", "enabled": True, "serverless": True, "access_status": "forbidden", "pricing": {"input": 0.1}},
                 {"id": "image", "type": "image", "enabled": True, "pricing": {"image": 0.1}},
             ])
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            self.assertNotIn("access_status", json.dumps(doc))
 
-            active = service.load(path, include_disabled=False)
+            active = service.load(path, include_disabled=False, access_state={"models": {
+                "allowed": {"access_status": "ok"},
+                "forbidden": {"access_status": "forbidden"},
+            }})
 
         self.assertEqual([model["id"] for model in active], ["allowed", "image"])
 

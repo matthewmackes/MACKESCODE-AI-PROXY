@@ -22,7 +22,7 @@ that translates Anthropic Messages API calls to OpenAI-compatible endpoints for
 various LLM models. It provides:
 
 - Local proxy server on port 18081
-- Web console on port 18181 with authentication
+- V2 React console on port 18182 with authentication
 - Cost tracking and budget enforcement
 - Integration with Claude Code CLI
 - Global model registry support for Serverless and Dedicated Inference models
@@ -51,7 +51,10 @@ mkdir -p %{buildroot}/%{_docdir}/%{name}
 install -m 755 claude-DO.sh %{buildroot}/usr/lib/matts-value-set/
 install -m 755 do-anthropic-proxy.py %{buildroot}/usr/lib/matts-value-set/
 install -m 755 image-studio.py %{buildroot}/usr/lib/matts-value-set/
-install -m 755 matts-console.py %{buildroot}/usr/lib/matts-value-set/
+install -m 755 matts-v2-console.py %{buildroot}/usr/lib/matts-value-set/
+if [ -f requirements-v2.txt ]; then
+    install -m 644 requirements-v2.txt %{buildroot}/usr/lib/matts-value-set/
+fi
 
 # Install wrapper scripts
 for script in claude-deepseek claude-deepseek-v4 claude-glm claude-mistral claude-codex claude-sd35; do
@@ -65,10 +68,23 @@ if [ -f "matts-image" ]; then
     install -m 755 matts-image %{buildroot}/usr/lib/matts-value-set/
 fi
 
-# Install application package, templates, and read-only config (required at
-# runtime; the console imports src.console.* and serves templates/).
+# Install application packages, built V2 frontend, and read-only config
+# (required at runtime; V2 imports backend.v2 and src.console services).
 cp -r src %{buildroot}/usr/lib/matts-value-set/
-cp -r templates %{buildroot}/usr/lib/matts-value-set/
+cp -r backend %{buildroot}/usr/lib/matts-value-set/
+mkdir -p %{buildroot}/usr/lib/matts-value-set/frontend
+if [ -f frontend/package.json ]; then
+    install -m 644 frontend/package.json %{buildroot}/usr/lib/matts-value-set/frontend/
+fi
+if [ -f frontend/package-lock.json ]; then
+    install -m 644 frontend/package-lock.json %{buildroot}/usr/lib/matts-value-set/frontend/
+fi
+if [ -d frontend/dist ]; then
+    cp -r frontend/dist %{buildroot}/usr/lib/matts-value-set/frontend/
+else
+    echo "frontend/dist is missing; run npm run build --prefix frontend before RPM build" >&2
+    exit 1
+fi
 cp -r config %{buildroot}/usr/lib/matts-value-set/
 
 # Seed the writable model registry under the data dir (source of truth must be
@@ -83,7 +99,8 @@ fi
 # Create symlinks in /usr/bin
 ln -sf ../lib/matts-value-set/claude-DO.sh %{buildroot}/usr/bin/claude-do
 ln -sf ../lib/matts-value-set/do-anthropic-proxy.py %{buildroot}/usr/bin/matts-value-set-proxy
-ln -sf ../lib/matts-value-set/matts-console.py %{buildroot}/usr/bin/matts-console
+ln -sf ../lib/matts-value-set/matts-v2-console.py %{buildroot}/usr/bin/matts-v2-console
+ln -sf ../lib/matts-value-set/matts-v2-console.py %{buildroot}/usr/bin/matts-console
 ln -sf ../lib/matts-value-set/image-studio.py %{buildroot}/usr/bin/matts-image-studio
 
 # Create symlinks for wrapper scripts
@@ -179,7 +196,8 @@ fi
 /usr/lib/matts-value-set/claude-DO.sh
 /usr/lib/matts-value-set/do-anthropic-proxy.py
 /usr/lib/matts-value-set/image-studio.py
-/usr/lib/matts-value-set/matts-console.py
+/usr/lib/matts-value-set/matts-v2-console.py
+/usr/lib/matts-value-set/requirements-v2.txt
 
 # Wrapper scripts
 /usr/lib/matts-value-set/claude-deepseek
@@ -192,9 +210,10 @@ fi
 # Additional CLI tools
 /usr/lib/matts-value-set/matts-image
 
-# Application package, templates, and read-only config
+# Application packages, V2 frontend, and read-only config
 /usr/lib/matts-value-set/src
-/usr/lib/matts-value-set/templates
+/usr/lib/matts-value-set/backend
+/usr/lib/matts-value-set/frontend
 /usr/lib/matts-value-set/config
 
 # Writable model registry seed (source of truth; may be edited at runtime)
@@ -204,6 +223,7 @@ fi
 # Symlinks
 /usr/bin/claude-do
 /usr/bin/matts-value-set-proxy
+/usr/bin/matts-v2-console
 /usr/bin/matts-console
 /usr/bin/matts-image-studio
 /usr/bin/claude-deepseek

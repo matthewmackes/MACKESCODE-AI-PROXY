@@ -1,4 +1,4 @@
-import { withConsoleToken } from './auth';
+import { consoleAuthHeaders, withConsoleToken } from './auth';
 import { responseJsonOrThrow } from './errors';
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -6,6 +6,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'content-type': 'application/json',
+      ...consoleAuthHeaders(),
       ...(init?.headers || {})
     }
   });

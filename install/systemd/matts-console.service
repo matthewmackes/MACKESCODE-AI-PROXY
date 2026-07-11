@@ -1,5 +1,5 @@
 [Unit]
-Description=MDE LLM-PROXY Web Console
+Description=MDE LLM-PROXY V2 React Console
 Documentation=https://github.com/user/matts-value-set-proxy
 After=network.target matts-value-set-proxy.service
 Wants=network.target matts-value-set-proxy.service
@@ -10,10 +10,9 @@ User=matts
 Group=matts
 WorkingDirectory=/var/lib/matts-value-set
 EnvironmentFile=/etc/matts-value-set/environment.conf
-ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/image-studio.py \
+ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/matts-v2-console.py \
   --host 0.0.0.0 \
-  --port 18181 \
-  --no-open
+  --port 18182
 Restart=always
 RestartSec=10
 StartLimitInterval=60
@@ -23,6 +22,7 @@ StartLimitBurst=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+ReadWritePaths=/var/lib/matts-value-set /var/log/matts-value-set /tmp
 PrivateTmp=true
 PrivateDevices=true
 ProtectKernelTunables=true
@@ -36,7 +36,7 @@ LimitNPROC=4096
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=matts-console
+SyslogIdentifier=matts-v2-console
 
 [Install]
 WantedBy=multi-user.target

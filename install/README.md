@@ -42,7 +42,7 @@ sudo ./uninstall.sh
 
 ### Systemd Services
 - `systemd/matts-value-set-proxy.service` - Proxy server (port 18081)
-- `systemd/matts-console.service` - Web console (port 18181)
+- `systemd/matts-console.service` - V2 React console (port 18182)
 
 ### Configuration
 - `environment.conf` - Environment variables for services
@@ -123,7 +123,7 @@ export MATTS_VALUE_SET_NO_WELCOME=1
 ### Command-Line Tools
 - `claude-do` - Main launcher
 - `matts-value-set-proxy` - Start proxy directly
-- `matts-console` - Start web console directly
+- `matts-v2-console` / `matts-console` - Start the V2 React console directly
 - `claude-deepseek`, `claude-glm`, `claude-mistral`, `claude-codex` - Model wrappers
 - `matts-image` - Image generator CLI
 
@@ -145,7 +145,7 @@ MATTS_VALUE_SET_PROXY_PORT="18081"
 
 # Web console
 MATTS_STUDIO_HOST="0.0.0.0"
-MATTS_STUDIO_PORT="18181"
+MATTS_STUDIO_PORT="18182"
 ```
 
 ### Token Management
@@ -156,15 +156,15 @@ The launcher does not include a default model access key. Populate `MATTS_VALUE_
 
 ### Model Registry
 
-The active model registry is `config/models.json` by default, or `MATTS_MODEL_CONFIG_FILE` when overridden. `--list-models`, proxy `/v1/models`, Code/Create selectors, Console LLM Management, Serverless catalog import, model access audit, and model hero cards all use this registry. Do not maintain a separate static model list in service configuration unless it is only a bootstrap fallback.
+The active model registry is `config/models.json` by default, or `MATTS_MODEL_CONFIG_FILE` when overridden. Packaged installs seed the writable registry at `/var/lib/matts-value-set/config/models.json`. `--list-models`, proxy `/v1/models`, Code/Create selectors, Console LLM Management, Serverless catalog import, and model hero cards all use this registry plus runtime access audit state from `MATTS_MODEL_ACCESS_STATE_FILE`. Do not maintain a separate static model list in service configuration unless it is only a bootstrap fallback.
 
 ### DigitalOcean Permissions
 
 DigitalOcean billing reports need `DIGITALOCEAN_TOKEN` and, for daily spend insights, `DIGITALOCEAN_ACCOUNT_URN`; the token needs billing read access. Dedicated Inference automation needs permissions to create, inspect, and destroy Dedicated Inference resources and issue access tokens. The Console preflight and lifecycle panels report missing permissions, account/balance status when available, region/GPU placement, and teardown countdowns.
 
-## Web Console Access
+## V2 Console Access
 
-1. Start the web console:
+1. Start the V2 console:
    ```bash
    sudo systemctl start matts-console
    ```
@@ -176,7 +176,7 @@ DigitalOcean billing reports need `DIGITALOCEAN_TOKEN` and, for daily spend insi
 
 3. Access the console:
    ```
-   http://localhost:18181/?token=YOUR_TOKEN_HERE
+   http://localhost:18182/?token=YOUR_TOKEN_HERE
    ```
 
 4. Open the AgentBoard tab to inspect and control all local tmux sessions. It uses the existing console token and reads local tmux state plus proxy logs; no separate AgentBoard service is installed.
@@ -193,19 +193,19 @@ sudo journalctl -u matts-value-set-proxy -xe
 
 Common issues:
 1. Missing dependencies: Install `python3-requests`
-2. Port conflict: Check if ports 18081/18181 are already in use
+2. Port conflict: Check if ports 18081/18182 are already in use
 3. Permission issues: Verify `matts` user can write to data/log directories
 
 ### Web Console Not Accessible
 1. Check firewall:
    ```bash
-   sudo firewall-cmd --add-port=18181/tcp --permanent
+   sudo firewall-cmd --add-port=18182/tcp --permanent
    sudo firewall-cmd --reload
    ```
 2. Verify service is running:
    ```bash
    sudo systemctl status matts-console
-   curl http://localhost:18181/health  # Should return 401 without token
+   curl http://localhost:18182/v2/health  # Should return V2 health JSON
    ```
 
 ### Welcome Message Not Showing

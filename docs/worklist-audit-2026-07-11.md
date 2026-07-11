@@ -51,11 +51,9 @@ verification checkboxes; counted as CONFIRMED above.)
 
 ## Re-open / evidence list (`FINISH` / `REMOVE` / `ACCEPTED` per `docs/COMPLIANCE.md`)
 
-- **INT-011 Plugin system — FINISH or downgrade the claim.** The code is a
-  read-only manifest registry, not a functioning plugin runtime. Either implement
-  extension-point invocation/lifecycle, or rewrite the task Description to match
-  the delivered "manifest catalog" scope so the COMPLETED claim stops implying
-  executable third-party plugins. (`src/console/services/plugins.py`)
+- **INT-011 Plugin system — RESOLVED by downgrade.** The task and docs now
+  describe the delivered read-only manifest catalog/inventory, not an executable
+  plugin lifecycle or third-party runtime. (`src/console/services/plugins.py`)
 - **INT-005 80% coverage goal — FINISH (raise coverage) or REMOVE the number.**
   Keep the CONFIRMED test infrastructure, but the "80%+ code coverage" goal is
   unmet (~55%). Either drive coverage up or restate the target to the real,

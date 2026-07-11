@@ -75,6 +75,7 @@ export MATTS_AUTH_SESSION_FILE="$MATTS_STUDIO_DIR/auth-sessions.json"
 export MATTS_CONSOLE_AUTH_FILE="$MATTS_STUDIO_DIR/console-auth-token"
 export MATTS_SERVERLESS_CATALOG_CACHE_FILE="$MATTS_STUDIO_DIR/serverless-model-catalog.json"
 export MATTS_MODEL_ACCESS_DRIFT_FILE="$MATTS_STUDIO_DIR/model-access-drift.json"
+export MATTS_MODEL_ACCESS_STATE_FILE="$MATTS_STUDIO_DIR/model-access-state.json"
 export MATTS_MODEL_DEPRECATION_FILE="$MATTS_STUDIO_DIR/model-deprecations.json"
 export MATTS_DEDICATED_CONFIG_FILE="$MATTS_STUDIO_DIR/dedicated-inference.json"
 export MATTS_DEDICATED_EVENTS_FILE="$MATTS_STUDIO_DIR/dedicated-events.jsonl"
@@ -108,17 +109,43 @@ export MATTS_V2_RUN_DB="$MATTS_STUDIO_DIR/v2-run.sqlite3"
 export MATTS_V2_RAG_CONFIG_FILE="$MATTS_STUDIO_DIR/v2-rag-config.json"
 export MATTS_V2_RAG_INDEX_FILE="$MATTS_STUDIO_DIR/v2-rag-index.json"
 
+python3 - "$ROOT_DIR/config/models.json" "$MATTS_MODEL_ACCESS_STATE_FILE" <<'PY'
+import json
+import sys
+import time
+from pathlib import Path
+
+registry = Path(sys.argv[1])
+state_file = Path(sys.argv[2])
+try:
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    rows = data.get("models") if isinstance(data, dict) else []
+except Exception:
+    rows = []
+now = time.time()
+models = {
+    str(row["id"]): {"access_status": "ok", "last_checked_at": now, "source": "release_check_seed"}
+    for row in rows
+    if isinstance(row, dict)
+    and row.get("id")
+    and row.get("enabled") is not False
+    and row.get("serverless")
+    and row.get("type", "text") == "text"
+}
+state_file.parent.mkdir(parents=True, exist_ok=True)
+state_file.write_text(json.dumps({"schema_version": 1, "updated_at": now, "models": models}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
 echo "==> Python unit and smoke tests"
 python3 -m unittest discover -s tests -v
 
 echo "==> Coverage report"
-python3 scripts/coverage-report.py --fail-under 40
+python3 scripts/coverage-report.py --fail-under "${MATTS_COVERAGE_FLOOR:-50}"
 
 echo "==> Python syntax checks"
 python3 -m py_compile \
   image-studio.py \
   do-anthropic-proxy.py \
-  matts-console.py \
   matts-v2-console.py \
   matts-proxy-tui \
   backend/v2/app.py \
@@ -177,6 +204,7 @@ python3 -m py_compile \
   src/console/services/provider_health.py \
   src/console/services/quota_planner.py \
   src/console/services/proxy_process.py \
+  src/console/services/proxy_runtime.py \
   src/console/services/rate_limit.py \
   src/console/services/replay.py \
   src/console/services/release_candidate.py \
@@ -265,7 +293,6 @@ python3 -m py_compile \
   scripts/coverage-report.py \
   scripts/check-v2-frontend-audit.py \
   scripts/check-v2-frontend-bundles.py \
-  scripts/browser-smoke.py \
   scripts/generate-v2-openapi.py \
   scripts/v2-browser-smoke.py \
   scripts/health-validate.py \
@@ -273,27 +300,6 @@ python3 -m py_compile \
 
 echo "==> V2 OpenAPI generated artifact drift"
 python3 scripts/generate-v2-openapi.py --check
-
-if command -v node >/dev/null 2>&1; then
-  echo "==> Template JavaScript syntax"
-  tmp_js="$(mktemp --suffix=.js)"
-  python3 - "$tmp_js" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-html = Path("templates/main.html").read_text(encoding="utf-8")
-scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
-Path(sys.argv[1]).write_text("\n;\n".join(scripts), encoding="utf-8")
-PY
-  node --check "$tmp_js"
-else
-  if [[ "${MATTS_BROWSER_SMOKE_REQUIRED:-0}" == "1" ]]; then
-    echo "Template JavaScript syntax requires node when MATTS_BROWSER_SMOKE_REQUIRED=1. Install Node.js and rerun release-check." >&2
-    exit 1
-  fi
-  echo "==> Template JavaScript syntax skipped: node is not installed"
-fi
 
 if command -v npm >/dev/null 2>&1; then
   echo "==> React frontend build"
@@ -313,13 +319,6 @@ else
     exit 1
   fi
   echo "==> React frontend build skipped: npm is not installed"
-fi
-
-echo "==> Headless browser smoke"
-if [[ "${MATTS_BROWSER_SMOKE_REQUIRED:-0}" == "1" ]]; then
-  python3 scripts/browser-smoke.py --required --quiet
-else
-  python3 scripts/browser-smoke.py --quiet
 fi
 
 echo "==> V2 headless browser smoke"

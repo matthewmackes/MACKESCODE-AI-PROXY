@@ -147,6 +147,8 @@ class MattsImageProxySpawnTests(unittest.TestCase):
 class ClaudeDoFallbackTests(unittest.TestCase):
     def run_list_models(self, env_overrides):
         env = dict(os.environ)
+        if "MATTS_MODEL_ACCESS_STATE_FILE" not in env_overrides:
+            env.pop("MATTS_MODEL_ACCESS_STATE_FILE", None)
         env.update(env_overrides)
         result = subprocess.run(
             ["bash", str(ROOT / "claude-DO.sh"), "--list-models"],

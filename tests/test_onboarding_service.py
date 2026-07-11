@@ -51,7 +51,7 @@ class OnboardingChecklistServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "scripts").mkdir()
-            for name in ("release-check.sh", "browser-smoke.py", "v2-browser-smoke.py", "runtime-state.py"):
+            for name in ("release-check.sh", "v2-browser-smoke.py", "runtime-state.py"):
                 (root / "scripts" / name).write_text("#!/bin/sh\n", encoding="utf-8")
             (root / "budgets.json").write_text('{"daily_usd": 10}\n', encoding="utf-8")
             service = self.service(

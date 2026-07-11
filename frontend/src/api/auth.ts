@@ -32,20 +32,53 @@ function rememberConsoleToken(token: string): void {
   }
 }
 
+function scrubBootstrapToken(): void {
+  const url = new URL(window.location.href);
+  let changed = false;
+  if (url.searchParams.has('token')) {
+    url.searchParams.delete('token');
+    changed = true;
+  }
+  if (url.hash) {
+    const rawHash = url.hash.replace(/^#/, '');
+    const queryIndex = rawHash.indexOf('?');
+    if (queryIndex >= 0) {
+      const route = rawHash.slice(0, queryIndex);
+      const params = new URLSearchParams(rawHash.slice(queryIndex + 1));
+      if (params.has('token')) {
+        params.delete('token');
+        const query = params.toString();
+        url.hash = query ? `${route}?${query}` : route;
+        changed = true;
+      }
+    } else {
+      const params = new URLSearchParams(rawHash);
+      if (params.has('token')) {
+        params.delete('token');
+        url.hash = params.toString();
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+  }
+}
+
 export function consoleToken(): string {
-  const token = tokenFromSearch(window.location.search) || tokenFromHash(window.location.hash) || storedConsoleToken();
+  const searchToken = tokenFromSearch(window.location.search);
+  const hashToken = tokenFromHash(window.location.hash);
+  const token = searchToken || hashToken || storedConsoleToken();
   rememberConsoleToken(token);
+  if (searchToken || hashToken) {
+    scrubBootstrapToken();
+  }
   return token;
 }
 
 function configuredApiBase(): string {
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env || {};
   return (env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
-}
-
-function tokenizedUrl(path: string, token: string): string {
-  const joiner = path.includes('?') ? '&' : '?';
-  return `${path}${joiner}token=${encodeURIComponent(token)}`;
 }
 
 export function apiBaseUrl(): string {
@@ -62,9 +95,12 @@ export function apiUrl(path: string): string {
 }
 
 export function withConsoleToken(path: string): string {
+  return apiUrl(path);
+}
+
+export function consoleAuthHeaders(): Record<string, string> {
   const token = consoleToken();
-  const url = apiUrl(path);
-  return token ? tokenizedUrl(url, token) : url;
+  return token ? { 'x-matts-console-token': token } : {};
 }
 
 type EndpointUrlOptions = {

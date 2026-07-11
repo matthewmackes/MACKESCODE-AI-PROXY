@@ -45,6 +45,16 @@ class ModelRegistryService:
     """Owns model registry policy, persistence, and enriched selector metadata."""
 
     schema_version = 1
+    runtime_access_keys = {
+        "access_status",
+        "last_error",
+        "last_checked_at",
+        "http_status",
+        "access_http_status",
+        "key_fingerprint",
+        "failure_count",
+        "last_ok_at",
+    }
 
     def __init__(self, default_registry, model_types, auto_enable_max_usd, brand_profiles=None):
         self.default_registry = list(default_registry)
@@ -101,10 +111,43 @@ class ModelRegistryService:
             normalized["dedicated"] = item["dedicated"]
         if isinstance(item.get("deprecation"), dict):
             normalized["deprecation"] = item["deprecation"]
-        for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error", "replacement_model", "superseded_by"):
+        for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error", "last_checked_at", "access_http_status", "key_fingerprint", "replacement_model", "superseded_by"):
             if item.get(key):
                 normalized[key] = item[key]
         return normalized
+
+    def strip_runtime_access(self, model):
+        cleaned = dict(model)
+        for key in self.runtime_access_keys:
+            cleaned.pop(key, None)
+        return cleaned
+
+    def apply_access_state(self, models, access_state=None):
+        state_models = {}
+        if isinstance(access_state, dict):
+            raw_models = access_state.get("models") if isinstance(access_state.get("models"), dict) else access_state
+            if isinstance(raw_models, dict):
+                state_models = raw_models
+        if not state_models:
+            return [dict(model) for model in models]
+        merged = []
+        for model in models:
+            row = dict(model)
+            model_id = str(row.get("id") or "")
+            state = state_models.get(model_id) if model_id else None
+            if isinstance(state, dict):
+                if state.get("access_status"):
+                    row["access_status"] = str(state.get("access_status"))
+                if state.get("last_error"):
+                    row["last_error"] = str(state.get("last_error"))
+                if state.get("last_checked_at"):
+                    row["last_checked_at"] = state.get("last_checked_at")
+                if state.get("http_status"):
+                    row["access_http_status"] = state.get("http_status")
+                if state.get("key_fingerprint"):
+                    row["key_fingerprint"] = state.get("key_fingerprint")
+            merged.append(row)
+        return merged
 
     def document_from_models(self, models):
         return {"schema_version": self.schema_version, "models": models}
@@ -129,7 +172,7 @@ class ModelRegistryService:
             raise ValueError("Model registry models must be a list.")
         return models, schema_version, issues
 
-    def load_with_status(self, path, include_disabled=True):
+    def load_with_status(self, path, include_disabled=True, access_state=None):
         status = {
             "config_file": str(path),
             "exists": path.exists(),
@@ -147,21 +190,24 @@ class ModelRegistryService:
             except (OSError, ValueError) as exc:
                 status.update({"valid": False, "source": "defaults_after_error", "issues": [str(exc)]})
         normalized = [item for item in (self.normalize(model) for model in models) if item]
+        normalized = self.apply_access_state(normalized, access_state)
         if not normalized:
             status["valid"] = False
             status["issues"].append("Model registry did not contain any valid model entries; using bundled defaults.")
             normalized = [self.normalize(model) for model in self.default_registry]
+            normalized = self.apply_access_state([model for model in normalized if model], access_state)
         rows = normalized if include_disabled else [model for model in normalized if self.route_enabled(model)]
         status["models"] = rows
         status["total_models"] = len(normalized)
         status["route_enabled_models"] = len([model for model in normalized if self.route_enabled(model)])
         return status
 
-    def load(self, path, include_disabled=True):
-        return self.load_with_status(path, include_disabled=include_disabled)["models"]
+    def load(self, path, include_disabled=True, access_state=None):
+        return self.load_with_status(path, include_disabled=include_disabled, access_state=access_state)["models"]
 
     def save(self, path, models):
         normalized = [item for item in (self.normalize(model) for model in models) if item]
+        normalized = [self.strip_runtime_access(model) for model in normalized]
         payload = json.dumps(self.document_from_models(normalized), indent=2, sort_keys=True) + "\n"
         path.parent.mkdir(parents=True, exist_ok=True)
         # Centralized no-op guard: if the on-disk content already equals what we

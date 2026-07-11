@@ -29,6 +29,8 @@ def default_items(include_secrets=False):
         ("audit_log", env_path("MATTS_AUDIT_FILE", app_dir / "audit.jsonl")),
         ("auth_sessions", env_path("MATTS_AUTH_SESSION_FILE", app_dir / "auth-sessions.json")),
         ("serverless_catalog_cache", env_path("MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir / "serverless-model-catalog.json")),
+        ("model_access_state", env_path("MATTS_MODEL_ACCESS_STATE_FILE", app_dir / "model-access-state.json")),
+        ("model_access_drift", env_path("MATTS_MODEL_ACCESS_DRIFT_FILE", app_dir / "model-access-drift.json")),
         ("trace_log", env_path("MATTS_TRACE_FILE", app_dir / "traces.jsonl")),
         ("tmux_registry", env_path("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir / "tmux-sessions.json")),
         ("v2_run_db", env_path("MATTS_V2_RUN_DB", app_dir / "v2-run.sqlite3")),

@@ -44,19 +44,18 @@ The most important locks:
 - Tracks usage costs and enforces budget limits
 - Logs to JSONL files in `~/.cache/matts-value-set/`
 
-### Unified Web Console (`image-studio.py` / `matts-console.py`)
-- Web interface accessible at `0.0.0.0:18181` with token authentication
+### React V2 Console (`matts-v2-console.py`)
+- Primary web interface accessible at `0.0.0.0:18182` with token authentication
 - Provides:
-  - Embedded Claude Code terminal via tmux sessions
-  - Text model chat interface
-  - Image generation studio with prompt builder
-  - Console tabs for Inference Hosting Lifecycle, LLM Management, Observability, Accounting & Time, AgentBoard, and System Operations
-  - Global model registry management, Serverless catalog import, access-key audit, and detailed model hero cards
-  - Dedicated Inference build, status, budget guard, idle teardown, fallback, and lifecycle event controls
-  - Reporting page for local usage and DigitalOcean billing
-  - Full-screen xterm.js terminal over WebSocket
-- Manages tmux sessions for persistent Claude Code instances
+  - Chat workspace for direct model conversations and transcript handoff
+  - Code workspace for Claude Code/tmux sessions, the TMux/TUI console, terminal command history, and image review
+  - Research workspace for source-backed search, citations, and multi-model synthesis
+  - Create workspace for image generation only
+  - Models workspace for registry health, pricing, access state, and model hero cards
+  - Advanced workspaces for Console, Run, Observe, and Operate workflows
+- Manages tmux sessions for persistent Claude Code instances through the V2 API
 - Authentication via generated token in `~/.cache/matts-value-set/studio/console-auth-token`
+- `image-studio.py` remains the service-adapter composition module imported by V2; it is not the supported standalone V1 UI.
 
 ### Model Shortcuts
 - `claude-deepseek`, `claude-deepseek-v4`, `claude-glm`, `claude-mistral`, `claude-codex`, `claude-sd35` - Wrapper scripts for each model
@@ -68,9 +67,9 @@ The most important locks:
 
 ## Available Models
 
-Available models are loaded from `config/models.json`, filtered by enabled state and access status, and exposed consistently through `./claude-DO.sh --list-models`, `/v1/models`, Code/Create selectors, Console LLM Management, and model hero cards. `config/default-models.json` is only the bootstrap fallback.
+Available models are loaded from `config/models.json`, overlaid with runtime model-access audit state from `$HOME/.cache/matts-value-set/studio/model-access-state.json`, filtered by enabled state and access status, and exposed consistently through `./claude-DO.sh --list-models`, `/v1/models`, Code/Create selectors, Console LLM Management, and model hero cards. `config/default-models.json` is only the bootstrap fallback.
 
-Use Console > LLM Management > key audit to verify which Serverless text models the configured key can access. Forbidden, rate-limited, probe-failed, disabled, and Dedicated-offline states are visible in the registry metadata and selector labels.
+Use Console > LLM Management > key audit to verify which Serverless text models the configured key can access. Forbidden, rate-limited, probe-failed, disabled, and Dedicated-offline states are visible in model metadata and selector labels without writing key-specific audit results into `config/models.json`.
 
 ## Common Development Tasks
 
@@ -86,11 +85,8 @@ curl -v "http://127.0.0.1:18081/v1/claude-do/capabilities"
 
 ### Running Web Console Locally
 ```bash
-# Start web console (binds to 0.0.0.0:18181)
-python3 matts-console.py
-
-# Start without opening browser
-python3 matts-console.py --no-open
+# Start React V2 console (binds to 0.0.0.0:18182)
+python3 matts-v2-console.py --build-frontend
 ```
 
 ### Testing Model Smoke Tests
@@ -141,7 +137,7 @@ The web console creates tmux sessions prefixed with `matts-` for persistent Clau
 4. WebSocket connections also require token validation
 
 ### Model Registry And Routing Proof
-`config/models.json` is the active source of truth for model IDs, aliases, type, pricing, access state, and Dedicated metadata. Serverless catalog sync can add new DigitalOcean models and key audit updates access status. Chat responses include routing metadata; the GUI exposes it through each message's `Show Detail` button and through Console trace search.
+`config/models.json` is the active source of truth for model IDs, aliases, type, pricing, enablement policy, and Dedicated metadata. Serverless catalog sync can add new DigitalOcean models. Key audit updates runtime access state, which the console and proxy merge at read time. Chat responses include routing metadata; the GUI exposes it through each message's `Show Detail` button and through Console trace search.
 
 ### Cost Tracking System
 - Usage logged to `~/.cache/matts-value-set/usage.jsonl`
@@ -200,8 +196,8 @@ code-complete.
 
 - `claude-DO.sh` - Main launcher script
 - `do-anthropic-proxy.py` - Core proxy server
-- `image-studio.py` - Unified web console implementation
-- `matts-console.py` - Console entry point (runs image-studio.py)
+- `matts-v2-console.py` - React V2 console launcher
+- `image-studio.py` - V2 service-adapter composition module
 - `matts-image` - Image generator CLI
 - `claude-*` - Model-specific wrapper scripts
 - `README.md` - User documentation

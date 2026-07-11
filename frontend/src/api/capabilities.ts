@@ -1,4 +1,4 @@
-import { withConsoleToken } from './auth';
+import { consoleAuthHeaders, withConsoleToken } from './auth';
 import { responseJsonOrThrow } from './errors';
 
 export type Capability = {
@@ -23,6 +23,6 @@ export type CapabilitiesPayload = {
 };
 
 export async function getCapabilities(): Promise<CapabilitiesPayload> {
-  const response = await fetch(withConsoleToken('/v2/me/capabilities'));
+  const response = await fetch(withConsoleToken('/v2/me/capabilities'), { headers: consoleAuthHeaders() });
   return responseJsonOrThrow<CapabilitiesPayload>(response, 'Capability request failed');
 }

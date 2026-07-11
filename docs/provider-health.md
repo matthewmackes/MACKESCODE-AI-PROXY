@@ -8,7 +8,7 @@ Sources include:
 
 - DigitalOcean public status and unresolved incidents.
 - DigitalOcean account and prepay balance checks when a token is configured.
-- Model access-key configuration and Serverless access status from the model registry.
+- Model access-key configuration and Serverless access status from runtime model-access state merged with the model registry.
 - Local trace telemetry: failures, rate-limit decisions, latency, and last successful request by model.
 - Dedicated Inference lifecycle state, endpoint readiness, and token readiness.
 - Local proxy listening and registry-sync state.
@@ -20,7 +20,7 @@ Findings are classified as:
 - `provider_outage`: DigitalOcean public status or incident impact.
 - `auth_account_issue`: missing token, inactive account, unverified or unavailable access key, or Dedicated token readiness issue.
 - `billing_issue`: prepay/balance status indicates payment attention.
-- `model_access_issue`: model registry marks a model forbidden or unauthorized.
+- `model_access_issue`: merged model access state marks a model forbidden or unauthorized.
 - `local_proxy_issue`: local proxy is offline or registry sync is stale.
 - `rate_limit`: local traces show provider or gateway rate-limit decisions.
 - `dedicated_endpoint_issue`: Dedicated endpoint failed, unhealthy, or not ready.

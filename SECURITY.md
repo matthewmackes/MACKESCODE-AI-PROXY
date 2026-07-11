@@ -1,6 +1,6 @@
 # Security
 
-This setup is intended for local or trusted-host use. The proxy binds to `127.0.0.1` by default and should not be exposed to untrusted networks.
+This setup is intended for local or trusted-host use. The proxy binds to `127.0.0.1` by default. Non-loopback proxy binds require `MATTS_PROXY_AUTH_TOKEN` or `--inbound-auth-token`, and clients must send `x-matts-proxy-token` or `Authorization: Bearer ...`.
 
 The project threat model is maintained in `docs/THREAT_MODEL.md`. Governance
 locks for secrets, runtime state, cost safety, and definition of done are in
@@ -47,12 +47,12 @@ Treat these as sensitive:
 
 - Proxy bind address: `127.0.0.1`
 - Proxy port: `18081`
-- Unified console bind address: `0.0.0.0`
-- Unified console port: `18181`
-- Unified console auth token file: `$HOME/.cache/matts-value-set/studio/console-auth-token`
-- Unified console auth sessions file: `$HOME/.cache/matts-value-set/studio/auth-sessions.json`
-- V2 FastAPI/React console default bind address: `127.0.0.1`
+- Proxy inbound auth for non-loopback binds: `MATTS_PROXY_AUTH_TOKEN` or `--inbound-auth-token`
+- V2 FastAPI/React console bind address: `0.0.0.0` from `matts-v2-console.py` unless overridden
 - V2 FastAPI/React console default port: `18182`
+- V2 console auth token file: `$HOME/.cache/matts-value-set/studio/console-auth-token`
+- V2 console auth sessions file: `$HOME/.cache/matts-value-set/studio/auth-sessions.json`
+- Model access audit state file: `$HOME/.cache/matts-value-set/studio/model-access-state.json`
 - V2 run workspace database: `$HOME/.cache/matts-value-set/studio/v2-run.sqlite3`
 - V2 Console TUI audit file: `$HOME/.cache/matts-value-set/studio/tui-audit.jsonl`
 - Token file: `$HOME/.mcnf-do-model-access-token`
@@ -71,13 +71,15 @@ For protected project trees, run the launcher as the user that can read the proj
 sudo -H /home/mm/DO-ClaudeCode-Proxy/claude-DO.sh --project-dir /path/to/protected/project
 ```
 
-The unified web console includes an embedded Claude Code terminal. The interactive terminal WebSocket (`GET /ws/tmux`) requires the `tmux_control` permission, the same scope as the REST tmux and terminal routes: owner/admin tokens and the `operator`, `model_admin`, and `infra_admin` roles qualify, while tokens without `tmux_control` (for example `viewer` or `billing_admin`) are rejected with HTTP 403 before the WebSocket upgrade and before any PTY is attached. Terminal attach, denied attach, and detach events are appended to the audit log as `tmux.ws_attach` / `tmux.ws_detach` records containing the tmux session name, actor identity, and close reason; keystrokes and screen content are never written to the audit log. Keep token auth enabled for public-facing use. To rotate the console token, stop the console and remove:
+The V2 console accepts `?token=...` only as a browser bootstrap convenience. The frontend stores a discovered token in session storage, scrubs the token from the address bar with `history.replaceState`, and sends API requests with the `x-matts-console-token` header. Native browser WebSocket clients cannot set arbitrary headers, so terminal/TUI WebSocket routes still accept a query-token compatibility fallback; keep token auth enabled for any network-facing use and treat copied WebSocket URLs as sensitive.
+
+The V2 web console includes embedded Claude Code terminals. The interactive terminal WebSocket (`GET /ws/tmux`) requires the `tmux_control` permission, the same scope as the REST tmux and terminal routes: owner/admin tokens and the `operator`, `model_admin`, and `infra_admin` roles qualify, while tokens without `tmux_control` (for example `viewer` or `billing_admin`) are rejected with HTTP 403 before the WebSocket upgrade and before any PTY is attached. Terminal attach, denied attach, and detach events are appended to the audit log as `tmux.ws_attach` / `tmux.ws_detach` records containing the tmux session name, actor identity, and close reason; keystrokes and screen content are never written to the audit log. To rotate the console token, stop the console and remove:
 
 ```text
 $HOME/.cache/matts-value-set/studio/console-auth-token
 ```
 
-Model registry entries can reveal which models a key is allowed to use. Treat `access_status`, Dedicated routing state, and model audit output as operational metadata even when no raw token is present.
+Model access audit state can reveal which models a key is allowed to use. Treat `access_status`, Dedicated routing state, and model audit output as operational metadata even when no raw token is present. Do not commit `model-access-state.json` or `model-access-drift.json`.
 
 ## Console Roles
 

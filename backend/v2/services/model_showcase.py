@@ -12,6 +12,7 @@ from src.console.services.model_registry import ModelRegistryService
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
 DEFAULT_MODEL_CONFIG = PROJECT_DIR / "config" / "models.json"
+DEFAULT_MODEL_ACCESS_STATE = Path.home() / ".cache" / "matts-value-set" / "studio" / "model-access-state.json"
 MODEL_TYPES = {"text", "image", "embedding", "rerank", "audio", "video", "router", "unknown"}
 
 COUNTRY_PALETTES: dict[str, dict[str, str]] = {
@@ -71,13 +72,21 @@ DIGITALOCEAN_LLM_LINKS = [
 class ModelShowcaseService:
     """Build Carbon-friendly model and startup discovery payloads."""
 
-    def __init__(self, model_config: Path | None = None, clock: Any | None = None) -> None:
+    def __init__(self, model_config: Path | None = None, model_access_state: Path | None = None, clock: Any | None = None) -> None:
         self.model_config = model_config or Path(os.environ.get("MATTS_MODEL_CONFIG_FILE", DEFAULT_MODEL_CONFIG))
+        self.model_access_state = model_access_state or Path(os.environ.get("MATTS_MODEL_ACCESS_STATE_FILE", DEFAULT_MODEL_ACCESS_STATE))
         self.clock = clock or time.time
         self.registry = ModelRegistryService([], MODEL_TYPES, float(os.environ.get("MATTS_AUTO_ENABLE_MAX_USD", "0.45")))
 
     def registry_status(self) -> dict[str, Any]:
-        return self.registry.load_with_status(self.model_config, include_disabled=True)
+        return self.registry.load_with_status(self.model_config, include_disabled=True, access_state=self.access_state())
+
+    def access_state(self) -> dict[str, Any]:
+        try:
+            data = json.loads(self.model_access_state.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"schema_version": 1, "models": {}}
+        return data if isinstance(data, dict) else {"schema_version": 1, "models": {}}
 
     def country_palette(self, origin: str) -> dict[str, str]:
         return dict(COUNTRY_PALETTES.get(origin or "Unknown") or COUNTRY_PALETTES["Unknown"])

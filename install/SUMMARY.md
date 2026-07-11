@@ -13,11 +13,11 @@ Created two systemd services with auto-restart and security hardening:
    - Dedicated `matts` user/group for isolation
    - Resource limits and proper logging
 
-2. **`matts-console.service`** - Web console (port 18181)
+2. **`matts-console.service`** - V2 React console (port 18182)
    - Auto-restart on failure
    - Depends on proxy service
    - Same security hardening as proxy
-   - Binds to `0.0.0.0:18181` with authentication
+   - Binds to `0.0.0.0:18182` with authentication
 
 ### **B. RPM Package Installer/Uninstaller** ✅
 Created complete RPM packaging system:
@@ -50,7 +50,7 @@ Created `matts-value-set.sh` that shows on login:
 1. **Service Status**: Shows proxy and console status (active/inactive/not installed)
 2. **Access Information**:
    - Proxy API: `http://127.0.0.1:18081/v1/`
-   - Web console URL with authentication token
+   - V2 console URL with authentication token
 3. **Quick Commands**: Start/stop services, check logs, launch Claude
 4. **Configuration Info**: Token locations, log files, config path
 5. **Available Models**: Lists all text and image models

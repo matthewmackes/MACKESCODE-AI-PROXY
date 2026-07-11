@@ -79,9 +79,42 @@ def wait_for_health(base_url: str, timeout: float = 30.0) -> None:
     raise RuntimeError("v2 console did not become healthy: %s" % last_error)
 
 
+def run_health_validate(base_url: str) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "health-validate.py"),
+            "--v2-only",
+            "--v2-url",
+            base_url.rstrip("/"),
+        ],
+        cwd=str(ROOT),
+        check=True,
+    )
+
+
 def start_server(port: int, run_db: Path) -> subprocess.Popen[bytes]:
     env = os.environ.copy()
     runtime_dir = run_db.parent
+    access_state_file = runtime_dir / "model-access-state.json"
+    if not access_state_file.exists():
+        try:
+            registry = json.loads((ROOT / "config" / "models.json").read_text(encoding="utf-8"))
+            access_state_file.write_text(json.dumps({
+                "schema_version": 1,
+                "updated_at": time.time(),
+                "models": {
+                    str(model["id"]): {"access_status": "ok", "last_checked_at": time.time(), "source": "v2_browser_smoke"}
+                    for model in registry.get("models", [])
+                    if isinstance(model, dict)
+                    and model.get("id")
+                    and model.get("enabled") is not False
+                    and model.get("serverless")
+                    and model.get("type", "text") == "text"
+                },
+            }), encoding="utf-8")
+        except Exception:
+            pass
     env.update(
         {
             "MATTS_CONSOLE_AUTH_ENABLED": "0",
@@ -90,6 +123,8 @@ def start_server(port: int, run_db: Path) -> subprocess.Popen[bytes]:
             "MATTS_V2_RAG_CONFIG_FILE": str(runtime_dir / "rag-config.json"),
             "MATTS_V2_RAG_INDEX_FILE": str(runtime_dir / "rag-index.json"),
             "MATTS_MODEL_CONFIG_FILE": str(ROOT / "config" / "models.json"),
+            "MATTS_MODEL_ACCESS_STATE_FILE": str(access_state_file),
+            "MATTS_MODEL_ACCESS_DRIFT_FILE": str(runtime_dir / "model-access-drift.json"),
             "MATTS_TRACE_FILE": str(runtime_dir / "traces.jsonl"),
             "MATTS_AUDIT_FILE": str(runtime_dir / "audit.jsonl"),
             "MATTS_REVIEW_QUEUE_FILE": str(runtime_dir / "reviews.jsonl"),
@@ -751,12 +786,14 @@ def run_hash_token_research_auth_smoke(browser, base_url: str) -> None:
 
     page = browser.new_page(viewport={"width": 1280, "height": 860})
     research_urls: list[str] = []
+    research_tokens: list[str] = []
 
     def handle_research_setup(route) -> None:
         if route.request.method != "GET":
             route.continue_()
             return
         research_urls.append(route.request.url)
+        research_tokens.append(route.request.headers.get("x-matts-console-token", ""))
         route.fulfill(
             status=200,
             content_type="application/json",
@@ -773,12 +810,16 @@ def run_hash_token_research_auth_smoke(browser, base_url: str) -> None:
         page.goto(base_url + "#research?token=hash-smoke-token", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         expect(page.get_by_text("Research setup unavailable")).to_have_count(0)
+        assert "token=hash-smoke-token" not in page.url, "bootstrap token was not scrubbed from the browser URL: %s" % page.url
         assert research_urls, "hash-token Research setup route was not exercised"
-        assert any("token=hash-smoke-token" in url for url in research_urls), "hash token was not forwarded to /v2/research: %s" % research_urls
+        assert all("token=hash-smoke-token" not in url for url in research_urls), "hash token leaked into /v2/research URL: %s" % research_urls
+        assert "hash-smoke-token" in research_tokens, "hash token was not forwarded in x-matts-console-token: %s" % research_tokens
         page.goto(base_url + "?stored-token-check=1#research", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         assert len(research_urls) >= 2, "stored-token Research setup route was not exercised"
-        assert "token=hash-smoke-token" in research_urls[-1], "stored token was not reused for /v2/research: %s" % research_urls[-1]
+        assert "token=hash-smoke-token" not in page.url, "stored-token navigation reintroduced token in URL: %s" % page.url
+        assert "token=hash-smoke-token" not in research_urls[-1], "stored token leaked into /v2/research URL: %s" % research_urls[-1]
+        assert research_tokens[-1] == "hash-smoke-token", "stored token was not reused in x-matts-console-token: %s" % research_tokens[-1]
     finally:
         page.close()
 
@@ -935,10 +976,10 @@ def run_browser_smoke(base_url: str) -> None:
                     }],
                     "allowed_keys": ["Enter", "Escape"],
                     "terminal": {
-                        "path": "/terminal",
-                        "query_param": "name",
+                        "path": "/#code",
+                        "query_param": "session",
                         "websocket_path": "/ws/tmux",
-                        "default_legacy_port": 18181,
+                        "default_legacy_port": 18182,
                     },
                     "summary": {
                         "sessions_total": 1,
@@ -1608,9 +1649,9 @@ def run_browser_smoke(base_url: str) -> None:
         page.get_by_test_id("tmux-session-select").first.click()
         expect(page.get_by_test_id("tmux-attach-status")).to_contain_text("Ready to attach")
         terminal_href = page.get_by_test_id("tmux-open-terminal").get_attribute("href") or ""
-        assert ":18181/terminal" in terminal_href and "name=smoke-tmux" in terminal_href, "tmux terminal link did not preserve legacy API host/port: %s" % terminal_href
+        assert ":18182/" in terminal_href and "session=smoke-tmux" in terminal_href and "#code" in terminal_href, "tmux terminal link did not preserve V2 route/session: %s" % terminal_href
         row_terminal_href = page.get_by_test_id("tmux-session-open").first.get_attribute("href") or ""
-        assert ":18181/terminal" in row_terminal_href and "name=smoke-tmux" in row_terminal_href, "tmux row terminal link did not preserve legacy API host/port: %s" % row_terminal_href
+        assert ":18182/" in row_terminal_href and "session=smoke-tmux" in row_terminal_href and "#code" in row_terminal_href, "tmux row terminal link did not preserve V2 route/session: %s" % row_terminal_href
         page.locator(".advancedTabs").get_by_role("button", name="run", exact=True).click()
         expect(page.get_by_role("heading", name="Run")).to_be_visible()
         expect(page.get_by_test_id("chat-run-panel")).to_be_visible()
@@ -1821,6 +1862,7 @@ def main(argv: list[str] | None = None) -> int:
         process = start_server(port, Path(tmpdir) / "run-workspace.sqlite3")
         try:
             wait_for_health(base_url)
+            run_health_validate(base_url)
             run_browser_smoke(base_url)
             print("V2 browser smoke passed: %s" % base_url)
         finally:

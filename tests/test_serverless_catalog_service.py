@@ -35,8 +35,15 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
             "options": [],
         }
 
+        def access_state():
+            path = root / "model-access-state.json"
+            if not path.exists():
+                return {"schema_version": 1, "models": {}}
+            return json.loads(path.read_text(encoding="utf-8"))
+
         def load_model_registry(include_disabled=True):
             rows = [dict(item) for item in state["models"]]
+            rows = registry_service.apply_access_state(rows, access_state())
             if include_disabled:
                 return rows
             return [item for item in rows if registry_service.route_enabled(item)]
@@ -69,6 +76,7 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
             "auto_enable_max_usd": 0.45,
             "urlopen_func": lambda req, timeout=0: FakeResponse(200, {"data": []}),
             "clock": lambda: 1000,
+            "model_access_state_file": lambda: root / "model-access-state.json",
         }
         kwargs.update(overrides)
         return ServerlessCatalogService(**kwargs), state, root
@@ -211,7 +219,7 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
     def test_audit_updates_access_and_syncs_proxy(self):
         catalog_holder = {"payload": {"ok": False, "payload": {"data": []}, "error": "skip"}}
         with tempfile.TemporaryDirectory() as tmp:
-            service, state, _ = self.service(
+            service, state, root = self.service(
                 tmp,
                 serverless_catalog_payload=lambda force=False: catalog_holder["payload"],
                 probe_serverless_text_model=lambda model_id: (model_id == "allowed", 200 if model_id == "allowed" else 403, "denied"),
@@ -222,14 +230,15 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
                 {"id": "image", "type": "image", "enabled": True, "pricing": {"image": 0.08}},
             ]
             payload = service.audit_model_access_key()
-            by_id = {model["id"]: model for model in state["models"]}
+            access_state = json.loads((root / "model-access-state.json").read_text(encoding="utf-8"))["models"]
 
         self.assertEqual(payload["checked"], 2)
         self.assertEqual(payload["allowed_count"], 1)
         self.assertEqual(payload["blocked_count"], 1)
-        self.assertEqual(by_id["allowed"]["access_status"], "ok")
-        self.assertEqual(by_id["blocked"]["access_status"], "forbidden")
-        self.assertFalse(by_id["blocked"]["enabled"])
+        self.assertEqual(access_state["allowed"]["access_status"], "ok")
+        self.assertEqual(access_state["blocked"]["access_status"], "forbidden")
+        self.assertNotIn("access_status", state["models"][0])
+        self.assertTrue(next(model for model in state["models"] if model["id"] == "blocked")["enabled"])
         self.assertEqual(state["proxy_syncs"], [True])
 
     def test_access_drift_tracks_regressions_removed_repeated_failures_and_restore(self):
@@ -269,12 +278,12 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
             mode["value"] = "restore"
             restored = service.audit_model_access_key()
             drift_state = json.loads((root / "model-access-drift.json").read_text(encoding="utf-8"))
-            by_id = {model["id"]: model for model in state["models"]}
+            access_state = json.loads((root / "model-access-state.json").read_text(encoding="utf-8"))["models"]
 
         self.assertEqual(first["access_drift"]["events"], [])
         statuses = {event["access_status"] for event in second["access_drift"]["events"]}
         self.assertTrue({"forbidden", "rate_limited", "probe_failed"}.issubset(statuses))
-        self.assertEqual(by_id["forbidden"]["access_status"], "ok")
+        self.assertEqual(access_state["forbidden"]["access_status"], "ok")
         self.assertTrue(any(event["code"] == "repeated_probe_failure" for event in repeated["access_drift"]["events"]))
         self.assertTrue(any(event["access_status"] == "removed" for event in drift_state["events"].values()))
         self.assertTrue(any(event["code"] == "restored" for event in restored["access_drift"]["events"]))

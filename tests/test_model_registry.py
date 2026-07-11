@@ -83,6 +83,7 @@ class ModelRegistryTests(unittest.TestCase):
     def test_registry_round_trip_filters_route_enabled_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
+            access_state = Path(tmp) / "model-access-state.json"
             models = [
                 {"id": "allowed-text", "type": "text", "enabled": True, "serverless": True, "access_status": "ok", "pricing": {"input": 0.1, "output": 0.2}},
                 {"id": "forbidden-text", "type": "text", "enabled": True, "serverless": True, "access_status": "forbidden", "pricing": {"input": 0.1, "output": 0.2}},
@@ -90,16 +91,21 @@ class ModelRegistryTests(unittest.TestCase):
                 {"id": "disabled-text", "type": "text", "enabled": False, "pricing": {"input": 0.1}},
             ]
 
-            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
+            with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path), "MATTS_MODEL_ACCESS_STATE_FILE": str(access_state)}):
                 saved = studio.save_model_registry(models)
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                access_state.write_text(json.dumps({"schema_version": 1, "models": {
+                    "allowed-text": {"access_status": "ok", "last_checked_at": 1000},
+                    "forbidden-text": {"access_status": "forbidden", "last_checked_at": 1000},
+                }}), encoding="utf-8")
                 all_models = studio.load_model_registry(include_disabled=True)
                 active = studio.load_model_registry(include_disabled=False)
-                raw = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertEqual([model["id"] for model in saved], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in all_models], ["allowed-text", "forbidden-text", "image-ok", "disabled-text"])
         self.assertEqual([model["id"] for model in active], ["allowed-text", "image-ok"])
         self.assertEqual(raw["schema_version"], 1)
+        self.assertNotIn("access_status", json.dumps(raw))
 
     def test_registry_status_reports_legacy_and_malformed_configs(self):
         with tempfile.TemporaryDirectory() as tmp:

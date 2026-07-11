@@ -15,6 +15,7 @@ from typing import Any
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
 DEFAULT_MODEL_CONFIG_FILE = PROJECT_DIR / "config" / "models.json"
+DEFAULT_MODEL_ACCESS_STATE_FILE = Path.home() / ".cache" / "matts-value-set" / "studio" / "model-access-state.json"
 DEFAULT_COST_FILE = Path.home() / ".cache" / "matts-value-set" / "usage.jsonl"
 DEFAULT_BUDGET_FILE = Path.home() / ".cache" / "matts-value-set" / "budgets.json"
 DEFAULT_LOG_FILE = Path("/tmp/matts-value-set-proxy.jsonl")
@@ -49,6 +50,7 @@ class ProxyCliService:
         proxy_host: str | None = None,
         proxy_port: int | None = None,
         model_config_file: str | os.PathLike[str] | None = None,
+        model_access_state_file: str | os.PathLike[str] | None = None,
         cost_file: str | os.PathLike[str] | None = None,
         budget_file: str | os.PathLike[str] | None = None,
         log_file: str | os.PathLike[str] | None = None,
@@ -56,6 +58,7 @@ class ProxyCliService:
         self.proxy_host = proxy_host or os.environ.get("MATTS_VALUE_SET_PROXY_HOST", "127.0.0.1")
         self.proxy_port = int(proxy_port or os.environ.get("MATTS_VALUE_SET_PROXY_PORT", "18081"))
         self.model_config_file = Path(model_config_file or os.environ.get("MATTS_MODEL_CONFIG_FILE", DEFAULT_MODEL_CONFIG_FILE))
+        self.model_access_state_file = Path(model_access_state_file or os.environ.get("MATTS_MODEL_ACCESS_STATE_FILE", DEFAULT_MODEL_ACCESS_STATE_FILE))
         self.cost_file = Path(cost_file or os.environ.get("MATTS_VALUE_SET_COST_FILE", DEFAULT_COST_FILE))
         self.budget_file = Path(budget_file or os.environ.get("MATTS_VALUE_SET_BUDGET_FILE", DEFAULT_BUDGET_FILE))
         self.log_file = Path(log_file or os.environ.get("MATTS_VALUE_SET_LOG_FILE", DEFAULT_LOG_FILE))
@@ -212,7 +215,27 @@ class ProxyCliService:
         rows = data.get("models") if isinstance(data, dict) else data
         if not isinstance(rows, list):
             return []
+        rows = self._apply_access_state(rows)
         return [row for row in rows if isinstance(row, dict) and row.get("id") and self._route_enabled(row)]
+
+    def _apply_access_state(self, rows: list[Any]) -> list[dict[str, Any]]:
+        state = self._read_json(self.model_access_state_file, default={})
+        state_models = state.get("models") if isinstance(state, dict) else {}
+        if not isinstance(state_models, dict):
+            state_models = {}
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            item = dict(row)
+            overlay = state_models.get(str(item.get("id") or ""))
+            if isinstance(overlay, dict):
+                if overlay.get("access_status"):
+                    item["access_status"] = str(overlay.get("access_status"))
+                if overlay.get("last_error"):
+                    item["last_error"] = str(overlay.get("last_error"))
+            out.append(item)
+        return out
 
     def _route_enabled(self, model: dict[str, Any]) -> bool:
         if model.get("enabled") is False:

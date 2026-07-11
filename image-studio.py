@@ -209,6 +209,28 @@ def model_access_drift_file():
     return configured_path("model_access_drift_file", "model-access-drift.json", "MATTS_MODEL_ACCESS_DRIFT_FILE", app_dir())
 
 
+def model_access_state_file():
+    default_app_dir = Path(os.environ.get("MATTS_STUDIO_DIR") or (Path(os.environ.get("HOME") or str(Path.home())).expanduser() / ".cache/matts-value-set/studio"))
+    return configured_path("model_access_state_file", "model-access-state.json", "MATTS_MODEL_ACCESS_STATE_FILE", default_app_dir)
+
+
+def load_model_access_state():
+    path = model_access_state_file()
+    if not path.exists():
+        return {"schema_version": 1, "models": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"schema_version": 1, "models": {}}
+    if not isinstance(data, dict):
+        return {"schema_version": 1, "models": {}}
+    return {
+        "schema_version": 1,
+        "models": data.get("models") if isinstance(data.get("models"), dict) else {},
+        "updated_at": data.get("updated_at", 0),
+    }
+
+
 def model_deprecation_file():
     return configured_path("model_deprecation_file", "model-deprecations.json", "MATTS_MODEL_DEPRECATION_FILE", app_dir())
 
@@ -376,11 +398,13 @@ def _normalized_model(item):
 
 
 def load_model_registry(include_disabled=True):
-    return model_registry_service().load(model_config_file(), include_disabled=include_disabled)
+    return model_registry_service().load(model_config_file(), include_disabled=include_disabled, access_state=load_model_access_state())
 
 
 def model_registry_status(include_disabled=True):
-    return model_registry_service().load_with_status(model_config_file(), include_disabled=include_disabled)
+    status = model_registry_service().load_with_status(model_config_file(), include_disabled=include_disabled, access_state=load_model_access_state())
+    status["access_state_file"] = str(model_access_state_file())
+    return status
 
 
 def save_model_registry(models):
@@ -487,6 +511,7 @@ def serverless_catalog_service(
         serverless_catalog_payload=serverless_catalog_payload_func,
         probe_serverless_text_model=probe_serverless_text_model_func,
         model_access_drift_file=model_access_drift_file,
+        model_access_state_file=model_access_state_file,
         append_audit=append_audit,
     )
 
@@ -1352,6 +1377,7 @@ def models_payload(refresh_catalog=True):
     registry_status = model_registry_status(include_disabled=True)
     return {
         "config_file": str(model_config_file()),
+        "access_state_file": str(model_access_state_file()),
         "models": registry_status["models"],
         "registry_status": {key: value for key, value in registry_status.items() if key != "models"},
         "active_text_models": TEXT_MODELS,

@@ -6,11 +6,13 @@ successfully for the active model access key later becomes unavailable.
 The Console persists prior audit results by model id and key fingerprint in:
 
 ```text
+$HOME/.cache/matts-value-set/studio/model-access-state.json
 $HOME/.cache/matts-value-set/studio/model-access-drift.json
 ```
 
-Set `MATTS_MODEL_ACCESS_DRIFT_FILE=/path/to/model-access-drift.json` to use a
-different runtime file.
+Set `MATTS_MODEL_ACCESS_STATE_FILE=/path/to/model-access-state.json` and
+`MATTS_MODEL_ACCESS_DRIFT_FILE=/path/to/model-access-drift.json` to use
+different runtime files.
 
 ## Drift Conditions
 
@@ -23,10 +25,11 @@ The drift detector records active events for:
 - `removed`: DigitalOcean no longer lists a previously allowed Serverless model.
 - `restored`: a previously drifted model probes successfully again.
 
-Forbidden and removed models are disabled in the registry. Rate-limited and
-probe-failed models keep their registry rows, but Serverless text routing only
-offers models whose `access_status` is `ok`, so selectors and router choices
-stop using unusable models until a later successful audit restores them.
+Forbidden, removed, rate-limited, and probe-failed outcomes are written to
+runtime access state instead of the committed registry. Serverless text routing
+only offers models whose merged `access_status` is `ok`, so selectors and
+router choices stop using unusable models until a later successful audit
+restores them.
 
 ## Operator Workflow
 

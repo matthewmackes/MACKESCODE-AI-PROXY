@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate release health for the legacy console, React v2 console, and proxy."""
+"""Validate release health for the React v2 console and proxy."""
 import argparse
 import json
 import sys
@@ -68,44 +68,41 @@ def trim(url):
 
 def validate(args):
     checks = {}
-    if not args.proxy_only and not args.v2_only:
-        console = trim(args.console_url)
-        checks["console_health"] = get_json(console + "/health", args.timeout)
-        checks["console_ready"] = get_json(console + "/ready", args.timeout)
-        checks["console_version"] = get_json(console + "/version", args.timeout)
+    legacy_console_url = trim(getattr(args, "legacy_console_url", "") or "")
+    if legacy_console_url and not args.proxy_only and not args.v2_only:
+        checks["legacy_console_health"] = get_json(legacy_console_url + "/health", args.timeout)
+        checks["legacy_console_ready"] = get_json(legacy_console_url + "/ready", args.timeout)
+        checks["legacy_console_version"] = get_json(legacy_console_url + "/version", args.timeout)
     if not args.proxy_only and not args.no_v2:
         v2 = trim(args.v2_url)
         checks["v2_health"] = get_json(v2 + "/v2/health", args.timeout)
         checks["v2_frontend"] = get_text(v2 + "/", args.timeout, required_fragments=['id="root"', 'data-testid="v2-boot-fallback"', "<script"])
-    if not args.console_only and not args.v2_only:
+    if not args.v2_only:
         proxy = trim(args.proxy_url)
         checks["proxy_capabilities"] = get_json(proxy + "/v1/claude-do/capabilities", args.timeout)
         checks["proxy_models"] = get_json(proxy + "/v1/models", args.timeout)
     ok = all(item.get("ok") for item in checks.values())
-    if args.allow_degraded_console and "console_ready" in checks:
-        ready = checks["console_ready"]
-        if ready.get("status") == 503 and checks.get("console_health", {}).get("ok"):
-            ok = all(item.get("ok") for key, item in checks.items() if key != "console_ready")
+    if args.allow_degraded_console and "legacy_console_ready" in checks:
+        ready = checks["legacy_console_ready"]
+        if ready.get("status") == 503 and checks.get("legacy_console_health", {}).get("ok"):
+            ok = all(item.get("ok") for key, item in checks.items() if key != "legacy_console_ready")
             ready["allowed_degraded"] = True
     return {"ok": ok, "checks": checks}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--console-url", default="http://127.0.0.1:18181")
+    parser.add_argument("--legacy-console-url", default="", help="Optionally validate a legacy console compatibility endpoint.")
     parser.add_argument("--v2-url", default="http://127.0.0.1:18182")
     parser.add_argument("--proxy-url", default="http://127.0.0.1:18081")
     parser.add_argument("--timeout", type=float, default=2.0)
-    parser.add_argument("--console-only", action="store_true")
     parser.add_argument("--proxy-only", action="store_true")
     parser.add_argument("--v2-only", action="store_true", help="Only validate the React/FastAPI v2 console.")
     parser.add_argument("--no-v2", action="store_true", help="Skip React/FastAPI v2 console checks.")
-    parser.add_argument("--allow-degraded-console", action="store_true", help="Allow /ready 503 when /health is OK.")
+    parser.add_argument("--allow-degraded-console", action="store_true", help="Allow legacy /ready 503 when legacy /health is OK.")
     args = parser.parse_args(argv)
-    if args.console_only and args.proxy_only:
-        parser.error("--console-only and --proxy-only cannot be combined")
-    if args.v2_only and (args.proxy_only or args.console_only or args.no_v2):
-        parser.error("--v2-only cannot be combined with --proxy-only, --console-only, or --no-v2")
+    if args.v2_only and (args.proxy_only or args.no_v2):
+        parser.error("--v2-only cannot be combined with --proxy-only or --no-v2")
     result = validate(args)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
