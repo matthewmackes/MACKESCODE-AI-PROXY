@@ -426,6 +426,47 @@ class ApiVersionHttpSmokeTests(unittest.TestCase):
         self.with_server(run)
 
 
+class TmuxWebSocketPermissionHttpTests(unittest.TestCase):
+    def test_ws_tmux_enforces_tmux_control_scope_and_audits_denials(self):
+        audits = []
+        role_tokens = {
+            "viewer-token": {"id": "viewer-a", "roles": ["viewer"]},
+            "operator-token": {"id": "operator-a", "roles": ["operator"]},
+        }
+        server = ThreadingHTTPServer(("127.0.0.1", 0), studio.StudioHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        with patch.object(studio, "auth_enabled", return_value=True), \
+             patch.object(studio, "auth_token", return_value="owner-secret"), \
+             patch.object(studio, "auth_role_tokens", return_value=role_tokens), \
+             patch.object(studio, "tmux_cmd", side_effect=lambda args, check=True: (1, "", "no session")), \
+             patch.object(studio, "append_audit", side_effect=lambda action, **kwargs: audits.append({"action": action, **kwargs})):
+            thread.start()
+            base = "http://127.0.0.1:%d" % server.server_address[1]
+            statuses = {}
+            try:
+                for label, token in (("viewer", "viewer-token"), ("operator", "operator-token"), ("owner", "owner-secret"), ("anonymous", "")):
+                    url = base + "/ws/tmux?name=smoke" + ("&token=%s" % token if token else "")
+                    try:
+                        with urllib.request.urlopen(url, timeout=5) as response:
+                            statuses[label] = response.status
+                    except urllib.error.HTTPError as exc:
+                        statuses[label] = exc.code
+            finally:
+                server.shutdown()
+                server.server_close()
+
+        self.assertEqual(statuses["viewer"], 403)
+        self.assertEqual(statuses["operator"], 404)
+        self.assertEqual(statuses["owner"], 404)
+        self.assertEqual(statuses["anonymous"], 401)
+        denied = [record for record in audits if record["action"] == "tmux.ws_attach" and record.get("outcome") == "denied"]
+        self.assertEqual(len(denied), 1)
+        self.assertEqual(denied[0]["actor"]["id"], "viewer-a")
+        self.assertEqual(denied[0]["permission"], "tmux_control")
+        self.assertEqual(denied[0]["status"], 403)
+        self.assertNotIn("viewer-token", json.dumps(denied[0].get("request", {})))
+
+
 class AlwaysDeniedLimiter:
     def check(self, key, method, path):
         return {

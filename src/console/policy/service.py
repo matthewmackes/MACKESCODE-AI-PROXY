@@ -6,8 +6,8 @@ from src.console.policy.rbac import RbacPolicy
 
 
 class PolicyService:
-    def __init__(self, get_permissions=None, post_permissions=None):
-        self.rbac = RbacPolicy(get_permissions=get_permissions, post_permissions=post_permissions)
+    def __init__(self, get_permissions=None, post_permissions=None, websocket_permissions=None):
+        self.rbac = RbacPolicy(get_permissions=get_permissions, post_permissions=post_permissions, websocket_permissions=websocket_permissions)
         self.quota = QuotaPolicy()
         self.dedicated = DedicatedPolicy()
         self.gateway = GatewayPolicy()

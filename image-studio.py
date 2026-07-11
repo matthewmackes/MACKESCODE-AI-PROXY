@@ -29,7 +29,7 @@ from src.console.events.bus import EventBus
 from src.console.events.sinks import JsonlEventSink
 from src.console.handlers.api_handler import ConsoleApiHandler
 from src.console.handlers.api_versioning import api_version_headers, api_version_info
-from src.console.handlers.auth_handler import AuthHandler, ROLE_PERMISSIONS, SENSITIVE_GET_PERMISSIONS, SENSITIVE_POST_PERMISSIONS
+from src.console.handlers.auth_handler import AuthHandler, ROLE_PERMISSIONS, SENSITIVE_GET_PERMISSIONS, SENSITIVE_POST_PERMISSIONS, SENSITIVE_WEBSOCKET_PERMISSIONS
 from src.console.handlers.static_handler import StaticHandler
 from src.console.handlers.template_handler import TemplateHandler
 from src.console.handlers.websocket_handler import TmuxWebSocketHandler
@@ -2380,6 +2380,7 @@ def policy_service():
     return PolicyService(
         get_permissions=SENSITIVE_GET_PERMISSIONS,
         post_permissions=SENSITIVE_POST_PERMISSIONS,
+        websocket_permissions=SENSITIVE_WEBSOCKET_PERMISSIONS,
     )
 
 
@@ -2494,9 +2495,14 @@ def rate_limiter():
     return _RATE_LIMITER
 
 
-def tmux_websocket_handler(authorized):
+def tmux_websocket_handler(authorized, identity=None):
+    auth = auth_handler()
     return TmuxWebSocketHandler(
         authorized=authorized,
+        identity=identity,
+        permission_for=auth.permission_for,
+        has_permission=auth.has_permission,
+        audit=append_audit,
         tmux_target=tmux_target,
         tmux_cmd=tmux_cmd,
         websocket_accept_key=websocket_accept_key,
@@ -2868,7 +2874,7 @@ class StudioHandler(BaseHTTPRequestHandler):
         self.send_json(401, error_payload("console auth token required", 401, code="console_auth_required"))
 
     def do_websocket_tmux(self):
-        return tmux_websocket_handler(self.tmux_websocket_authorized).handle(self)
+        return tmux_websocket_handler(self.authorized, identity=self.identity).handle(self)
 
     def do_GET(self):
         self.app_increment_request("GET")

@@ -4,14 +4,17 @@ from src.console.policy.decisions import PolicyDecision
 
 
 class RbacPolicy:
-    def __init__(self, get_permissions=None, post_permissions=None):
+    def __init__(self, get_permissions=None, post_permissions=None, websocket_permissions=None):
         self.get_permissions = get_permissions or {}
         self.post_permissions = post_permissions or {}
+        self.websocket_permissions = websocket_permissions or {}
 
     def permission_for(self, method, path):
         method = str(method or "").upper()
         if method == "GET":
-            return self.get_permissions.get(path)
+            return self.get_permissions.get(path) or self.websocket_permissions.get(path)
+        if method == "WEBSOCKET":
+            return self.websocket_permissions.get(path)
         if method == "POST":
             return self.post_permissions.get(path)
         return None

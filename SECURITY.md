@@ -71,7 +71,7 @@ For protected project trees, run the launcher as the user that can read the proj
 sudo -H /home/mm/DO-ClaudeCode-Proxy/claude-DO.sh --project-dir /path/to/protected/project
 ```
 
-The unified web console includes an embedded Claude Code terminal. Keep token auth enabled for public-facing use. To rotate the console token, stop the console and remove:
+The unified web console includes an embedded Claude Code terminal. The interactive terminal WebSocket (`GET /ws/tmux`) requires the `tmux_control` permission, the same scope as the REST tmux and terminal routes: owner/admin tokens and the `operator`, `model_admin`, and `infra_admin` roles qualify, while tokens without `tmux_control` (for example `viewer` or `billing_admin`) are rejected with HTTP 403 before the WebSocket upgrade and before any PTY is attached. Terminal attach, denied attach, and detach events are appended to the audit log as `tmux.ws_attach` / `tmux.ws_detach` records containing the tmux session name, actor identity, and close reason; keystrokes and screen content are never written to the audit log. Keep token auth enabled for public-facing use. To rotate the console token, stop the console and remove:
 
 ```text
 $HOME/.cache/matts-value-set/studio/console-auth-token
@@ -101,7 +101,7 @@ Built-in roles:
 - `infra_admin`: operator plus Dedicated Inference and budget administration
 - `owner` / `admin`: all permissions
 
-Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, and terminal writes.
+Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, terminal writes, and interactive terminal WebSocket attach/detach on `/ws/tmux`.
 
 The V2 React console uses the same role/capability model for `/v2/*` routes. The standing Console TUI bridge is read-only unless the actor has `tui.control`; control leases and denied writes are written to the TUI audit log. Operate actions such as automation dispatch, rollback apply, CI launch, review updates, and model deprecation migrations are capability-gated before reaching the legacy service adapter.
 

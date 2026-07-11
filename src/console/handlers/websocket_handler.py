@@ -23,6 +23,10 @@ class TmuxWebSocketHandler:
         self,
         *,
         authorized,
+        identity=None,
+        permission_for=None,
+        has_permission=None,
+        audit=None,
         tmux_target,
         tmux_cmd,
         websocket_accept_key,
@@ -42,6 +46,10 @@ class TmuxWebSocketHandler:
         print_func=None,
     ):
         self.authorized = authorized
+        self.identity = identity or (lambda: {})
+        self.permission_for = permission_for or (lambda method, path: None)
+        self.has_permission = has_permission or (lambda actor, permission: False)
+        self.audit = audit or (lambda action, **kwargs: None)
         self.tmux_target = tmux_target
         self.tmux_cmd = tmux_cmd
         self.websocket_accept_key = websocket_accept_key
@@ -73,6 +81,14 @@ class TmuxWebSocketHandler:
         name = self.tmux_target((query.get("name") or ["matts-claude"])[0])
         cols = _terminal_dimension((query.get("cols") or ["120"])[0], 120, 20, 400)
         rows = _terminal_dimension((query.get("rows") or ["40"])[0], 40, 8, 200)
+        actor = self.identity()
+        permission_action = self.permission_for(getattr(request, "command", "GET") or "GET", parsed.path)
+        if permission_action:
+            permission, action = permission_action
+            if not self.has_permission(actor, permission):
+                self.audit(action, actor=actor, outcome="denied", permission=permission, request={"path": parsed.path, "session": name}, status=403)
+                self._send_status(request, 403)
+                return
         if self.tmux_cmd(["has-session", "-t", name], check=False)[0] != 0:
             self._send_status(request, 404)
             return
@@ -85,6 +101,9 @@ class TmuxWebSocketHandler:
         request.send_header("Connection", "Upgrade")
         request.send_header("Sec-WebSocket-Accept", self.websocket_accept_key(key))
         request.end_headers()
+        if permission_action:
+            permission, action = permission_action
+            self.audit(action, actor=actor, outcome="allowed", permission=permission, request={"path": parsed.path, "session": name, "rows": rows, "cols": cols}, status=101)
         pid, fd = self.fork_func()
         if pid == 0:
             self.environ.setdefault("TERM", "xterm-256color")
@@ -154,3 +173,5 @@ class TmuxWebSocketHandler:
                 self.close_func(fd)
             except OSError:
                 pass
+            if permission_action:
+                self.audit("tmux.ws_detach", actor=actor, outcome="completed", permission=permission_action[0], request={"path": parsed.path, "session": name, "reason": close_reason}, status=0)

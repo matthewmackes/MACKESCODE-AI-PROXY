@@ -124,6 +124,26 @@ class AuthHandlerTests(unittest.TestCase):
         self.assertFalse(handler.has_permission(viewer, "repository_context_import"))
         self.assertFalse(handler.has_permission(viewer, "synthetic_load_run"))
 
+    def test_websocket_tmux_route_requires_tmux_control(self):
+        handler = self.handler(role_tokens={
+            "viewer-token": {"id": "viewer-a", "roles": ["viewer"]},
+            "billing-token": {"id": "billing-a", "roles": ["billing_admin"]},
+            "operator-token": {"id": "operator-a", "roles": ["operator"]},
+        })
+
+        self.assertEqual(handler.permission_for("GET", "/ws/tmux"), ("tmux_control", "tmux.ws_attach"))
+        self.assertEqual(handler.permission_for("WEBSOCKET", "/ws/tmux"), ("tmux_control", "tmux.ws_attach"))
+        self.assertIsNone(handler.permission_for("POST", "/ws/tmux"))
+        self.assertIsNone(handler.permission_for("GET", "/api/models"))
+        viewer = handler.identity("/ws/tmux", {"authorization": "Bearer viewer-token"})
+        billing = handler.identity("/ws/tmux", {"authorization": "Bearer billing-token"})
+        operator = handler.identity("/ws/tmux", {"authorization": "Bearer operator-token"})
+        owner = handler.identity("/ws/tmux?token=secret", {})
+        self.assertFalse(handler.has_permission(viewer, "tmux_control"))
+        self.assertFalse(handler.has_permission(billing, "tmux_control"))
+        self.assertTrue(handler.has_permission(operator, "tmux_control"))
+        self.assertTrue(handler.has_permission(owner, "tmux_control"))
+
     def test_jwt_session_identity_is_authorized(self):
         handler = self.handler(session_verifier=lambda token: {
             "id": "session-user",

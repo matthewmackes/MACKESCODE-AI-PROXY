@@ -119,6 +119,10 @@ SENSITIVE_GET_PERMISSIONS = {
     "/api/workspace-bundles": ("workspace_bundle_admin", "workspace_bundle.list"),
 }
 
+SENSITIVE_WEBSOCKET_PERMISSIONS = {
+    "/ws/tmux": ("tmux_control", "tmux.ws_attach"),
+}
+
 
 class AuthHandler:
     """Parse console auth tokens and evaluate request authorization."""
@@ -131,6 +135,7 @@ class AuthHandler:
         self.policy_service = policy_service or PolicyService(
             get_permissions=SENSITIVE_GET_PERMISSIONS,
             post_permissions=SENSITIVE_POST_PERMISSIONS,
+            websocket_permissions=SENSITIVE_WEBSOCKET_PERMISSIONS,
         )
 
     def request_token(self, path, headers):
