@@ -9256,6 +9256,160 @@ The v2 platform rewrite is a breaking GA-only replacement plan for the current t
 
 ---
 
+## Coordination Sweep And Interface Directives (2026-07-11)
+
+Imported from the coordination branch `worktree-bright-elm-9x73` (task IDs
+renumbered from INT-028..035 to avoid collision with this ledger). Full sweep
+evidence lives in `docs/COMPLIANCE.md` (Sweep 2026-07-11) and ADR-0002/0003.
+
+### Task ID: INT-154
+**Title:** Reconcile bootstrap model fallbacks to `config/default-models.json`
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (coordination sweep)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Compliance sweep found the proxy carried hardcoded fallback model/alias/pricing tables (`DEFAULT_COSTS_PER_MTOK` disagreed with both registries) and proxy/`claude-DO.sh`/`matts-image` never read `config/default-models.json`. All bootstrap fallbacks now derive from that single file, degrading to a minimal unpriced model list with a logged warning; proxy argparse `--port` default harmonized to 18081.
+
+**Progress Notes:**
+- 2026-07-11: Implemented and verified on the V1 base (branch `worktree-bright-elm-9x73`), then ported onto the V2 baseline and landed on `main` as `f7381470`. Nine tests in `tests/test_bootstrap_fallbacks.py`; full release gate green (510 tests incl. V1+V2 browser smokes on the ported branch).
+
+**Completion Criteria:**
+- [x] Proxy/CLI/matts-image fallbacks derive from `config/default-models.json`; no divergent hardcoded pricing remains
+- [x] Proxy argparse port default is 18081
+- [x] Tests cover the fallback path; release gate passes on `main`
+
+---
+
+### Task ID: INT-155
+**Title:** Enforce `tmux_control` scope and audit logging on `/ws/tmux`
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (coordination sweep)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Security sweep found the V1 browser-terminal WebSocket accepted any authenticated permission and wrote no audit records. Now: 401 unauthenticated → 403 pre-upgrade for valid-but-unscoped tokens (before session probe, upgrade, or PTY fork) → `tmux.ws_attach` allowed/denied and `tmux.ws_detach` audit records with no keystroke/screen content. On V2 this was threaded through the `PolicyService`/`RbacPolicy` architecture via an optional websocket permission map, superseding V2's weaker 401-no-audit variant. `SECURITY.md` updated.
+
+**Progress Notes:**
+- 2026-07-11: Landed on `main` as `0aa0e247` after V2 port; seven tests incl. a live-server smoke (viewer→403 audited, operator/owner→404, anonymous→401).
+
+**Completion Criteria:**
+- [x] Unscoped tokens rejected 403 pre-attach; attach/deny/detach audited
+- [x] Reconciled into V2 policy architecture without regressing V2 tests
+- [x] Release gate passes on `main`; `SECURITY.md` updated
+
+---
+
+### Task ID: INT-156
+**Title:** Wire a first real plugin extension point consumer (V1 console)
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Claude (coordination sweep)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Reachability sweep found `/api/plugins` wired but all seven extension points had zero consumers. A declarative `console.panel` render host (no code execution) was implemented in the V1 console with typed panel validation and explicit inventory-only labeling of the remaining points.
+
+**Progress Notes:**
+- 2026-07-11: Completed and verified on the V1 base (branch `worktree-bright-elm-9x73`, commit 27bc6ee). V2 disposition (port the host or retire with V1 UI) is delegated to the V1-retirement dependency map under INT-161.
+
+**Completion Criteria:**
+- [x] `console.panel` rendered declaratively with tests and live evidence (V1)
+- [x] Inventory-only status explicit in payload, UI, and docs/plugins.md
+- [x] V2 disposition tracked under INT-161
+
+---
+
+### Task ID: INT-157
+**Title:** Move AgentBoard into the Coding tab (V1 implementation)
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (operator directive)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Operator directive: "The TMux Console, and session controls listed under Advanced should be moved to Code." Implemented first on the V1 console (AgentBoard moved wholesale into the Coding view, commit 75252f5 on `worktree-bright-elm-9x73`), then superseded by the V2 implementation (INT-160) after ADR-0003 established V2 as current.
+
+**Completion Criteria:**
+- [x] V1 implementation verified with browser smoke and rendered evidence
+- [x] Superseded by INT-160 on V2 (ADR-0003)
+
+---
+
+### Task ID: INT-158
+**Title:** Make the Create page solely an image-creation studio (V1 implementation)
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (operator directive)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Operator directive: "Create Page is solely for Image Creation," clarified as retire-text-chat-entirely. Implemented first on the V1 console (commit 58e7dbd on `worktree-bright-elm-9x73`), then superseded by the V2 implementation (INT-160) after ADR-0003.
+
+**Completion Criteria:**
+- [x] V1 implementation verified with browser smoke and rendered evidence
+- [x] Superseded by INT-160 on V2 (ADR-0003)
+
+---
+
+### Task ID: INT-159
+**Title:** Port coordination-sweep backend fixes onto the V2 baseline
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (V2 port thread)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Cherry-picked INT-154/INT-155 onto the committed V2 baseline, reconciling conflicts into V2's evolved structures (release-gate py_compile list; `SENSITIVE_WEBSOCKET_PERMISSIONS` threaded through `src/console/policy/service.py` and `rbac.py`; `/ws/tmux` upgraded from V2's 401-no-audit gate to the audited 403 flow while keeping V2's `tmux_websocket_authorized` test green).
+
+**Progress Notes:**
+- 2026-07-11: Landed on `main` as `f7381470` + `0aa0e247`. Gate on the port branch: 510 tests OK, V2 OpenAPI/bundle/audit checks, V1+V2 browser smokes, exit 0.
+
+**Completion Criteria:**
+- [x] Both fixes applied without regressing V2 features or tests
+- [x] Full extended release gate green
+
+---
+
+### Task ID: INT-160
+**Title:** V2 React: move TUI console from Advanced to Code; Create image-only
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (V2 UI thread)
+**Start Time:** 2026-07-11
+**Completion Time:** 2026-07-11
+
+**Description:** Implemented both operator directives on the V2 React SPA: `ADVANCED_TABS` reduced to `['console','run','observe','operate']` with stale sessionStorage self-heal; CodePage hosts a collapsible "TMux Console" section (`data-testid="code-tui-section"`) mounting `TuiTerminal` on demand with Take/Release Local Control preserved; CreatePage reduced from three modes (Chat/Research/Image) to image-only with an image-model selector, image-only history, and "Generate" flow; App nav describes Create as "Image creation studio". Frontend rebuilt.
+
+**Progress Notes:**
+- 2026-07-11: Landed on `main` as `36f3bc5f` with committed Playwright evidence (`evidence/INT-035-*.png`): Advanced without tui tab, Code terminal Connected→Controller transition, image-only Create. 493 tests OK; targeted V2 suites green. Commit prefix on the branch was `[INT-035]` (pre-renumbering).
+
+**Completion Criteria:**
+- [x] Code page hosts the TMux/TUI console; Advanced has no tui tab; stale saved tab self-heals
+- [x] Create page is image-only; ChatPage/backend untouched
+- [x] Build + tests green; rendered evidence committed
+
+---
+
+### Task ID: INT-161
+**Title:** Remove the V1 console UI; V2 React is the only console
+**Status:** 🔄 `IN_PROGRESS`
+**Priority:** P1
+**Assigned To:** Claude (V1-removal thread, worktree `v2-v1removal`)
+**Start Time:** 2026-07-11
+
+**Description:** Operator directive (ADR-0003): "V1 should be removed. V2 (React) is the current version." Phase 1 maps every symbol/HTTP dependency `backend/v2` takes on the image-studio module and 18181 (written to `docs/v1-retirement-map.md`); phase 2 deletes templates/, `matts-console.py`, and V1-UI-only code while preserving the service layer V2 imports; phase 3 re-scopes the release gate (drop V1 smoke, keep all V2 gates) and proves V2 works without V1 via ephemeral-port Playwright evidence. Commits on the branch carry the pre-renumbering prefix `[INT-105]`.
+
+**Completion Criteria:**
+- [ ] Dependency map recorded; nothing V2 uses is deleted
+- [ ] V1 UI surfaces, entrypoint, and V1-only tests removed; gate re-scoped and green
+- [ ] README/CLAUDE.md/SECURITY.md describe V2 as the console; stale-doc list reported
+- [ ] V2 verified without V1; evidence committed; landed on `main`
+
+---
+
 ## Work Execution Protocol for AI Assistants
 
 ### Before Starting Work:

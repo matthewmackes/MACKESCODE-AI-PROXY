@@ -12,8 +12,16 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 
 ## Create Experience
 
+> **Supersession 2026-07-11 (ADR-0002/0003, INT-158/INT-160):** The operator
+> directed that Create is solely for image creation; conversational/text and
+> research creation modes are retired from Create (Chat and Research surfaces
+> own them). Rows below describing Create as conversational or text+image are
+> superseded. Wallpaper/atmosphere/mood decisions still apply to the
+> image-only Create.
+
 | Decision | Evidence | Owner |
 | --- | --- | --- |
+| Create is solely an image-creation studio; the TMux/TUI console and session controls live in the Code experience. | Confirmed (operator directives 2026-07-11) | `INT-160` |
 | Create should prioritize atmosphere first, conversational presence second, and creative workflow third. | Confirmed | `INT-014` |
 | Text and Image should be sibling experiences under one Bing-like Create surface, not separate admin-style pages. | Confirmed | `INT-014` |
 | Chat bubbles should float over the scenic wallpaper instead of blocking it with an opaque conversation panel. | Confirmed | `INT-014` |

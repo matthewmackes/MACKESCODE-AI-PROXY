@@ -64,11 +64,13 @@ operations clearer, safer, or more reliable.
 
 - The web console is an operations tool, not a marketing site. Console surfaces
   should be dense, predictable, Carbon-inspired, and built for repeated use.
-- Create should remain wallpaper-forward and conversational: floating chat,
-  visible routing detail, graceful weather/wallpaper fallback, and no opaque
-  panels that block the intended background experience.
-- Code should keep the terminal workflow direct: session chooser, model/session
-  setup wizard, clear state, and stable paste/shortcut controls.
+- Create is solely an image-creation studio (ADR-0002/0003): wallpaper-forward
+  with graceful weather/wallpaper fallback and no opaque panels that block the
+  intended background experience. Text conversations live on the Chat surface;
+  routing proof lives in trace/observability surfaces.
+- Code should keep the terminal workflow direct: session controls and the
+  TMux/TUI console live in the Code experience (ADR-0002), not under an
+  Advanced/owner-tools area.
 - Dark mode, tab navigation, and global status/cost controls must work across
   Code, Create, and Console, not just inside one tab.
 - UI changes are not complete until they are exercised with browser smoke or
