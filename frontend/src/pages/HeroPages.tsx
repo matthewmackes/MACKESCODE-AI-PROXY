@@ -1146,55 +1146,42 @@ type CreateImageResult = {
 
 type CreateHistoryItem = {
   id: string;
-  mode: string;
   prompt: string;
   summary: string;
   createdAt: string;
   thumbnail?: string;
-  result?: string;
   imageResult?: { images: CreateImageResult[]; raw: string } | null;
-  researchResult?: ResearchResultPayload | null;
-  researchSourceMode?: CreateResearchSourceMode;
 };
 
-type CreateResearchSourceMode = 'all' | 'required';
-
 type CreateWorkspaceState = {
-  mode: string;
   prompt: string;
-  result: string;
+  model: string;
   imageResult: { images: CreateImageResult[]; raw: string } | null;
-  researchResult: ResearchResultPayload | null;
-  researchSourceMode: CreateResearchSourceMode;
   historyItems: CreateHistoryItem[];
 };
 
 const CREATE_WORKSPACE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.createWorkspace;
 const CREATE_HISTORY_LIMIT = 6;
-const CREATE_MODES = ['Chat', 'Research', 'Image'];
 
 function emptyCreateWorkspace(): CreateWorkspaceState {
-  return { mode: 'Chat', prompt: '', result: '', imageResult: null, researchResult: null, researchSourceMode: 'all', historyItems: [] };
+  return { prompt: '', model: '', imageResult: null, historyItems: [] };
 }
 
 function normalizeCreateHistoryItem(value: unknown): CreateHistoryItem | null {
   if (!value || typeof value !== 'object') return null;
   const row = value as Record<string, unknown>;
-  const mode = asText(row.mode);
+  const mode = asText(row.mode, 'Image');
   const prompt = asText(row.prompt);
   const summary = asText(row.summary);
   const createdAt = asText(row.createdAt);
-  if (!mode || !prompt || !summary || !createdAt) return null;
+  // Create is image-only: stale Chat/Research history entries are dropped on load.
+  if (mode !== 'Image' || !prompt || !summary || !createdAt) return null;
   return {
-    id: asText(row.id, `${createdAt}-${mode}-${prompt.slice(0, 16)}`),
-    mode,
+    id: asText(row.id, `${createdAt}-image-${prompt.slice(0, 16)}`),
     prompt,
     summary,
     createdAt,
-    result: asText(row.result),
     imageResult: normalizeCreateImageResult(row.imageResult),
-    researchResult: normalizeResearchPayload(row.researchResult),
-    researchSourceMode: row.researchSourceMode === 'required' ? 'required' : 'all',
     ...(typeof row.thumbnail === 'string' && row.thumbnail ? { thumbnail: row.thumbnail } : {}),
   };
 }
@@ -1447,14 +1434,10 @@ function loadCreateWorkspace(): CreateWorkspaceState {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return emptyCreateWorkspace();
     const row = parsed as Record<string, unknown>;
-    const mode = asText(row.mode, 'Chat');
     return {
-      mode: CREATE_MODES.includes(mode) ? mode : 'Chat',
       prompt: asText(row.prompt),
-      result: asText(row.result),
+      model: asText(row.model),
       imageResult: normalizeCreateImageResult(row.imageResult),
-      researchResult: normalizeResearchPayload(row.researchResult),
-      researchSourceMode: row.researchSourceMode === 'required' ? 'required' : 'all',
       historyItems: Array.isArray(row.historyItems)
         ? row.historyItems.map(normalizeCreateHistoryItem).filter((item): item is CreateHistoryItem => Boolean(item)).slice(0, CREATE_HISTORY_LIMIT)
         : [],
@@ -1465,7 +1448,7 @@ function loadCreateWorkspace(): CreateWorkspaceState {
 }
 
 function hasCreateWorkspaceState(state: CreateWorkspaceState): boolean {
-  return state.mode !== 'Chat' || state.researchSourceMode !== 'all' || Boolean(state.prompt.trim() || state.result.trim() || state.imageResult || state.researchResult || state.historyItems.length);
+  return Boolean(state.prompt.trim() || state.model.trim() || state.imageResult || state.historyItems.length);
 }
 
 function saveCreateWorkspace(state: CreateWorkspaceState): void {
@@ -1517,60 +1500,20 @@ function normalizeImageResults(payload: unknown): { images: CreateImageResult[];
   return { images, raw: JSON.stringify(payload, null, 2) };
 }
 
-function hasCreateBriefState({ result, imageResult, researchResult, historyItems }: CreateWorkspaceState): boolean {
-  return Boolean(result.trim() || researchResult || imageResult?.images.length || imageResult?.raw.trim() || historyItems.length);
+function hasCreateBriefState({ imageResult, historyItems }: CreateWorkspaceState): boolean {
+  return Boolean(imageResult?.images.length || imageResult?.raw.trim() || historyItems.length);
 }
 
-function createBriefMarkdown({ mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems }: CreateWorkspaceState): string {
+function createBriefMarkdown({ prompt, model, imageResult, historyItems }: CreateWorkspaceState): string {
   const lines = [
     '# Create Brief',
     '',
     `Generated: ${new Date().toISOString()}`,
-    `Active Mode: ${mode || 'n/a'}`,
-    `Research Source Mode: ${researchSourceMode === 'required' ? 'Required Sources' : 'All Sources'}`,
+    'Studio: Image creation',
+    `Image Model: ${model.trim() || 'Default image model'}`,
     `Current Prompt: ${prompt.trim() || 'n/a'}`,
     `History Items: ${historyItems.length}`,
-    '',
-    '## Current Output',
-    result.trim() || 'No chat text output in the current Create workspace.',
-    '',
-    '## Research',
   ];
-  if (!researchResult) {
-    lines.push('No research synthesis is active.');
-  } else {
-    const evidenceCount = numeric(researchResult.synthesis?.evidence_count) || researchResult.results.length;
-    const engines = researchResult.engines.map((engine) => `${engine.name} (${readableStatus(engine.status)})`);
-    const coverage = researchSourceCoverage(researchResult);
-    lines.push(
-      `Query: ${researchResult.query || prompt.trim() || 'n/a'}`,
-      `Mode: ${researchResult.mode || 'n/a'}`,
-      `Engines: ${engines.length ? engines.join(', ') : 'n/a'}`,
-      `Evidence Count: ${evidenceCount}`,
-      '',
-      '### Synthesis',
-      researchResult.synthesis?.summary || 'No synthesis summary available.',
-      '',
-      '### Source Coverage',
-      ...(coverage.length ? coverage.map((row) => `- ${row.label || row.name}: ${readableStatus(row.status)}; ${Number(row.usable_count || 0).toLocaleString()} usable / ${Number(row.result_count || 0).toLocaleString()} total`) : ['- No source coverage reported.']),
-      '',
-      '### Evidence',
-    );
-    if (!researchResult.results.length) {
-      lines.push('- No evidence results were returned.');
-    } else {
-      researchResult.results.forEach((item, index) => {
-        lines.push(
-          `${index + 1}. ${item.title}`,
-          `   - Engine: ${item.engine_name} (${readableStatus(item.status)})`,
-          `   - Source: ${item.source}${item.published_at ? `, ${item.published_at}` : ''}`,
-          `   - Citation: ${item.citation || 'n/a'}`,
-          `   - URL: ${item.url || 'n/a'}`,
-          `   - Snippet: ${item.snippet || 'n/a'}`,
-        );
-      });
-    }
-  }
   lines.push('', '## Images');
   if (!imageResult) {
     lines.push('No image result is active.');
@@ -1596,7 +1539,7 @@ function createBriefMarkdown({ mode, prompt, result, imageResult, researchResult
   } else {
     historyItems.forEach((item, index) => {
       lines.push(
-        `${index + 1}. ${item.mode} · ${item.createdAt}`,
+        `${index + 1}. Image · ${item.createdAt}`,
         `   - Prompt: ${item.prompt}`,
         `   - Summary: ${item.summary}`,
       );
@@ -1609,25 +1552,11 @@ function createHistoryPacket(item: CreateHistoryItem): string {
   const lines = [
     '# Create History Packet',
     '',
-    `Mode: ${item.mode || 'n/a'}`,
+    'Mode: Image',
     `Created: ${item.createdAt || 'n/a'}`,
     `Prompt: ${item.prompt || 'n/a'}`,
     `Summary: ${item.summary || 'n/a'}`,
   ];
-  if (item.researchSourceMode) {
-    lines.push(`Research Source Mode: ${item.researchSourceMode === 'required' ? 'Required Sources' : 'All Sources'}`);
-  }
-  if (item.result?.trim()) {
-    lines.push('', '## Chat Output', item.result.trim());
-  }
-  if (item.researchResult) {
-    const research = item.researchResult;
-    lines.push(
-      '',
-      '## Research Snapshot',
-      researchBriefMarkdown(research, research.results || [], researchBriefMetrics(research, research.results || [])),
-    );
-  }
   if (item.imageResult) {
     lines.push('', '## Image Snapshot');
     if (!item.imageResult.images.length) {
@@ -1646,9 +1575,8 @@ function createHistoryPacket(item: CreateHistoryItem): string {
         );
       });
     }
-  }
-  if (!item.result?.trim() && !item.researchResult && !item.imageResult) {
-    lines.push('', '## Snapshot', 'No output snapshot was stored with this history item.');
+  } else {
+    lines.push('', '## Snapshot', 'No image snapshot was stored with this history item.');
   }
   return lines.join('\n');
 }
@@ -1656,9 +1584,9 @@ function createHistoryPacket(item: CreateHistoryItem): string {
 function CreateHistoryCard({ item, onReuse, onCopy }: { item: CreateHistoryItem; onReuse: (item: CreateHistoryItem) => void; onCopy: (item: CreateHistoryItem) => void }) {
   return (
     <article className="createHistoryCard">
-      {item.thumbnail ? <img src={item.thumbnail} alt="" /> : <div className="createHistoryBadge">{item.mode.slice(0, 1)}</div>}
+      {item.thumbnail ? <img src={item.thumbnail} alt="" /> : <div className="createHistoryBadge">I</div>}
       <div>
-        <span>{item.mode} · {item.createdAt}</span>
+        <span>Image · {item.createdAt}</span>
         <strong>{item.prompt}</strong>
         <p>{item.summary}</p>
         <div className="createHistoryActions">
@@ -2143,6 +2071,9 @@ export function CodePage() {
   const [copiedActionId, setCopiedActionId] = useState('');
   const [attachments, setAttachments] = useState<CodeAttachment[]>(restoredWorkspace.attachments);
   const [attachmentError, setAttachmentError] = useState('');
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalController, setTerminalController] = useState(false);
+  const terminalClient = useMemo(clientId, []);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const selectedModel = model || asText(defaults.default_model, models[0]?.id || '');
   const hasCodeBrief = Boolean(actions.length || attachments.length);
@@ -2266,7 +2197,7 @@ export function CodePage() {
         <div>
           <p className="eyebrow">Repository + Terminal + Vision Input</p>
           <h1>Code</h1>
-          <p>Start coding sessions, send terminal input, and attach screenshots/images for direct model review.</p>
+          <p>Start coding sessions, send terminal input, drive the TMux console, and attach screenshots/images for direct model review.</p>
         </div>
         <button className="secondaryButton" type="button" onClick={() => fileInput.current?.click()}>
           <CarbonIcon path="actions/document-open-symbolic.svg" label="Attach" />
@@ -2348,6 +2279,26 @@ export function CodePage() {
             </article>
           )) : <div className="emptyState">Session output and image review responses will appear here.</div>}
         </div>
+      </div>
+      <div className="codeTerminalSection" data-testid="code-tui-section">
+        <div className="codeTerminalHeader">
+          <div>
+            <span>TMux Console</span>
+            <strong>MDE LLM-PROXY TUI bridge</strong>
+            <small>{terminalOpen ? (terminalController ? 'Local control active' : 'Read-only view') : 'Console hidden'}</small>
+          </div>
+          <div className="codeTerminalActions">
+            {terminalOpen ? (
+              <button className="secondaryButton" type="button" onClick={() => setTerminalController(!terminalController)}>{terminalController ? 'Release Local Control' : 'Take Local Control'}</button>
+            ) : null}
+            <button className="secondaryButton" type="button" aria-expanded={terminalOpen} data-testid="code-tui-toggle" onClick={() => setTerminalOpen(!terminalOpen)}>{terminalOpen ? 'Hide Console' : 'Show Console'}</button>
+          </div>
+        </div>
+        {terminalOpen ? (
+          <Suspense fallback={<AdvancedLoading label="terminal" />}>
+            <TuiTerminal clientId={terminalClient} controller={terminalController} />
+          </Suspense>
+        ) : null}
       </div>
     </section>
   );
@@ -2481,46 +2432,28 @@ export function CreatePage() {
   const create = useQuery({ queryKey: ['create-payload'], queryFn: getCreatePayload });
   const mood = useCreateMood();
   const restoredWorkspace = useMemo(loadCreateWorkspace, []);
-  const [mode, setMode] = useState(restoredWorkspace.mode);
+  const [model, setModel] = useState(restoredWorkspace.model);
   const [prompt, setPrompt] = useState(restoredWorkspace.prompt);
-  const [result, setResult] = useState(restoredWorkspace.result);
   const [imageResult, setImageResult] = useState<{ images: CreateImageResult[]; raw: string } | null>(restoredWorkspace.imageResult);
-  const [researchResult, setResearchResult] = useState<ResearchResultPayload | null>(restoredWorkspace.researchResult);
-  const [researchSourceMode, setResearchSourceMode] = useState<CreateResearchSourceMode>(restoredWorkspace.researchSourceMode);
   const [historyItems, setHistoryItems] = useState<CreateHistoryItem[]>(restoredWorkspace.historyItems);
   const [historyStatus, setHistoryStatus] = useState(restoredWorkspace.historyItems.length ? 'Restored' : 'Ready');
-  const createResearchSourceClasses = create.data?.research_source_classes || [];
-  const createRequiredSourceIds = useMemo(() => createResearchSourceClasses.map((source) => source.engine_id || source.id).filter(Boolean).slice(0, RESEARCH_SELECTED_ENGINE_LIMIT), [createResearchSourceClasses]);
-  const hasCreateBrief = hasCreateBriefState({ mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems });
-  const createBrief = useMemo(() => createBriefMarkdown({ mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems }), [mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems]);
+  const imageModels = create.data?.image_models || [];
+  const selectedImageModel = model || imageModels[0]?.id || '';
+  const hasCreateBrief = hasCreateBriefState({ prompt, model, imageResult, historyItems });
+  const createBrief = useMemo(() => createBriefMarkdown({ prompt, model: selectedImageModel, imageResult, historyItems }), [prompt, selectedImageModel, imageResult, historyItems]);
   const [briefStatus, setBriefStatus] = useState(hasCreateBriefState(restoredWorkspace) ? 'Brief Ready' : 'No brief');
   const addHistory = (item: Omit<CreateHistoryItem, 'id' | 'createdAt'>) => {
     const now = new Date();
     setHistoryItems((current) => [{
       ...item,
-      id: `${now.getTime()}-${item.mode}`,
+      id: `${now.getTime()}-image`,
       createdAt: now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     }, ...current].slice(0, 6));
     setHistoryStatus('Updated');
   };
   const reuseHistory = (item: CreateHistoryItem) => {
-    const nextMode = CREATE_MODES.includes(item.mode) ? item.mode : 'Chat';
-    setMode(nextMode);
     setPrompt(item.prompt);
-    setResearchSourceMode(item.researchSourceMode || 'all');
-    if (nextMode === 'Research') {
-      setResult('');
-      setImageResult(null);
-      setResearchResult(item.researchResult || null);
-    } else if (nextMode === 'Image') {
-      setResult('');
-      setResearchResult(null);
-      setImageResult(item.imageResult || null);
-    } else {
-      setResult(item.result || item.summary || '');
-      setResearchResult(null);
-      setImageResult(null);
-    }
+    setImageResult(item.imageResult || null);
     setHistoryStatus('Reused');
   };
   const copyHistory = async (item: CreateHistoryItem) => {
@@ -2553,47 +2486,19 @@ export function CreatePage() {
     URL.revokeObjectURL(url);
     setBriefStatus('Brief downloaded');
   };
-  const chatMutation = useMutation({
-    mutationFn: () => runChat({ messages: [{ role: 'user', content: prompt }] }),
-    onSuccess: (payload) => {
-      const text = responseText(payload);
-      setImageResult(null);
-      setResearchResult(null);
-      setResult(text);
-      addHistory({ mode: 'Chat', prompt, summary: text.slice(0, 180) || 'Chat response received.', result: text });
-    }
-  });
-  const researchMutation = useMutation({
-    mutationFn: () => runResearchSearch({
-      query: prompt,
-      mode: 'Balanced',
-      ...(researchSourceMode === 'required' && createRequiredSourceIds.length ? { engines: createRequiredSourceIds } : {})
-    }),
-    onSuccess: (payload) => {
-      setImageResult(null);
-      setResult('');
-      setResearchResult(payload);
-      const evidence = numeric(payload.synthesis?.evidence_count) || payload.results.length;
-      addHistory({ mode: 'Research', prompt, summary: `${payload.synthesis?.summary || 'Research synthesis received.'} · ${evidence} evidence item${evidence === 1 ? '' : 's'}`, researchResult: payload, researchSourceMode });
-    }
-  });
   const imageMutation = useMutation({
-    mutationFn: () => runCreateImages({ prompt, model: create.data?.image_models?.[0]?.id }),
+    mutationFn: () => runCreateImages({ prompt, ...(selectedImageModel ? { model: selectedImageModel } : {}) }),
     onSuccess: (payload) => {
       const normalized = normalizeImageResults(payload);
-      setResearchResult(null);
-      setResult('');
       setImageResult(normalized);
-      addHistory({ mode: 'Image', prompt, summary: `${normalized.images.length} image output${normalized.images.length === 1 ? '' : 's'}${normalized.images[0]?.model ? ` · ${normalized.images[0].model}` : ''}`, thumbnail: normalized.images[0]?.src, imageResult: normalized });
+      addHistory({ prompt, summary: `${normalized.images.length} image output${normalized.images.length === 1 ? '' : 's'}${normalized.images[0]?.model ? ` · ${normalized.images[0].model}` : ''}`, thumbnail: normalized.images[0]?.src, imageResult: normalized });
     }
   });
-  const pending = chatMutation.isPending || researchMutation.isPending || imageMutation.isPending;
+  const pending = imageMutation.isPending;
   const canSubmit = Boolean(prompt.trim()) && !pending;
   const submit = () => {
     if (!canSubmit) return;
-    if (mode === 'Research') researchMutation.mutate();
-    else if (mode === 'Image') imageMutation.mutate();
-    else chatMutation.mutate();
+    imageMutation.mutate();
   };
   const handleCreateComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey) || !canSubmit) return;
@@ -2601,8 +2506,8 @@ export function CreatePage() {
     submit();
   };
   useEffect(() => {
-    saveCreateWorkspace({ mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems });
-  }, [mode, prompt, result, imageResult, researchResult, researchSourceMode, historyItems]);
+    saveCreateWorkspace({ prompt, model, imageResult, historyItems });
+  }, [prompt, model, imageResult, historyItems]);
   useEffect(() => {
     setBriefStatus(hasCreateBrief ? 'Brief Ready' : 'No brief');
   }, [createBrief, hasCreateBrief]);
@@ -2611,7 +2516,7 @@ export function CreatePage() {
     <section className="heroWorkspace createHero" style={{ backgroundImage: wallpaper ? `linear-gradient(180deg, rgba(0,0,0,.34), rgba(0,0,0,.72)), url(${wallpaper})` : undefined }}>
       <div className="createAtmosphere" aria-hidden="true"><span /><span /><span /></div>
       <div className="createCenter">
-        <p className="eyebrow">Creative Studio</p>
+        <p className="eyebrow">Image Creation Studio</p>
         <h1>Create</h1>
         <div id="v2-create-mood" className="createMood" aria-label="Create mood">
           <span>{mood.label}</span>
@@ -2619,23 +2524,20 @@ export function CreatePage() {
           <span>{mood.weather}</span>
           <span>{mood.tone}</span>
         </div>
-        <div className="modeSwitch">{(create.data?.modes || ['Chat', 'Research', 'Image']).map((item) => <button className={mode === item ? 'active' : ''} key={item} type="button" onClick={() => setMode(item)}>{item}</button>)}</div>
-        {mode === 'Research' && createRequiredSourceIds.length ? (
-          <div className="createSourceControls" aria-label="Create Research source mode">
-            <span>{researchSourceMode === 'required' ? `${createRequiredSourceIds.length} required sources` : 'All sources'}</span>
-            <button className={`secondaryButton ${researchSourceMode === 'all' ? 'active' : ''}`} type="button" aria-pressed={researchSourceMode === 'all'} onClick={() => setResearchSourceMode('all')}>All Sources</button>
-            <button className={`secondaryButton ${researchSourceMode === 'required' ? 'active' : ''}`} type="button" aria-pressed={researchSourceMode === 'required'} onClick={() => setResearchSourceMode('required')}>Required Sources</button>
+        {create.isLoading ? <StatusPanel tone="loading" title="Loading image studio" /> : null}
+        {create.error ? <StatusPanel tone="error" title="Create setup unavailable" detail={errorText(create.error)} /> : null}
+        {pending ? <StatusPanel tone="loading" title="Image generation running" detail={prompt} /> : null}
+        {imageMutation.error ? <StatusPanel tone="error" title="Image request failed" detail={errorText(imageMutation.error)} /> : null}
+        {!create.isLoading && !create.error && !imageModels.length ? <StatusPanel title="No image models available" detail="Enable an image model in the registry to generate images." /> : null}
+        {imageModels.length ? (
+          <div className="createModelDock" aria-label="Image model selection">
+            <span>{imageModels.length} image model{imageModels.length === 1 ? '' : 's'}</span>
+            <ModelSelect models={imageModels} value={selectedImageModel} onChange={setModel} label="Image Model" />
           </div>
         ) : null}
-        {create.isLoading ? <StatusPanel tone="loading" title="Loading creative workspace" /> : null}
-        {create.error ? <StatusPanel tone="error" title="Create setup unavailable" detail={errorText(create.error)} /> : null}
-        {pending ? <StatusPanel tone="loading" title={`${mode} request running`} detail={prompt} /> : null}
-        {chatMutation.error ? <StatusPanel tone="error" title="Chat request failed" detail={errorText(chatMutation.error)} /> : null}
-        {researchMutation.error ? <StatusPanel tone="error" title="Research request failed" detail={errorText(researchMutation.error)} /> : null}
-        {imageMutation.error ? <StatusPanel tone="error" title="Image request failed" detail={errorText(imageMutation.error)} /> : null}
         <div className="createPrompt">
-          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleCreateComposerKeyDown} placeholder={mode === 'Research' ? 'Search line' : 'Describe what to create'} />
-          <button className="primaryButton" type="button" onClick={submit} disabled={!canSubmit}>Run</button>
+          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleCreateComposerKeyDown} placeholder="Describe the image to create" />
+          <button className="primaryButton" type="button" onClick={submit} disabled={!canSubmit}>Generate</button>
         </div>
         <div className="createBriefDock" aria-label="Create brief actions">
           <span>{briefStatus}</span>
@@ -2653,8 +2555,7 @@ export function CreatePage() {
             </div>
           </div>
         ) : null}
-        {researchResult && mode === 'Research' ? <div className="createResult"><ResearchEvidence data={researchResult} compact /></div> : null}
-        {imageResult && mode === 'Image' ? (
+        {imageResult ? (
           <div className="createResult imageGalleryResult">
             <div className="imageGalleryHeader">
               <span>Image result</span>
@@ -2683,7 +2584,6 @@ export function CreatePage() {
             </details>
           </div>
         ) : null}
-        {result ? <div className="createResult"><span>{mode} result</span><pre>{result}</pre></div> : null}
       </div>
     </section>
   );
@@ -2822,11 +2722,12 @@ export function ModelsPage() {
 }
 
 function clientId(): string {
-  return `advanced-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `code-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const ADVANCED_TAB_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.advancedTab;
-const ADVANCED_TABS = ['console', 'run', 'observe', 'operate', 'tui'];
+// The TMux/TUI console moved to the Code hero; a stale saved 'tui' tab falls back to 'console'.
+const ADVANCED_TABS = ['console', 'run', 'observe', 'operate'];
 
 function normalizeAdvancedTab(value: unknown): string {
   return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : 'console';
@@ -2857,8 +2758,6 @@ function saveAdvancedTab(tab: string): void {
 
 export function AdvancedPage() {
   const [tab, setTab] = useState(loadAdvancedTab);
-  const [controller, setController] = useState(false);
-  const client = useMemo(clientId, []);
   useEffect(() => {
     saveAdvancedTab(tab);
   }, [tab]);
@@ -2876,7 +2775,7 @@ export function AdvancedPage() {
         <div>
           <p className="eyebrow">Owner/Admin Operations</p>
           <h1>Advanced</h1>
-          <p>Operational dashboards, reporting, governance, TUI bridge, evals, automation, and raw diagnostics.</p>
+          <p>Operational dashboards, reporting, governance, evals, automation, and raw diagnostics.</p>
         </div>
       </div>
       <div className="advancedTabs">
@@ -2887,12 +2786,6 @@ export function AdvancedPage() {
         {tab === 'run' ? <RunPage /> : null}
         {tab === 'observe' ? <ObservePage /> : null}
         {tab === 'operate' ? <OperatePage /> : null}
-        {tab === 'tui' ? (
-          <div className="advancedPanel">
-            <button className="secondaryButton" type="button" onClick={() => setController(!controller)}>{controller ? 'Release Local Control' : 'Take Local Control'}</button>
-            <TuiTerminal clientId={client} controller={controller} />
-          </div>
-        ) : null}
       </Suspense>
     </section>
   );

@@ -16,7 +16,7 @@ const navItems: NavItem[] = [
   { key: 'chat', label: 'Chat', icon: 'actions/call-start-symbolic.svg', description: 'Autonomous command center' },
   { key: 'code', label: 'Code', icon: 'apps/utilities-terminal-symbolic.svg', description: 'Terminal, sessions, screenshots' },
   { key: 'research', label: 'Research', icon: 'actions/edit-find-symbolic.svg', description: 'Search and evidence' },
-  { key: 'create', label: 'Create', icon: 'actions/document-new-symbolic.svg', description: 'Creative studio' },
+  { key: 'create', label: 'Create', icon: 'actions/document-new-symbolic.svg', description: 'Image creation studio' },
   { key: 'models', label: 'Models', icon: 'categories/applications-science-symbolic.svg', description: 'LLM showcase' },
   { key: 'advanced', label: 'Advanced', icon: 'actions/document-properties-symbolic.svg', description: 'Owner/admin tools' }
 ];

@@ -1119,6 +1119,43 @@ button {
   color: #f4f4f4;
 }
 
+.codeTerminalSection {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer);
+}
+
+.codeTerminalHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.codeTerminalHeader span,
+.codeTerminalHeader small {
+  display: block;
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.codeTerminalHeader strong {
+  display: block;
+  margin: 3px 0;
+  color: var(--cds-text);
+  font-weight: 500;
+}
+
+.codeTerminalActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .codeOutputCard pre {
   max-height: 240px;
   overflow: auto;
@@ -1873,7 +1910,7 @@ button {
   resize: vertical;
 }
 
-.createSourceControls {
+.createModelDock {
   width: min(960px, 100%);
   display: flex;
   flex-wrap: wrap;
@@ -1884,9 +1921,10 @@ button {
   border: 1px solid rgba(255, 255, 255, .22);
   background: rgba(255, 255, 255, .94);
   color: var(--cds-text);
+  text-align: left;
 }
 
-.createSourceControls > span {
+.createModelDock > span {
   margin-right: auto;
   color: var(--cds-text-secondary);
   font-size: 12px;
@@ -1894,9 +1932,8 @@ button {
   text-transform: uppercase;
 }
 
-.createSourceControls .secondaryButton.active {
-  border-color: var(--cds-blue);
-  box-shadow: inset 0 -3px 0 var(--cds-blue);
+.createModelDock .field {
+  min-width: min(320px, 100%);
 }
 
 .createBriefDock {
@@ -3395,7 +3432,8 @@ button {
   .modelControls,
   .voiceConsole,
   .transcriptToolbar,
-  .codeOutputHeader {
+  .codeOutputHeader,
+  .codeTerminalHeader {
     grid-template-columns: 1fr;
   }
 
