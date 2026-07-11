@@ -1183,6 +1183,11 @@ button {
   background: var(--cds-layer);
 }
 
+.codeTerminalPrimary {
+  align-content: start;
+  background: #ffffff;
+}
+
 .codeTerminalHeader {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1210,6 +1215,261 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.codeTerminalActions select,
+.contextComposer select,
+.contextComposer input,
+.focusedReplyBar input {
+  min-height: 40px;
+  border: 1px solid var(--cds-border-subtle);
+  border-bottom: 2px solid var(--cds-border);
+  background: var(--cds-layer-02);
+  color: var(--cds-text);
+  padding: 0 10px;
+  min-width: 0;
+}
+
+.codeStatusStrip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer-02);
+}
+
+.codeStatusStrip span,
+.codeStatusStrip small,
+.codePanelHeader span,
+.codePanelHeader small,
+.contextTrayHeader span,
+.promptBundleHeader span,
+.contextPill span,
+.contextPill small,
+.changeCard span,
+.changeCard small,
+.approvalItem span,
+.approvalItem small,
+.workerMirror span,
+.workerMirror small,
+.evidenceItem span,
+.evidenceItem small {
+  display: block;
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.codeStatusStrip strong,
+.codePanelHeader strong,
+.contextTrayHeader strong,
+.promptBundleHeader strong,
+.contextPill strong,
+.changeCard strong,
+.approvalItem strong,
+.workerMirror strong,
+.evidenceItem strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cds-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codeTmuxEmbed {
+  min-width: 0;
+}
+
+.codeTmuxEmbed .terminalHost {
+  height: min(54vh, 520px);
+  min-height: 320px;
+}
+
+.focusedReplyBar {
+  display: grid;
+  grid-template-columns: minmax(180px, .38fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer-02);
+}
+
+.focusedReplyBar span {
+  display: block;
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.focusedReplyBar strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--cds-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codeIdeGrid {
+  grid-template-columns: minmax(300px, .85fr) minmax(320px, 1fr) minmax(320px, 1.05fr);
+  align-items: start;
+}
+
+.codeSupportPane {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.codeChangePanel,
+.approvalQueue,
+.workerMirrorPanel,
+.evidenceDock,
+.promptBundlePreview,
+.contextTray {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer);
+}
+
+.codePanelHeader,
+.promptBundleHeader,
+.workerMirrorHeader,
+.approvalItemHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.contextComposer {
+  display: grid;
+  grid-template-columns: minmax(96px, .44fr) repeat(3, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.contextTrayHeader {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--cds-border-subtle);
+}
+
+.contextPill,
+.changeCard,
+.approvalItem,
+.workerMirror,
+.evidenceItem {
+  min-width: 0;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer-02);
+}
+
+.contextPill {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) minmax(0, 1.1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.contextPill button,
+.evidenceItem button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cds-border-subtle);
+  background: #ffffff;
+  color: var(--cds-text);
+}
+
+.promptBundlePreview {
+  border-left: 4px solid var(--cds-blue);
+}
+
+.promptBundlePreview pre,
+.workerMirror pre,
+.approvalItem textarea {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--cds-border-subtle);
+  background: #161616;
+  color: #f4f4f4;
+  font: 12px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+}
+
+.promptBundlePreview pre,
+.workerMirror pre {
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+}
+
+.changeCard {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border-left: 4px solid var(--cds-blue);
+}
+
+.changeCard.conflict {
+  border-left-color: var(--cds-red);
+}
+
+.changeCard p {
+  margin: 0;
+  color: var(--cds-text-secondary);
+  line-height: 1.45;
+}
+
+.approvalItem,
+.workerMirror {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.approvalItem textarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: 10px;
+}
+
+.approvalItem > .secondaryButton {
+  justify-self: start;
+}
+
+.workerMirror {
+  border-left: 4px solid var(--cds-green);
+}
+
+.evidenceDock .codePanelHeader {
+  align-items: center;
+}
+
+.evidenceItem {
+  display: grid;
+  grid-template-columns: auto 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.evidenceItem small {
+  grid-column: 3;
+  text-transform: none;
 }
 
 .codeOutputCard pre {
@@ -3480,6 +3740,7 @@ button {
 
   .heroHeader,
   .twoColumn,
+  .codeIdeGrid,
   .searchLine,
   .createPrompt,
   .modelSpotlight,
@@ -3497,6 +3758,34 @@ button {
   .transcriptActions,
   .codeOutputActions {
     justify-content: flex-start;
+  }
+
+  .codeStatusStrip,
+  .focusedReplyBar,
+  .contextComposer,
+  .contextPill,
+  .codePanelHeader,
+  .promptBundleHeader,
+  .workerMirrorHeader,
+  .approvalItemHeader,
+  .evidenceItem {
+    grid-template-columns: 1fr;
+  }
+
+  .codeTerminalActions {
+    justify-content: flex-start;
+  }
+
+  .codeTerminalActions select,
+  .focusedReplyBar input,
+  .contextComposer select,
+  .contextComposer input {
+    width: 100%;
+  }
+
+  .codeTmuxEmbed .terminalHost {
+    height: 360px;
+    min-height: 260px;
   }
 
   .researchTeamHeader {

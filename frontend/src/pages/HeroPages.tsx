@@ -33,6 +33,8 @@ import {
   startCodeSession,
   uploadCodeAttachment
 } from '../api/v2';
+import { getMeCapabilities, getTmuxWorkspace } from '../api/generated/v2Client';
+import type { TmuxWorkspacePayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
@@ -70,6 +72,7 @@ const ObservePage = lazy(() => delayedAdvancedImport(() => import('./ObservePage
 const OperatePage = lazy(() => delayedAdvancedImport(() => import('./OperatePage')));
 const RunPage = lazy(() => delayedAdvancedImport(() => import('./RunPage')));
 const TuiTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TuiTerminal')));
+const TmuxTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TmuxTerminal')));
 
 export function CarbonIcon({ path, label }: { path: string; label: string }) {
   return <img className="carbonIcon" src={`${iconBase}/${path}`} alt="" title={label} aria-hidden="true" />;
@@ -1607,6 +1610,65 @@ type CodeActionRecord = {
   createdAt: string;
 };
 
+type CodeContextType = 'file' | 'diff' | 'image' | 'terminal';
+
+type CodeContextItem = {
+  id: string;
+  type: CodeContextType;
+  label: string;
+  detail: string;
+  source: string;
+  status: string;
+};
+
+type CodeApprovalKind = 'command' | 'edit' | 'test';
+
+type CodeApprovalItem = {
+  id: string;
+  kind: CodeApprovalKind;
+  title: string;
+  content: string;
+  status: 'queued' | 'approved' | 'running' | 'complete' | 'failed';
+  risk: string;
+  taskId: string;
+  result: string;
+};
+
+type CodeWorkerRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  sessionName: string;
+  status: string;
+  mirror: string;
+  promoted: boolean;
+};
+
+type CodeChangeCard = {
+  id: string;
+  taskId: string;
+  file: string;
+  kind: string;
+  summary: string;
+  lines: string;
+  status: string;
+  conflict: boolean;
+};
+
+type CodeEvidenceHighlight = {
+  id: string;
+  label: string;
+  target: 'terminal' | 'diff' | 'approval';
+  detail: string;
+};
+
+type CodePromptPreview = {
+  id: string;
+  prompt: string;
+  context: CodeContextItem[];
+  submitted: boolean;
+};
+
 type CodeWorkspaceState = {
   sessionName: string;
   projectDir: string;
@@ -1614,15 +1676,36 @@ type CodeWorkspaceState = {
   prompt: string;
   actions: CodeActionRecord[];
   attachments: CodeAttachment[];
+  contextItems: CodeContextItem[];
+  approvals: CodeApprovalItem[];
+  workers: CodeWorkerRecord[];
+  changeCards: CodeChangeCard[];
+  evidenceHighlights: CodeEvidenceHighlight[];
 };
 
 const CODE_WORKSPACE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.codeWorkspace;
 const CODE_ACTION_LIMIT = 20;
 const CODE_ATTACHMENT_LIMIT = 8;
 const CODE_ATTACHMENT_PREVIEW_LIMIT = 1_500_000;
+const CODE_CONTEXT_LIMIT = 12;
+const CODE_QUEUE_LIMIT = 12;
+const CODE_WORKER_LIMIT = 8;
+const CODE_CHANGE_CARD_LIMIT = 12;
 
 function emptyCodeWorkspace(): CodeWorkspaceState {
-  return { sessionName: '', projectDir: '', model: '', prompt: '', actions: [], attachments: [] };
+  return {
+    sessionName: '',
+    projectDir: '',
+    model: '',
+    prompt: '',
+    actions: [],
+    attachments: [],
+    contextItems: [],
+    approvals: [],
+    workers: [],
+    changeCards: [],
+    evidenceHighlights: [],
+  };
 }
 
 function normalizeCodeAction(value: unknown): CodeActionRecord | null {
@@ -1666,6 +1749,98 @@ function normalizeCodeAttachment(value: unknown): CodeAttachment | null {
   };
 }
 
+function normalizeContextType(value: unknown): CodeContextType {
+  return value === 'diff' || value === 'image' || value === 'terminal' ? value : 'file';
+}
+
+function normalizeCodeContextItem(value: unknown): CodeContextItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const label = asText(row.label);
+  if (!label) return null;
+  return {
+    id: asText(row.id, `context-${label}`),
+    type: normalizeContextType(row.type),
+    label,
+    detail: asText(row.detail),
+    source: asText(row.source),
+    status: asText(row.status, 'staged'),
+  };
+}
+
+function normalizeApprovalKind(value: unknown): CodeApprovalKind {
+  return value === 'edit' || value === 'test' ? value : 'command';
+}
+
+function normalizeApprovalStatus(value: unknown): CodeApprovalItem['status'] {
+  return value === 'approved' || value === 'running' || value === 'complete' || value === 'failed' ? value : 'queued';
+}
+
+function normalizeCodeApproval(value: unknown): CodeApprovalItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const content = asText(row.content);
+  const title = asText(row.title);
+  if (!content || !title) return null;
+  return {
+    id: asText(row.id, `approval-${title}`),
+    kind: normalizeApprovalKind(row.kind),
+    title,
+    content,
+    status: normalizeApprovalStatus(row.status),
+    risk: asText(row.risk, 'normal'),
+    taskId: asText(row.taskId, 'main'),
+    result: asText(row.result),
+  };
+}
+
+function normalizeCodeWorker(value: unknown): CodeWorkerRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const title = asText(row.title);
+  if (!title) return null;
+  return {
+    id: asText(row.id, `worker-${title}`),
+    taskId: asText(row.taskId, 'main'),
+    title,
+    sessionName: asText(row.sessionName),
+    status: asText(row.status, 'idle'),
+    mirror: asText(row.mirror),
+    promoted: Boolean(row.promoted),
+  };
+}
+
+function normalizeCodeChangeCard(value: unknown): CodeChangeCard | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const file = asText(row.file);
+  if (!file) return null;
+  return {
+    id: asText(row.id, `change-${file}`),
+    taskId: asText(row.taskId, 'main'),
+    file,
+    kind: asText(row.kind, 'modified'),
+    summary: asText(row.summary, 'Changed file'),
+    lines: asText(row.lines, 'n/a'),
+    status: asText(row.status, 'review'),
+    conflict: Boolean(row.conflict),
+  };
+}
+
+function normalizeEvidenceHighlight(value: unknown): CodeEvidenceHighlight | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const label = asText(row.label);
+  const target = row.target === 'diff' || row.target === 'approval' ? row.target : 'terminal';
+  if (!label) return null;
+  return {
+    id: asText(row.id, `evidence-${label}`),
+    label,
+    target,
+    detail: asText(row.detail),
+  };
+}
+
 function loadCodeWorkspace(): CodeWorkspaceState {
   if (typeof window === 'undefined') return emptyCodeWorkspace();
   try {
@@ -1685,6 +1860,21 @@ function loadCodeWorkspace(): CodeWorkspaceState {
       attachments: Array.isArray(row.attachments)
         ? row.attachments.map(normalizeCodeAttachment).filter((attachment): attachment is CodeAttachment => Boolean(attachment)).slice(0, CODE_ATTACHMENT_LIMIT)
         : [],
+      contextItems: Array.isArray(row.contextItems)
+        ? row.contextItems.map(normalizeCodeContextItem).filter((item): item is CodeContextItem => Boolean(item)).slice(0, CODE_CONTEXT_LIMIT)
+        : [],
+      approvals: Array.isArray(row.approvals)
+        ? row.approvals.map(normalizeCodeApproval).filter((item): item is CodeApprovalItem => Boolean(item)).slice(0, CODE_QUEUE_LIMIT)
+        : [],
+      workers: Array.isArray(row.workers)
+        ? row.workers.map(normalizeCodeWorker).filter((item): item is CodeWorkerRecord => Boolean(item)).slice(0, CODE_WORKER_LIMIT)
+        : [],
+      changeCards: Array.isArray(row.changeCards)
+        ? row.changeCards.map(normalizeCodeChangeCard).filter((item): item is CodeChangeCard => Boolean(item)).slice(0, CODE_CHANGE_CARD_LIMIT)
+        : [],
+      evidenceHighlights: Array.isArray(row.evidenceHighlights)
+        ? row.evidenceHighlights.map(normalizeEvidenceHighlight).filter((item): item is CodeEvidenceHighlight => Boolean(item)).slice(0, CODE_CONTEXT_LIMIT)
+        : [],
     };
   } catch {
     return emptyCodeWorkspace();
@@ -1698,7 +1888,12 @@ function hasCodeWorkspaceState(state: CodeWorkspaceState): boolean {
     state.model.trim() ||
     state.prompt.trim() ||
     state.actions.length ||
-    state.attachments.length
+    state.attachments.length ||
+    state.contextItems.length ||
+    state.approvals.length ||
+    state.workers.length ||
+    state.changeCards.length ||
+    state.evidenceHighlights.length
   );
 }
 
@@ -1713,6 +1908,11 @@ function saveCodeWorkspace(state: CodeWorkspaceState): void {
       ...state,
       actions: state.actions.slice(0, CODE_ACTION_LIMIT),
       attachments: state.attachments.slice(0, CODE_ATTACHMENT_LIMIT),
+      contextItems: state.contextItems.slice(0, CODE_CONTEXT_LIMIT),
+      approvals: state.approvals.slice(0, CODE_QUEUE_LIMIT),
+      workers: state.workers.slice(0, CODE_WORKER_LIMIT),
+      changeCards: state.changeCards.slice(0, CODE_CHANGE_CARD_LIMIT),
+      evidenceHighlights: state.evidenceHighlights.slice(0, CODE_CONTEXT_LIMIT),
     }));
   } catch {
     // Remote/private browser storage failures must not block coding work.
@@ -1778,6 +1978,10 @@ function codeBriefMarkdown({
   prompt,
   actions,
   attachments,
+  contextItems = [],
+  approvals = [],
+  workers = [],
+  changeCards = [],
 }: {
   sessionName: string;
   projectDir: string;
@@ -1785,6 +1989,10 @@ function codeBriefMarkdown({
   prompt: string;
   actions: CodeActionRecord[];
   attachments: CodeAttachment[];
+  contextItems?: CodeContextItem[];
+  approvals?: CodeApprovalItem[];
+  workers?: CodeWorkerRecord[];
+  changeCards?: CodeChangeCard[];
 }): string {
   const lines = [
     '# Code Brief',
@@ -1796,6 +2004,10 @@ function codeBriefMarkdown({
     `Pending Prompt: ${prompt.trim() || 'n/a'}`,
     `Actions: ${actions.length}`,
     `Attachments: ${attachments.length}`,
+    `Context Items: ${contextItems.length}`,
+    `Approvals: ${approvals.length}`,
+    `Workers: ${workers.length}`,
+    `Change Cards: ${changeCards.length}`,
     '',
     '## Attachments',
   ];
@@ -1810,6 +2022,38 @@ function codeBriefMarkdown({
         `   - Dimensions: ${attachment.width || '?'} x ${attachment.height || '?'}`,
         `   - SHA256: ${attachment.sha256}`,
       );
+    });
+  }
+  lines.push('', '## Context Tray');
+  if (!contextItems.length) {
+    lines.push('- No staged context.');
+  } else {
+    contextItems.forEach((item, index) => {
+      lines.push(`${index + 1}. [${contextTypeLabel(item.type)}] ${item.label} - ${item.detail || item.source || item.status}`);
+    });
+  }
+  lines.push('', '## Approval Queue');
+  if (!approvals.length) {
+    lines.push('- No queued approvals.');
+  } else {
+    approvals.forEach((item, index) => {
+      lines.push(`${index + 1}. ${item.title} [${item.status}] - ${item.kind} · ${item.risk}`);
+    });
+  }
+  lines.push('', '## Worker Mirrors');
+  if (!workers.length) {
+    lines.push('- No worker mirrors.');
+  } else {
+    workers.forEach((worker, index) => {
+      lines.push(`${index + 1}. ${worker.title} [${worker.status}] - ${worker.sessionName || 'n/a'}`);
+    });
+  }
+  lines.push('', '## Change Cards');
+  if (!changeCards.length) {
+    lines.push('- No change cards.');
+  } else {
+    changeCards.forEach((card, index) => {
+      lines.push(`${index + 1}. ${card.file} - ${card.summary} (${card.kind}, ${card.status})`);
     });
   }
   lines.push('', '## Actions');
@@ -1831,6 +2075,152 @@ function codeBriefMarkdown({
     });
   }
   return lines.join('\n');
+}
+
+function codeNowId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function contextTypeLabel(type: CodeContextType): string {
+  if (type === 'diff') return 'Diff';
+  if (type === 'image') return 'Image';
+  if (type === 'terminal') return 'Terminal';
+  return 'File';
+}
+
+function attachmentContextItem(attachment: CodeAttachment): CodeContextItem {
+  return {
+    id: `attachment:${attachment.id}`,
+    type: 'image',
+    label: attachment.filename,
+    detail: `${Math.round(attachment.size_bytes / 1024)} KB · ${attachment.width || '?'} x ${attachment.height || '?'}`,
+    source: attachment.sha256.slice(0, 12),
+    status: 'attached',
+  };
+}
+
+function uniqueCodeContext(items: CodeContextItem[]): CodeContextItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.type}:${item.label}:${item.source}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, CODE_CONTEXT_LIMIT);
+}
+
+function buildPromptBundle(prompt: string, context: CodeContextItem[]): string {
+  const lines = [
+    prompt.trim() || 'Continue the current Claude Code task.',
+    '',
+    'Context bundle:',
+  ];
+  if (!context.length) {
+    lines.push('- No explicit context selected.');
+  } else {
+    context.forEach((item, index) => {
+      lines.push(`${index + 1}. [${contextTypeLabel(item.type)}] ${item.label}`);
+      if (item.detail) lines.push(`   Detail: ${item.detail}`);
+      if (item.source) lines.push(`   Source: ${item.source}`);
+    });
+  }
+  return lines.join('\n');
+}
+
+function sessionValue(row: Record<string, unknown>, key: string): string {
+  return asText(row[key], '');
+}
+
+function dedupeTmuxSessions(rows: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const name = sessionValue(row, 'name') || sessionValue(row, 'display_name');
+    if (!name || seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+}
+
+function findSessionRow(rows: Array<Record<string, unknown>>, sessionName: string): Record<string, unknown> | undefined {
+  const clean = sessionName.trim();
+  if (!clean) return undefined;
+  return rows.find((row) => {
+    const name = sessionValue(row, 'name');
+    const display = sessionValue(row, 'display_name');
+    return name === clean || display === clean || name === `matts-${clean}` || display === `matts-${clean}`;
+  });
+}
+
+function parsedCodeStatus({
+  promptPreview,
+  approvals,
+  workers,
+  latestAction,
+  pending,
+  terminalController,
+}: {
+  promptPreview: CodePromptPreview | null;
+  approvals: CodeApprovalItem[];
+  workers: CodeWorkerRecord[];
+  latestAction?: CodeActionRecord;
+  pending: boolean;
+  terminalController: boolean;
+}): { state: string; task: string; waitingOn: string } {
+  const queued = approvals.filter((item) => item.status === 'queued');
+  const runningWorker = workers.find((item) => item.status === 'running');
+  if (promptPreview && !promptPreview.submitted) {
+    return { state: 'Waiting', task: 'Prompt bundle preview', waitingOn: 'Send or revise bundle' };
+  }
+  if (queued.length) {
+    return { state: 'Waiting', task: queued[0].title, waitingOn: 'Approval queue' };
+  }
+  if (pending || runningWorker) {
+    return { state: 'Running', task: runningWorker?.title || 'Claude Code action', waitingOn: 'Worker output' };
+  }
+  if (terminalController) {
+    return { state: 'Manual', task: 'Direct terminal control', waitingOn: 'User terminal input' };
+  }
+  return { state: latestAction ? latestAction.status : 'Ready', task: latestAction?.title || 'Claude Code session', waitingOn: 'No input needed' };
+}
+
+function taskChangeCardsForContext(context: CodeContextItem[], taskId: string): CodeChangeCard[] {
+  return context
+    .filter((item) => item.type === 'file' || item.type === 'diff')
+    .map((item) => ({
+      id: codeNowId('change'),
+      taskId,
+      file: item.label,
+      kind: item.type === 'diff' ? 'diff' : 'context',
+      summary: item.detail || `Included as ${contextTypeLabel(item.type).toLowerCase()} context`,
+      lines: item.source || 'selected context',
+      status: 'review',
+      conflict: false,
+    }));
+}
+
+function starterApprovalItems(taskId: string, bundle: string): CodeApprovalItem[] {
+  return [
+    {
+      id: codeNowId('approval'),
+      kind: 'command',
+      title: 'Submit Claude Code bundle',
+      content: bundle,
+      status: 'queued',
+      risk: 'normal',
+      taskId,
+      result: '',
+    },
+    {
+      id: codeNowId('approval'),
+      kind: 'test',
+      title: 'Run focused validation',
+      content: 'npm --prefix frontend run build',
+      status: 'queued',
+      risk: 'normal',
+      taskId,
+      result: '',
+    },
+  ];
 }
 
 export function ChatPage() {
@@ -2059,9 +2449,12 @@ async function fileToUploadPayload(file: File, sessionId: string): Promise<{ pay
 export function CodePage() {
   const queryClient = useQueryClient();
   const code = useQuery({ queryKey: ['code-payload'], queryFn: getCodePayload });
+  const capabilities = useQuery({ queryKey: ['code-capabilities'], queryFn: getMeCapabilities, retry: false });
+  const tmuxWorkspace = useQuery({ queryKey: ['code-tmux-workspace'], queryFn: getTmuxWorkspace, refetchInterval: 5000, retry: false });
   const models = useTextModels(code.data?.models);
   const defaults = code.data?.defaults || {};
   const restoredWorkspace = useMemo(loadCodeWorkspace, []);
+  const defaultWorkspaceLoaded = useRef(false);
   const [sessionName, setSessionName] = useState(restoredWorkspace.sessionName || asText(defaults.default_name, 'matts-code'));
   const [projectDir, setProjectDir] = useState(restoredWorkspace.projectDir || asText(defaults.default_project_dir, ''));
   const [model, setModel] = useState(restoredWorkspace.model);
@@ -2070,17 +2463,57 @@ export function CodePage() {
   const [outputStatus, setOutputStatus] = useState(restoredWorkspace.actions.length ? 'Restored' : 'Ready');
   const [copiedActionId, setCopiedActionId] = useState('');
   const [attachments, setAttachments] = useState<CodeAttachment[]>(restoredWorkspace.attachments);
+  const [contextItems, setContextItems] = useState<CodeContextItem[]>(restoredWorkspace.contextItems);
+  const [approvals, setApprovals] = useState<CodeApprovalItem[]>(restoredWorkspace.approvals);
+  const [workers, setWorkers] = useState<CodeWorkerRecord[]>(restoredWorkspace.workers);
+  const [changeCards, setChangeCards] = useState<CodeChangeCard[]>(restoredWorkspace.changeCards);
+  const [evidenceHighlights, setEvidenceHighlights] = useState<CodeEvidenceHighlight[]>(restoredWorkspace.evidenceHighlights);
+  const [promptPreview, setPromptPreview] = useState<CodePromptPreview | null>(null);
+  const [contextType, setContextType] = useState<CodeContextType>('file');
+  const [contextLabel, setContextLabel] = useState('');
+  const [contextDetail, setContextDetail] = useState('');
+  const [contextSource, setContextSource] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [selectedSession, setSelectedSession] = useState(restoredWorkspace.sessionName || '');
   const [attachmentError, setAttachmentError] = useState('');
-  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [tmuxAttachActive, setTmuxAttachActive] = useState(false);
+  const [proxyTuiOpen, setProxyTuiOpen] = useState(false);
   const [terminalController, setTerminalController] = useState(false);
   const terminalClient = useMemo(clientId, []);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const selectedModel = model || asText(defaults.default_model, models[0]?.id || '');
-  const hasCodeBrief = Boolean(actions.length || attachments.length);
-  const codeBrief = useMemo(() => codeBriefMarkdown({ sessionName, projectDir, model: selectedModel, prompt, actions, attachments }), [actions, attachments, projectDir, prompt, selectedModel, sessionName]);
+  const canControlTmux = capabilities.data?.capabilities['tmux.control']?.allowed ?? false;
+  const canControlTui = capabilities.data?.capabilities['tui.control']?.allowed ?? false;
+  const tmuxSessions = useMemo(
+    () => dedupeTmuxSessions([...(tmuxWorkspace.data?.sessions ?? []), ...(code.data?.sessions ?? [])]),
+    [code.data?.sessions, tmuxWorkspace.data?.sessions]
+  );
+  const activeSession = selectedSession || sessionName;
+  const activeSessionRow = findSessionRow(tmuxSessions, activeSession);
+  const visibleContext = useMemo(
+    () => uniqueCodeContext([...contextItems, ...attachments.map(attachmentContextItem)]),
+    [attachments, contextItems]
+  );
+  const hasCodeBrief = Boolean(actions.length || attachments.length || contextItems.length || approvals.length || workers.length || changeCards.length);
+  const codeBrief = useMemo(
+    () => codeBriefMarkdown({ sessionName, projectDir, model: selectedModel, prompt, actions, attachments, contextItems, approvals, workers, changeCards }),
+    [actions, approvals, attachments, changeCards, contextItems, projectDir, prompt, selectedModel, sessionName, workers]
+  );
   useEffect(() => {
-    saveCodeWorkspace({ sessionName, projectDir, model, prompt, actions, attachments });
-  }, [sessionName, projectDir, model, prompt, actions, attachments]);
+    if (defaultWorkspaceLoaded.current || restoredWorkspace.sessionName || !code.data?.defaults) return;
+    const nextDefaults = code.data.defaults;
+    setSessionName(asText(nextDefaults.default_name, sessionName || 'matts-code'));
+    setSelectedSession(asText(nextDefaults.default_name, sessionName || 'matts-code'));
+    setProjectDir(asText(nextDefaults.default_project_dir, projectDir));
+    if (!model) setModel(asText(nextDefaults.default_model, ''));
+    defaultWorkspaceLoaded.current = true;
+  }, [code.data?.defaults, model, projectDir, restoredWorkspace.sessionName, sessionName]);
+  useEffect(() => {
+    saveCodeWorkspace({ sessionName, projectDir, model, prompt, actions, attachments, contextItems, approvals, workers, changeCards, evidenceHighlights });
+  }, [sessionName, projectDir, model, prompt, actions, attachments, contextItems, approvals, workers, changeCards, evidenceHighlights]);
+  useEffect(() => {
+    if (!selectedSession && sessionName) setSelectedSession(sessionName);
+  }, [selectedSession, sessionName]);
   const addAction = (kind: 'start' | 'send' | 'review', payload: unknown, actionPrompt = prompt) => {
     setActions((current) => [summarizeCodeAction(kind, payload, sessionName, actionPrompt), ...current]);
     setOutputStatus('Updated');
@@ -2133,14 +2566,59 @@ export function CodePage() {
     mutationFn: () => startCodeSession({ name: sessionName, project_dir: projectDir, model: selectedModel, permission_mode: 'bypassPermissions', run_mode: 'interactive' }),
     onSuccess: (payload) => {
       addAction('start', payload);
+      const nextSession = asText((payload as Record<string, unknown>).name, sessionName);
+      if (nextSession) {
+        setSessionName(nextSession);
+        setSelectedSession(nextSession);
+        setTmuxAttachActive(true);
+      }
+      setWorkers((current) => [{
+        id: codeNowId('worker'),
+        taskId: 'session',
+        title: 'Claude Code session',
+        sessionName: nextSession || sessionName,
+        status: 'attached',
+        mirror: 'Session started and ready for prompt bundles.',
+        promoted: true,
+      }, ...current].slice(0, CODE_WORKER_LIMIT));
       queryClient.invalidateQueries({ queryKey: ['code-payload'] });
+      queryClient.invalidateQueries({ queryKey: ['code-tmux-workspace'] });
     }
   });
+  type SendCodeVariables = { text: string; actionPrompt: string; clearPrompt?: boolean; workerId?: string; approvalId?: string; previewId?: string };
   const sendMutation = useMutation({
-    mutationFn: () => sendCodeSession({ name: sessionName, text: prompt, enter: true }),
-    onSuccess: (payload) => {
-      addAction('send', payload, prompt);
-      setPrompt('');
+    mutationFn: (values: SendCodeVariables) => sendCodeSession({ name: activeSession || sessionName, text: values.text, enter: true }),
+    onSuccess: (payload, values) => {
+      addAction('send', payload, values.actionPrompt);
+      if (values.clearPrompt) setPrompt('');
+      if (values.previewId) setPromptPreview(null);
+      if (values.workerId) {
+        setWorkers((current) => current.map((worker) => worker.id === values.workerId
+          ? { ...worker, status: 'complete', mirror: `${worker.mirror}\n\nDelivered to Claude Code at ${new Date().toLocaleTimeString()}.` }
+          : worker
+        ));
+      }
+      if (values.approvalId) {
+        setApprovals((current) => current.map((item) => item.id === values.approvalId
+          ? { ...item, status: 'complete', result: 'Delivered to Claude Code.' }
+          : item
+        ));
+      }
+      queryClient.invalidateQueries({ queryKey: ['code-tmux-workspace'] });
+    },
+    onError: (error, values) => {
+      if (values.workerId) {
+        setWorkers((current) => current.map((worker) => worker.id === values.workerId
+          ? { ...worker, status: 'failed', mirror: `${worker.mirror}\n\n${errorText(error)}` }
+          : worker
+        ));
+      }
+      if (values.approvalId) {
+        setApprovals((current) => current.map((item) => item.id === values.approvalId
+          ? { ...item, status: 'failed', result: errorText(error) }
+          : item
+        ));
+      }
     }
   });
   const reviewMutation = useMutation({
@@ -2151,15 +2629,107 @@ export function CodePage() {
     }
   });
   const canSendCode = Boolean(prompt.trim()) && !sendMutation.isPending;
-  const sendCodeToTmux = () => {
+  const openPromptPreview = () => {
     if (!canSendCode) return;
-    sendMutation.mutate();
+    setPromptPreview({ id: codeNowId('preview'), prompt, context: visibleContext, submitted: false });
+    setOutputStatus('Preview ready');
+  };
+  const submitPromptPreview = (preview: CodePromptPreview) => {
+    const bundle = buildPromptBundle(preview.prompt, preview.context);
+    const workerId = codeNowId('worker');
+    setPromptPreview({ ...preview, submitted: true });
+    setWorkers((current) => [{
+      id: workerId,
+      taskId: preview.id,
+      title: 'Claude Code prompt bundle',
+      sessionName: activeSession || sessionName,
+      status: 'running',
+      mirror: `Submitting prompt bundle through the Claude Code tmux session.\n\n${bundle}`,
+      promoted: false,
+    }, ...current].slice(0, CODE_WORKER_LIMIT));
+    setChangeCards((current) => [...taskChangeCardsForContext(preview.context, preview.id), ...current].slice(0, CODE_CHANGE_CARD_LIMIT));
+    setEvidenceHighlights((current) => [{
+      id: codeNowId('evidence'),
+      label: 'Prompt bundle submitted',
+      target: 'terminal' as const,
+      detail: activeSession || sessionName,
+    }, ...current].slice(0, CODE_CONTEXT_LIMIT));
+    setTmuxAttachActive(true);
+    sendMutation.mutate({ text: bundle, actionPrompt: preview.prompt, clearPrompt: true, workerId, previewId: preview.id });
+  };
+  const queuePromptPreview = (preview: CodePromptPreview) => {
+    const bundle = buildPromptBundle(preview.prompt, preview.context);
+    setApprovals((current) => [...starterApprovalItems(preview.id, bundle), ...current].slice(0, CODE_QUEUE_LIMIT));
+    setChangeCards((current) => [...taskChangeCardsForContext(preview.context, preview.id), ...current].slice(0, CODE_CHANGE_CARD_LIMIT));
+    setPromptPreview(null);
+    setOutputStatus('Queued');
   };
   const handleCodeComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey) || event.nativeEvent.isComposing) return;
     if (!canSendCode) return;
     event.preventDefault();
-    sendMutation.mutate();
+    openPromptPreview();
+  };
+  const sendFocusedReply = () => {
+    const text = replyText.trim();
+    if (!text || sendMutation.isPending) return;
+    const workerId = codeNowId('worker');
+    setWorkers((current) => [{
+      id: workerId,
+      taskId: 'reply',
+      title: 'Focused reply',
+      sessionName: activeSession || sessionName,
+      status: 'running',
+      mirror: `Reply sent through web controls.\n\n${text}`,
+      promoted: false,
+    }, ...current].slice(0, CODE_WORKER_LIMIT));
+    sendMutation.mutate({ text, actionPrompt: text, clearPrompt: false, workerId });
+    setReplyText('');
+    setTmuxAttachActive(true);
+  };
+  const addManualContext = () => {
+    const label = contextLabel.trim();
+    if (!label) return;
+    setContextItems((current) => uniqueCodeContext([{
+      id: codeNowId('context'),
+      type: contextType,
+      label,
+      detail: contextDetail.trim(),
+      source: contextSource.trim(),
+      status: 'staged',
+    }, ...current]));
+    setContextLabel('');
+    setContextDetail('');
+    setContextSource('');
+  };
+  const removeContextItem = (id: string) => {
+    setContextItems((current) => current.filter((item) => item.id !== id));
+  };
+  const updateApproval = (id: string, content: string) => {
+    setApprovals((current) => current.map((item) => item.id === id ? { ...item, content } : item));
+  };
+  const approveQueuedAction = (item: CodeApprovalItem) => {
+    const workerId = codeNowId('worker');
+    setApprovals((current) => current.map((row) => row.id === item.id ? { ...row, status: 'running' } : row));
+    setWorkers((current) => [{
+      id: workerId,
+      taskId: item.taskId,
+      title: item.title,
+      sessionName: activeSession || sessionName,
+      status: 'running',
+      mirror: `Approval queue item executing in worker mirror.\n\n${item.content}`,
+      promoted: false,
+    }, ...current].slice(0, CODE_WORKER_LIMIT));
+    sendMutation.mutate({ text: item.content, actionPrompt: item.content, workerId, approvalId: item.id });
+    setTmuxAttachActive(true);
+  };
+  const rejectQueuedAction = (id: string) => {
+    setApprovals((current) => current.filter((item) => item.id !== id));
+  };
+  const promoteWorker = (id: string) => {
+    setWorkers((current) => current.map((worker) => worker.id === id ? { ...worker, promoted: true, status: worker.status === 'running' ? 'promoted' : worker.status } : worker));
+    setTmuxAttachActive(true);
+    setTerminalController(true);
   };
   const removeAttachment = async (attachment: CodeAttachment) => {
     setAttachmentError('');
@@ -2191,13 +2761,21 @@ export function CodePage() {
     event.preventDefault();
     void handleFiles(event.dataTransfer.files);
   };
+  const parsedStatus = parsedCodeStatus({
+    promptPreview,
+    approvals,
+    workers,
+    latestAction: actions[0],
+    pending: startMutation.isPending || sendMutation.isPending || reviewMutation.isPending,
+    terminalController,
+  });
   return (
     <section className="heroWorkspace codeHero" onDrop={drop} onDragOver={(event) => event.preventDefault()}>
       <div className="heroHeader">
         <div>
-          <p className="eyebrow">Repository + Terminal + Vision Input</p>
+          <p className="eyebrow">Terminal-First IDE</p>
           <h1>Code</h1>
-          <p>Start coding sessions, send terminal input, drive the TMux console, and attach screenshots/images for direct model review.</p>
+          <p>Embedded Claude Code in TMux with prompt bundles, staged context, approvals, worker mirrors, and live repo impact beside the terminal.</p>
         </div>
         <button className="secondaryButton" type="button" onClick={() => fileInput.current?.click()}>
           <CarbonIcon path="actions/document-open-symbolic.svg" label="Attach" />
@@ -2205,30 +2783,58 @@ export function CodePage() {
         </button>
       </div>
       <input ref={fileInput} type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files && void handleFiles(event.target.files)} />
-      <div className="codeTerminalSection" data-testid="code-tui-section">
+      <div className="codeTerminalSection codeTerminalPrimary" data-testid="code-tui-section">
         <div className="codeTerminalHeader">
           <div>
-            <span>TMux Console</span>
-            <strong>MDE LLM-PROXY TUI bridge</strong>
-            <small>{terminalOpen ? (terminalController ? 'Local control active' : 'Read-only view') : 'Console hidden'}</small>
+            <span>Embedded Claude Code TMux</span>
+            <strong>{activeSessionRow ? asText(activeSessionRow.display_name || activeSessionRow.name) : activeSession || 'No session selected'}</strong>
+            <small>{tmuxAttachActive ? (terminalController ? 'Direct terminal control' : 'Worker mirror attached') : 'Ready to attach'} · {canControlTmux ? 'tmux.control allowed' : 'tmux.control unavailable'}</small>
           </div>
           <div className="codeTerminalActions">
-            {terminalOpen ? (
-              <button className="secondaryButton" type="button" onClick={() => setTerminalController(!terminalController)}>{terminalController ? 'Release Local Control' : 'Take Local Control'}</button>
-            ) : null}
-            <button className="secondaryButton" type="button" aria-expanded={terminalOpen} data-testid="code-tui-toggle" onClick={() => setTerminalOpen(!terminalOpen)}>{terminalOpen ? 'Hide TMux' : 'Open TMux Console'}</button>
+            <select value={activeSession} aria-label="Recent sessions" onChange={(event) => { setSelectedSession(event.target.value); setTmuxAttachActive(false); }}>
+              <option value={sessionName}>{sessionName || 'Current session'}</option>
+              {tmuxSessions.map((session) => {
+                const name = asText(session.name);
+                return name && name !== sessionName ? <option key={name} value={name}>{asText(session.display_name || session.name)}</option> : null;
+              })}
+            </select>
+            <button className="secondaryButton" type="button" onClick={() => setTmuxAttachActive(true)} disabled={!activeSession || !canControlTmux}>Attach</button>
+            <button className="secondaryButton" type="button" onClick={() => setTerminalController(!terminalController)}>{terminalController ? 'Release Control' : 'Take Terminal Control'}</button>
+            <button className="secondaryButton" type="button" aria-expanded={proxyTuiOpen} data-testid="code-tui-toggle" onClick={() => setProxyTuiOpen(true)}>Open Proxy TUI</button>
           </div>
         </div>
-        {terminalOpen ? (
+        <div className="codeStatusStrip" data-testid="code-status-strip">
+          <span>{parsedStatus.state}</span>
+          <strong>{parsedStatus.task}</strong>
+          <small>{parsedStatus.waitingOn}</small>
+          {tmuxWorkspace.error ? <small>{errorText(tmuxWorkspace.error)}</small> : null}
+        </div>
+        <div className="codeTmuxEmbed" data-testid="code-embedded-tmux">
+          <Suspense fallback={<AdvancedLoading label="tmux terminal" />}>
+            <TmuxTerminal active={tmuxAttachActive} canControl={canControlTmux} sessionName={activeSession} workspace={tmuxWorkspace.data as TmuxWorkspacePayload | undefined} />
+          </Suspense>
+        </div>
+        <div className="focusedReplyBar" data-testid="code-focused-reply">
+          <div>
+            <span>Focused Reply</span>
+            <strong>{parsedStatus.waitingOn === 'No input needed' ? 'Ready for Claude Code input' : parsedStatus.waitingOn}</strong>
+          </div>
+          <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => {
+            if (event.key === 'Enter') sendFocusedReply();
+          }} placeholder="Reply to the active Claude Code prompt" />
+          <button className="secondaryButton" type="button" onClick={sendFocusedReply} disabled={!replyText.trim() || sendMutation.isPending}>Send Reply</button>
+        </div>
+        {proxyTuiOpen ? (
           <Suspense fallback={<AdvancedLoading label="terminal" />}>
-            <TuiTerminal clientId={terminalClient} controller={terminalController} />
+            <TuiTerminal clientId={terminalClient} controller={terminalController && canControlTui} />
           </Suspense>
         ) : null}
       </div>
-      <div className="workspaceGrid twoColumn">
+      <div className="workspaceGrid codeIdeGrid">
         <div className="composerPanel">
           {code.isLoading ? <StatusPanel tone="loading" title="Loading code workspace" /> : null}
           {code.error ? <StatusPanel tone="error" title="Code API unavailable" detail={errorText(code.error)} /> : null}
+          {capabilities.error ? <StatusPanel tone="error" title="Capability check failed" detail={errorText(capabilities.error)} /> : null}
           {attachmentError ? <StatusPanel tone="error" title="Image upload failed" detail={attachmentError} /> : null}
           {startMutation.error ? <StatusPanel tone="error" title="Session start failed" detail={errorText(startMutation.error)} /> : null}
           {sendMutation.error ? <StatusPanel tone="error" title="Tmux send failed" detail={errorText(sendMutation.error)} /> : null}
@@ -2239,6 +2845,31 @@ export function CodePage() {
           </div>
           <ModelSelect models={models} value={selectedModel} onChange={setModel} />
           <textarea className="xlInput" value={prompt} onPaste={paste} onKeyDown={handleCodeComposerKeyDown} onChange={(event) => setPrompt(event.target.value)} placeholder="Describe the coding task or ask the model to review the attached screenshot." />
+          <div className="contextComposer" data-testid="code-context-composer">
+            <select value={contextType} onChange={(event) => setContextType(normalizeContextType(event.target.value))} aria-label="Context type">
+              <option value="file">File</option>
+              <option value="diff">Diff</option>
+              <option value="terminal">Terminal</option>
+            </select>
+            <input value={contextLabel} onChange={(event) => setContextLabel(event.target.value)} placeholder="Path, diff, or terminal label" />
+            <input value={contextDetail} onChange={(event) => setContextDetail(event.target.value)} placeholder="Reason or line range" />
+            <input value={contextSource} onChange={(event) => setContextSource(event.target.value)} placeholder="Source" />
+            <button className="secondaryButton" type="button" onClick={addManualContext} disabled={!contextLabel.trim()}>Add Context</button>
+          </div>
+          <div className="contextTray" data-testid="code-context-tray">
+            <div className="contextTrayHeader">
+              <span>Context Tray</span>
+              <strong>{visibleContext.length} item{visibleContext.length === 1 ? '' : 's'} staged</strong>
+            </div>
+            {visibleContext.length ? visibleContext.map((item) => (
+              <article className="contextPill" key={item.id}>
+                <span>{contextTypeLabel(item.type)}</span>
+                <strong>{item.label}</strong>
+                <small>{[item.detail, item.source].filter(Boolean).join(' · ') || item.status}</small>
+                {!item.id.startsWith('attachment:') ? <button type="button" onClick={() => removeContextItem(item.id)} aria-label={`Remove ${item.label}`}>x</button> : null}
+              </article>
+            )) : <div className="attachmentDropHint">No staged context.</div>}
+          </div>
           {attachments.length ? (
             <div className="attachmentTray" aria-label="Code image attachments">
               <div className="attachmentTrayHeader">
@@ -2258,10 +2889,107 @@ export function CodePage() {
               ))}
             </div>
           ) : <div className="attachmentDropHint">Paste, drop, or attach screenshots for model review.</div>}
+          {promptPreview ? (
+            <div className="promptBundlePreview" data-testid="code-prompt-preview">
+              <div className="promptBundleHeader">
+                <div>
+                  <span>Prompt Bundle Preview</span>
+                  <strong>{promptPreview.context.length} context item{promptPreview.context.length === 1 ? '' : 's'}</strong>
+                </div>
+                <button className="secondaryButton" type="button" onClick={() => setPromptPreview(null)}>Close</button>
+              </div>
+              <pre>{buildPromptBundle(promptPreview.prompt, promptPreview.context)}</pre>
+              <div className="buttonRow">
+                <button className="primaryButton" type="button" onClick={() => submitPromptPreview(promptPreview)} disabled={sendMutation.isPending}>Send Bundle</button>
+                <button className="secondaryButton" type="button" onClick={() => queuePromptPreview(promptPreview)}>Queue For Approval</button>
+              </div>
+            </div>
+          ) : null}
           <div className="buttonRow">
             <button className="secondaryButton" type="button" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>Start Session</button>
-            <button className="secondaryButton" type="button" onClick={sendCodeToTmux} disabled={!canSendCode}>Send To Tmux</button>
+            <button className="secondaryButton" type="button" onClick={openPromptPreview} disabled={!canSendCode}>Send To Tmux</button>
             <button className="primaryButton" type="button" onClick={() => reviewMutation.mutate()} disabled={!attachments.length || reviewMutation.isPending}>Ask Model To Review Image</button>
+          </div>
+        </div>
+        <div className="codeSupportPane">
+          <div className="codeChangePanel" data-testid="code-change-cards">
+            <div className="codePanelHeader">
+              <div>
+                <span>Live Files & Diffs</span>
+                <strong>{changeCards.length} change card{changeCards.length === 1 ? '' : 's'}</strong>
+              </div>
+              <small>Grouped by task</small>
+            </div>
+            {changeCards.length ? changeCards.map((card) => (
+              <article className={`changeCard ${card.conflict ? 'conflict' : ''}`} key={card.id}>
+                <span>{card.taskId}</span>
+                <strong>{card.file}</strong>
+                <p>{card.summary}</p>
+                <small>{card.kind} · {card.lines} · {card.status}{card.conflict ? ' · conflict' : ''}</small>
+              </article>
+            )) : <div className="emptyState">Changed files and selected diffs will appear as task cards.</div>}
+          </div>
+          <div className="approvalQueue" data-testid="code-approval-queue">
+            <div className="codePanelHeader">
+              <div>
+                <span>Approval Queue</span>
+                <strong>{approvals.length} item{approvals.length === 1 ? '' : 's'}</strong>
+              </div>
+              <small>Commands, edits, tests</small>
+            </div>
+            {approvals.length ? approvals.map((item) => (
+              <article className="approvalItem" key={item.id}>
+                <div className="approvalItemHeader">
+                  <div>
+                    <span>{item.kind} · {item.risk}</span>
+                    <strong>{item.title}</strong>
+                    <small>{item.status}{item.result ? ` · ${item.result}` : ''}</small>
+                  </div>
+                  <button className="secondaryButton" type="button" onClick={() => rejectQueuedAction(item.id)}>Reject</button>
+                </div>
+                <textarea value={item.content} onChange={(event) => updateApproval(item.id, event.target.value)} />
+                <button className="secondaryButton" type="button" onClick={() => approveQueuedAction(item)} disabled={sendMutation.isPending || item.status === 'running'}>{item.status === 'running' ? 'Running' : 'Approve'}</button>
+              </article>
+            )) : <div className="emptyState">Queued actions will collect here before execution.</div>}
+          </div>
+          <div className="workerMirrorPanel" data-testid="code-worker-mirrors">
+            <div className="codePanelHeader">
+              <div>
+                <span>Worker Mirrors</span>
+                <strong>{workers.length} worker{workers.length === 1 ? '' : 's'}</strong>
+              </div>
+              <small>Main + workers</small>
+            </div>
+            {workers.length ? workers.map((worker) => (
+              <article className="workerMirror" key={worker.id}>
+                <div className="workerMirrorHeader">
+                  <div>
+                    <span>{worker.status}</span>
+                    <strong>{worker.title}</strong>
+                    <small>{worker.sessionName || activeSession}</small>
+                  </div>
+                  <button className="secondaryButton" type="button" onClick={() => promoteWorker(worker.id)}>{worker.promoted ? 'Promoted' : 'Promote'}</button>
+                </div>
+                <pre>{worker.mirror}</pre>
+              </article>
+            )) : <div className="emptyState">Background worker output will mirror here.</div>}
+          </div>
+          <div className="evidenceDock" data-testid="code-evidence-dock">
+            <div className="codePanelHeader">
+              <div>
+                <span>Evidence</span>
+                <strong>{evidenceHighlights.length} highlight{evidenceHighlights.length === 1 ? '' : 's'}</strong>
+              </div>
+              <button className="secondaryButton" type="button" onClick={() => setEvidenceHighlights([])} disabled={!evidenceHighlights.length}>Clear All</button>
+            </div>
+            {evidenceHighlights.length ? evidenceHighlights.map((item) => (
+              <article className="evidenceItem" key={item.id}>
+                <button type="button" onClick={() => setEvidenceHighlights((current) => current.filter((row) => row.id !== item.id))}>x</button>
+                <span>{item.target}</span>
+                <strong>{item.label}</strong>
+                <small>{item.detail}</small>
+              </article>
+            )) : <div className="emptyState">Pinned evidence appears here until dismissed.</div>}
           </div>
         </div>
         <div className="codeOutputConsole" aria-label="Code command output">

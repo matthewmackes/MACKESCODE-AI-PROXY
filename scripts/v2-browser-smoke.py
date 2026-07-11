@@ -1240,7 +1240,7 @@ def run_browser_smoke(base_url: str) -> None:
         )
         with page.expect_response(lambda response: "/v2/code/attachments" in response.url and response.status == 200):
             page.locator('input[type="file"]').set_input_files(str(image_path))
-        expect(page.get_by_text("v2-smoke-image.png")).to_be_visible()
+        expect(page.locator(".attachmentCard").get_by_text("v2-smoke-image.png")).to_be_visible()
         expect(page.locator(".attachmentCard img")).to_have_count(1)
         expect(page.locator(".attachmentCard")).to_contain_text("1 x 1")
         expect(page.locator(".attachmentCard").get_by_role("button", name="Remove")).to_be_visible()
@@ -1252,9 +1252,13 @@ def run_browser_smoke(base_url: str) -> None:
             page.get_by_role("button", name="Start Session", exact=True).click()
         expect(page.locator(".codeOutputConsole")).to_contain_text("Session started")
         expect(page.locator(".codeOutputConsole")).to_contain_text("smoke-code")
+        page.locator(".codeHero .xlInput").press("Control+Enter")
+        expect(page.get_by_test_id("code-prompt-preview")).to_contain_text("Prompt Bundle Preview")
+        expect(page.get_by_test_id("code-context-tray")).to_contain_text("v2-smoke-image.png")
         with page.expect_response(lambda response: "/v2/code/sessions/send" in response.url and response.status == 200):
-            page.locator(".codeHero .xlInput").press("Control+Enter")
+            page.get_by_test_id("code-prompt-preview").get_by_role("button", name="Send Bundle").click()
         expect(page.locator(".codeOutputConsole")).to_contain_text("Sent to tmux")
+        expect(page.get_by_test_id("code-worker-mirrors")).to_contain_text("Claude Code prompt bundle")
         page.locator(".codeHero .xlInput").fill("review smoke screenshot")
         with page.expect_response(lambda response: "/v2/code/review" in response.url and response.status == 200):
             page.get_by_role("button", name="Ask Model To Review Image", exact=True).click()
@@ -1269,7 +1273,7 @@ def run_browser_smoke(base_url: str) -> None:
         hero_nav.get_by_role("button", name="Code", exact=True).click()
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
         expect(page.locator(".codeHero .xlInput")).to_have_value("follow up after screenshot review")
-        expect(page.get_by_text("v2-smoke-image.png")).to_be_visible()
+        expect(page.locator(".attachmentCard").get_by_text("v2-smoke-image.png")).to_be_visible()
         expect(page.locator(".attachmentCard img")).to_have_count(1)
         expect(page.locator(".codeOutputConsole")).to_contain_text("Restored")
         expect(page.locator(".codeOutputConsole")).to_contain_text("Image review response")
