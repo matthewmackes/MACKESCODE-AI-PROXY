@@ -115,12 +115,21 @@ class SessionService:
             parts = line.split("\t")
             if len(parts) < 5:
                 continue
+            try:
+                attached_clients = int(parts[3] or 0)
+            except ValueError:
+                attached_clients = 0
+            try:
+                windows = int(parts[4] or 0)
+            except ValueError:
+                windows = 0
             rows[parts[0]] = {
                 "name": parts[0],
                 "created_at": float(parts[1] or 0),
                 "last_activity_at": float(parts[2] or 0),
-                "attached": str(parts[3]) == "1",
-                "windows": int(parts[4] or 0),
+                "attached": attached_clients > 0,
+                "attached_clients": attached_clients,
+                "windows": windows,
             }
         return rows
 
@@ -138,7 +147,8 @@ class SessionService:
                 "live": True,
                 "created_at": record.get("created_at") or live.get("created_at") or now,
                 "last_activity_at": live.get("last_activity_at") or now,
-                "attached": live.get("attached"),
+                "attached": bool(live.get("attached")),
+                "attached_clients": int(live.get("attached_clients") or 0),
                 "windows": live.get("windows"),
                 "updated_at": now,
             })
@@ -148,6 +158,8 @@ class SessionService:
                 continue
             if name not in live_rows:
                 record["live"] = False
+                record["attached"] = False
+                record["attached_clients"] = 0
                 record.setdefault("stopped_at", record.get("updated_at") or now)
         self.write_registry(registry)
 

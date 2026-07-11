@@ -730,7 +730,7 @@ button {
 
 .authDialogHeader {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
 }
@@ -752,6 +752,13 @@ button {
   margin: 3px 0 0;
   font-size: 28px;
   font-weight: 400;
+}
+
+.authDialogDetail {
+  margin: -4px 0 0;
+  color: var(--cds-text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .authTokenField input {

@@ -1,6 +1,6 @@
 [Unit]
 Description=MDE LLM-PROXY V2 React Console
-Documentation=https://github.com/user/matts-value-set-proxy
+Documentation=https://github.com/matthewmackes/MACKESCODE-AI-PROXY
 After=network.target matts-value-set-proxy.service
 Wants=network.target matts-value-set-proxy.service
 
@@ -10,6 +10,7 @@ User=matts
 Group=matts
 WorkingDirectory=/var/lib/matts-value-set
 EnvironmentFile=/etc/matts-value-set/environment.conf
+Environment=PYTHONPATH=/usr/lib/matts-value-set/vendor/python:/usr/lib/matts-value-set
 ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/matts-v2-console.py \
   --host 0.0.0.0 \
   --port 18182

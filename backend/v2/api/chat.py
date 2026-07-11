@@ -42,7 +42,7 @@ if router:
         token: Optional[str] = Query(default=None),
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
-        _require(identity, "chat.use")
+        _require(identity, "console.view")
         models = [model for model in showcase_service.payload()["models"] if model.get("type") == "text" and model.get("route_enabled")]
         return {
             "models": models,

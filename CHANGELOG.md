@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0 — Release RPM and Chat permission fix (2026-07-11)
+
+- Fixed V2 Chat RBAC so view-only users can load the Chat workspace while model
+  execution still requires `model_use`.
+- Added a dismissible sign-in escalation flow for Chat model-use permission.
+- Added a repeatable RPM build script that vendors pure-Python runtime
+  dependencies and rejects native `.so` extensions to keep the package `noarch`.
+- Updated systemd units to import the packaged vendor runtime and refreshed RPM
+  metadata for the public release.
+- Closed the Operate operator-handoff ledger for the v2.0.0 release policy,
+  packaging acceptance, brand decision, and retired survey-answer work.
+
 ## Unreleased — Platform review hardening (2026-07-11)
 
 Security and reliability fixes from the comprehensive architecture/UX review

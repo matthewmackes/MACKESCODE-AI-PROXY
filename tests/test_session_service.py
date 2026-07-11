@@ -49,7 +49,7 @@ class SessionServiceTests(unittest.TestCase):
             self.assertEqual(service.unique_name("work", reserved={"work-3"}), "work-4")
 
     def test_upsert_and_session_items_enrich_live_rows(self):
-        live = "work\t900\t980\t0\t1\n"
+        live = "work\t900\t980\t2\t1\n"
         with tempfile.TemporaryDirectory() as tmp:
             class Monitor:
                 def summarize(self, name, project_dir="", idle_seconds=0, panes=None):
@@ -62,9 +62,22 @@ class SessionServiceTests(unittest.TestCase):
         self.assertEqual(item["model_display"], "Model A")
         self.assertEqual(item["status"], "live")
         self.assertFalse(item["read_only"])
+        self.assertTrue(item["attached"])
+        self.assertEqual(item["attached_clients"], 2)
         self.assertEqual(item["imported_context"]["number"], 42)
         self.assertEqual(item["resource_metrics"]["cpu_percent"], 12.5)
         self.assertEqual(item["resource_warnings"][0]["code"], "stale_session")
+
+    def test_dead_registry_session_clears_stale_attached_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp, live_output="", now=1000)
+            service.write_registry({"old": {"name": "old", "live": True, "attached": True, "updated_at": 900}})
+            item = service.session_items()[0]
+
+        self.assertFalse(item["live"])
+        self.assertFalse(item["attached"])
+        self.assertEqual(item["attached_clients"], 0)
+        self.assertEqual(item["status"], "previous")
 
     def test_previous_session_rename_is_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:

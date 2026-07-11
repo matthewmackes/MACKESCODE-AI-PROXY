@@ -1,6 +1,6 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, HomeSummary, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
+import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, HomeSummary, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
 import { getModels, getWhatsNew } from './api/v2';
 import { getOperate, OperatePayload } from './api/generated/v2Client';
@@ -32,6 +32,16 @@ type SavedWorkspaceSnapshot = {
   recent_workspace_keys: string[];
   saved_state_count: number;
   restore_state: Record<string, string>;
+};
+
+type AuthPromptState = {
+  title: string;
+  detail: string;
+};
+
+const DEFAULT_AUTH_PROMPT: AuthPromptState = {
+  title: 'Sign In',
+  detail: 'Enter a console token to unlock the requested workspace action.',
 };
 
 function activeFromHash(): string {
@@ -281,12 +291,19 @@ function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: 
   );
 }
 
-function ConsoleSignInDialog({ onSubmit }: { onSubmit: (token: string) => void }) {
+function ConsoleSignInDialog({ prompt, onClose, onSubmit }: { prompt: AuthPromptState; onClose: () => void; onSubmit: (token: string) => void }) {
   const [token, setToken] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
   const submit = () => {
     const value = token.trim();
     if (!value) return;
@@ -300,9 +317,11 @@ function ConsoleSignInDialog({ onSubmit }: { onSubmit: (token: string) => void }
           <CarbonIcon path="apps/user--settings.svg" label="Sign in" />
           <div>
             <span>Console Access</span>
-            <h2 id="console-sign-in-title">Sign In</h2>
+            <h2 id="console-sign-in-title">{prompt.title}</h2>
           </div>
+          <button className="closeButton inline" type="button" aria-label="Close Sign In" onClick={onClose}>x</button>
         </div>
+        <p className="authDialogDetail">{prompt.detail}</p>
         <label className="field authTokenField">
           <span>Console Token</span>
           <input
@@ -337,6 +356,7 @@ export default function App() {
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
   const [savedStateVersion, setSavedStateVersion] = useState(0);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(DEFAULT_AUTH_PROMPT);
   const [signedIn, setSignedIn] = useState(() => hasConsoleToken());
   const [showStartupWhatsNew, setShowStartupWhatsNew] = useState(() => {
     try {
@@ -364,9 +384,22 @@ export default function App() {
   useEffect(() => {
     if (signedIn || authPromptOpen) return;
     if ([modelPayload.error, operatePayload.error].some(looksLikeAuthError)) {
+      setAuthPrompt(DEFAULT_AUTH_PROMPT);
       setAuthPromptOpen(true);
     }
   }, [authPromptOpen, modelPayload.error, operatePayload.error, signedIn]);
+  useEffect(() => {
+    const onAuthRequired = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<AuthPromptState>>).detail || {};
+      setAuthPrompt({
+        title: detail.title || DEFAULT_AUTH_PROMPT.title,
+        detail: detail.detail || DEFAULT_AUTH_PROMPT.detail,
+      });
+      setAuthPromptOpen(true);
+    };
+    window.addEventListener(V2_AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => window.removeEventListener(V2_AUTH_REQUIRED_EVENT, onAuthRequired);
+  }, []);
   useEffect(() => {
     const syncFromHash = () => setActive(activeFromHash());
     window.addEventListener('hashchange', syncFromHash);
@@ -436,8 +469,13 @@ export default function App() {
   const signOut = () => {
     forgetConsoleToken();
     setSignedIn(false);
+    setAuthPrompt(DEFAULT_AUTH_PROMPT);
     setAuthPromptOpen(true);
     queryClient.invalidateQueries();
+  };
+  const openAuthPrompt = () => {
+    setAuthPrompt(DEFAULT_AUTH_PROMPT);
+    setAuthPromptOpen(true);
   };
   const closeQuickSwitcher = () => {
     setQuickOpen(false);
@@ -565,7 +603,7 @@ export default function App() {
   };
   return (
     <div className="carbonShell">
-      {authPromptOpen ? <ConsoleSignInDialog onSubmit={submitConsoleToken} /> : null}
+      {authPromptOpen ? <ConsoleSignInDialog prompt={authPrompt} onClose={() => setAuthPromptOpen(false)} onSubmit={submitConsoleToken} /> : null}
       {showStartupWhatsNew && whatsNew.data ? <WhatsNewModal data={whatsNew.data} onClose={dismissStartupWhatsNew} /> : null}
       {quickOpen ? (
         <div className="modalBackdrop quickSwitcherBackdrop">
@@ -660,7 +698,7 @@ export default function App() {
             <button className="railIconButton" type="button" aria-label="Open Settings" title="Settings" onClick={openSettingsWorkspace}>
               <CarbonIcon path="apps/settings.svg" label="Settings" />
             </button>
-            <button className="railIconButton" type="button" aria-label={signedIn ? 'Sign Out' : 'Sign In'} title={signedIn ? 'Sign Out' : 'Sign In'} onClick={signedIn ? signOut : () => setAuthPromptOpen(true)}>
+            <button className="railIconButton" type="button" aria-label={signedIn ? 'Sign Out' : 'Sign In'} title={signedIn ? 'Sign Out' : 'Sign In'} onClick={signedIn ? signOut : openAuthPrompt}>
               <CarbonIcon path="apps/user--settings.svg" label={signedIn ? 'Sign Out' : 'Sign In'} />
             </button>
           </div>

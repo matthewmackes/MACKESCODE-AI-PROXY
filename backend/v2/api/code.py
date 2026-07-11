@@ -46,9 +46,11 @@ if router:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "code.view")
         models = [model for model in showcase_service.payload()["models"] if model.get("type") == "text" and model.get("route_enabled")]
+        tmux_workspace = legacy_adapter.tmux_workspace()
         return {
             "defaults": legacy_adapter.code_session_defaults(),
-            "sessions": legacy_adapter.tmux_sessions()[0],
+            "sessions": tmux_workspace["sessions"],
+            "previous_sessions": tmux_workspace.get("previous_sessions", []),
             "models": models,
             "attachment_policy": {
                 "supported_types": ["image/png", "image/jpeg", "image/webp", "image/gif"],

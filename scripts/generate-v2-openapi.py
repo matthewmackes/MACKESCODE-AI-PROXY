@@ -374,6 +374,7 @@ export type ConsoleOverviewPayload = {
 export type TmuxWorkspacePayload = {
   generated_at: number;
   sessions: Array<Record<string, unknown>>;
+  previous_sessions?: Array<Record<string, unknown>>;
   allowed_keys: string[];
   terminal: {
     path: string;
@@ -385,6 +386,7 @@ export type TmuxWorkspacePayload = {
     sessions_total: number;
     sessions_live: number;
     sessions_read_only: number;
+    sessions_previous?: number;
     sessions_attached: number;
     estimated_cost_usd: number;
     estimated_tokens: number;

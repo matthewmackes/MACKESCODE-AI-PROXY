@@ -48,6 +48,7 @@ export const V2_WORKSPACE_SESSION_KEYS = {
   advancedTab: 'matts-v2-advanced-tab',
 } as const;
 export const V2_ADVANCED_TAB_EVENT = 'matts-v2-advanced-tab-change';
+export const V2_AUTH_REQUIRED_EVENT = 'matts-v2-auth-required';
 export const V2_ADVANCED_LAZY_DELAY_KEY = 'matts-v2-advanced-lazy-delay-ms';
 export const V2_RESETTABLE_WORKSPACE_KEYS = [
   V2_WORKSPACE_SESSION_KEYS.chatTranscript,
@@ -98,6 +99,10 @@ function StatusPanel({ tone = 'neutral', title, detail }: { tone?: 'neutral' | '
       {detail ? <p>{detail}</p> : null}
     </div>
   );
+}
+
+function authLikeError(error: unknown): boolean {
+  return /403|missing_permission|anonymous|token/i.test(errorText(error));
 }
 
 function numeric(value: unknown): number {
@@ -2225,6 +2230,7 @@ function starterApprovalItems(taskId: string, bundle: string): CodeApprovalItem[
 
 export function ChatPage() {
   const chat = useQuery({ queryKey: ['chat-payload'], queryFn: getChatPayload });
+  const chatCapabilities = useQuery({ queryKey: ['chat-capabilities'], queryFn: getMeCapabilities, retry: false });
   const models = useTextModels(chat.data?.models);
   const [model, setModel] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -2235,6 +2241,9 @@ export function ChatPage() {
   const [transcriptStatus, setTranscriptStatus] = useState('Ready');
   const selectedModel = model || chat.data?.default_model || models[0]?.id || '';
   const selectedModelCard = models.find((item) => item.id === selectedModel) || models[0];
+  const canUseChat = chatCapabilities.data?.capabilities['chat.use']?.allowed === true;
+  const chatUseDenied = Boolean(chatCapabilities.data && !canUseChat);
+  const chatAuthPrompted = useRef(false);
   const voiceProfile = chat.data?.voice;
   const voiceStyle = voiceProfile?.style || 'calm mission-computer';
   const voiceMode = readableStatus(voiceProfile?.mode || 'browser_speech_synthesis');
@@ -2303,6 +2312,19 @@ export function ChatPage() {
   useEffect(() => {
     saveChatTranscript(messages);
   }, [messages]);
+  const requestChatModelUse = () => {
+    window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
+      detail: {
+        title: 'Model Use Required',
+        detail: 'Sign in with a console token that includes model_use to send Chat requests.',
+      },
+    }));
+  };
+  useEffect(() => {
+    if (!chatUseDenied || chatAuthPrompted.current) return;
+    chatAuthPrompted.current = true;
+    requestChatModelUse();
+  }, [chatUseDenied]);
   const stopVoice = () => {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
@@ -2351,10 +2373,17 @@ export function ChatPage() {
       setMessages(nextMessages);
       setPrompt('');
       speak(answer);
+    },
+    onError: (error) => {
+      if (authLikeError(error)) requestChatModelUse();
     }
   });
-  const canSendChat = Boolean(prompt.trim()) && !mutation.isPending;
+  const canSendChat = Boolean(prompt.trim()) && !mutation.isPending && canUseChat;
   const sendChat = () => {
+    if (chatUseDenied) {
+      requestChatModelUse();
+      return;
+    }
     if (!canSendChat) return;
     mutation.mutate();
   };
@@ -2381,6 +2410,7 @@ export function ChatPage() {
         <div className="composerPanel">
           {chat.isLoading ? <StatusPanel tone="loading" title="Loading chat workspace" /> : null}
           {chat.error ? <StatusPanel tone="error" title="Chat API unavailable" detail={errorText(chat.error)} /> : null}
+          {chatUseDenied && !chat.error ? <StatusPanel tone="error" title="Model-use permission required" detail="Chat is visible with console view access, but sending messages requires model_use." /> : null}
           {!chat.isLoading && !chat.error && !models.length ? <StatusPanel title="No routable text models" detail="Enable or discover a routable text model before sending chat requests." /> : null}
           <ModelSelect models={models} value={selectedModel} onChange={setModel} />
           <SelectedModelPanel model={selectedModelCard} />

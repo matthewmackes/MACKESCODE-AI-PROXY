@@ -30,6 +30,38 @@ For CI or strict local validation:
 MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh
 ```
 
+## Public Release Policy
+
+Public releases use semantic versions and annotated Git tags named `vX.Y.Z`.
+The July 11, 2026 public package release is `v2.0.0`.
+
+Before publishing a release:
+
+1. Commit the release-ready source to `main`.
+2. Run the strict release gate:
+
+```bash
+MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh
+```
+
+3. Build the RPM artifact:
+
+```bash
+scripts/build-rpm.sh
+```
+
+4. Tag the exact committed source with an annotated tag:
+
+```bash
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+```
+
+5. Push `main` and the matching tag to `origin`.
+
+Use patch versions for compatible bug fixes, minor versions for compatible
+features or operational surface changes, and major versions for incompatible
+runtime-state, API, packaging, or installation changes.
+
 ## Clean Checkout Verification
 
 From a fresh clone:

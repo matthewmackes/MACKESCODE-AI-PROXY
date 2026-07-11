@@ -1,14 +1,13 @@
 Name:           matts-value-set
-Version:        1.0.0
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        MDE LLM-PROXY - Local Anthropic-compatible proxy for various LLM models
 License:        MIT
-URL:            https://github.com/user/matts-value-set-proxy
+URL:            https://github.com/matthewmackes/MACKESCODE-AI-PROXY
 Source0:        %{name}-%{version}.tar.gz
 
-BuildRequires:  python3-devel
+BuildRequires:  python3
 Requires:       python3
-Requires:       python3-requests
 Requires:       tmux
 Requires:       bash
 Requires(post): systemd
@@ -54,6 +53,21 @@ install -m 755 image-studio.py %{buildroot}/usr/lib/matts-value-set/
 install -m 755 matts-v2-console.py %{buildroot}/usr/lib/matts-value-set/
 if [ -f requirements-v2.txt ]; then
     install -m 644 requirements-v2.txt %{buildroot}/usr/lib/matts-value-set/
+fi
+if [ -f install/requirements-rpm-constraints.txt ]; then
+    install -m 644 install/requirements-rpm-constraints.txt %{buildroot}/usr/lib/matts-value-set/
+fi
+if [ -d vendor/python ]; then
+    mkdir -p %{buildroot}/usr/lib/matts-value-set/vendor
+    cp -r vendor/python %{buildroot}/usr/lib/matts-value-set/vendor/
+    if find %{buildroot}/usr/lib/matts-value-set/vendor/python -type f -name '*.so' -print -quit | grep -q .; then
+        echo "native extension found in vendored Python runtime; RPM must remain noarch" >&2
+        find %{buildroot}/usr/lib/matts-value-set/vendor/python -type f -name '*.so' -print >&2
+        exit 1
+    fi
+else
+    echo "vendor/python is missing; run scripts/build-rpm.sh to vendor pure-Python runtime dependencies" >&2
+    exit 1
 fi
 
 # Install wrapper scripts
@@ -198,6 +212,8 @@ fi
 /usr/lib/matts-value-set/image-studio.py
 /usr/lib/matts-value-set/matts-v2-console.py
 /usr/lib/matts-value-set/requirements-v2.txt
+/usr/lib/matts-value-set/requirements-rpm-constraints.txt
+/usr/lib/matts-value-set/vendor
 
 # Wrapper scripts
 /usr/lib/matts-value-set/claude-deepseek
@@ -255,7 +271,12 @@ fi
 /var/log/matts-value-set/usage.jsonl
 
 %changelog
-* Mon Jul 7 2026 MDE LLM-PROXY <matts@example.com> 1.0.0-1
+* Sat Jul 11 2026 MDE LLM-PROXY <matts@example.com> 2.0.0-1
+- Release v2.0.0 with the V2 React console, Code workspace, and Chat RBAC split.
+- Bundle pure-Python runtime dependencies under /usr/lib/matts-value-set/vendor/python.
+- Keep the RPM noarch and fail the build if native extension modules are vendored.
+
+* Tue Jul 7 2026 MDE LLM-PROXY <matts@example.com> 1.0.0-1
 - Initial RPM package
 - Systemd service integration
 - Web console with authentication

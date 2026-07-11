@@ -44,6 +44,10 @@ class ReleaseCandidateService:
         for line in text.splitlines():
             if not line.startswith("| ") or line.startswith("| ---") or "Item | Needs | Status" in line:
                 continue
+            cells = [cell.strip() for cell in str(line or "").strip().strip("|").split("|")]
+            status = cells[2].lower() if len(cells) > 2 else ""
+            if status.startswith(("closed", "resolved", "canceled", "cancelled", "retired", "done")):
+                continue
             rows.append(line)
         return rows
 

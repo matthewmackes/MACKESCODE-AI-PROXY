@@ -1,5 +1,7 @@
+import json
 import os
 import unittest
+from contextlib import contextmanager
 
 try:
     from fastapi.testclient import TestClient
@@ -8,6 +10,26 @@ except (ImportError, RuntimeError):  # pragma: no cover
 
 from backend.v2.app import create_app
 from backend.v2.api import chat as chat_api
+
+
+@contextmanager
+def console_auth_env():
+    keys = ("MATTS_CONSOLE_AUTH_ENABLED", "MATTS_CONSOLE_AUTH_TOKEN", "MATTS_CONSOLE_ROLE_TOKENS")
+    old_env = {key: os.environ.get(key) for key in keys}
+    os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = "1"
+    os.environ["MATTS_CONSOLE_AUTH_TOKEN"] = "owner-token-secret"
+    os.environ["MATTS_CONSOLE_ROLE_TOKENS"] = json.dumps({
+        "viewer-token": {"id": "viewer-user", "roles": ["viewer"]},
+        "operator-token": {"id": "operator-user", "roles": ["operator"]},
+    })
+    try:
+        yield
+    finally:
+        for key, value in old_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 @unittest.skipIf(TestClient is None, "fastapi test client is not installed")
@@ -63,6 +85,50 @@ class V2ChatApiTests(unittest.TestCase):
         self.assertNotIn("trace_status_on_error", captured)
         self.assertNotIn("trace_origin", captured)
         self.assertEqual(captured["messages"][0]["content"], "hello")
+
+    def test_viewer_can_load_chat_payload_but_cannot_spend_model_use(self):
+        old_adapter = chat_api.legacy_adapter
+
+        class FailingAdapter:
+            def chat_completion(self, payload):  # pragma: no cover - must not be called
+                raise AssertionError("viewer POST should fail before adapter dispatch")
+
+        chat_api.legacy_adapter = FailingAdapter()
+        try:
+            with console_auth_env():
+                client = TestClient(create_app())
+                headers = {"x-matts-console-token": "viewer-token"}
+                payload_response = client.get("/v2/chat", headers=headers)
+                post_response = client.post("/v2/chat", json={"model": "model-a", "messages": []}, headers=headers)
+        finally:
+            chat_api.legacy_adapter = old_adapter
+
+        self.assertEqual(payload_response.status_code, 200)
+        self.assertIn("models", payload_response.json())
+        self.assertEqual(post_response.status_code, 403)
+        self.assertEqual(post_response.json()["detail"]["required_permission"], "model_use")
+
+    def test_operator_can_complete_chat_with_model_use(self):
+        old_adapter = chat_api.legacy_adapter
+
+        class FakeAdapter:
+            def chat_completion(self, payload):
+                return 200, {"text": "operator ok"}
+
+        chat_api.legacy_adapter = FakeAdapter()
+        try:
+            with console_auth_env():
+                client = TestClient(create_app())
+                response = client.post(
+                    "/v2/chat",
+                    json={"model": "model-a", "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"x-matts-console-token": "operator-token"},
+                )
+        finally:
+            chat_api.legacy_adapter = old_adapter
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["response"]["text"], "operator ok")
 
 
 if __name__ == "__main__":

@@ -159,6 +159,22 @@ class ReleaseCandidateServiceTests(unittest.TestCase):
         self.assertEqual(check["evidence"]["open_items"], 2)
         self.assertEqual(len(check["evidence"]["items"]), 2)
 
+    def test_needs_operator_check_ignores_resolved_rows(self):
+        needs_text = "\n".join([
+            "| Item | Needs | Status |",
+            "| --- | --- | --- |",
+            "| One | Operator | Closed 2026-07-11: evidence recorded. |",
+            "| Two | Product | Canceled 2026-07-11: operator retired the work. |",
+            "| Three | Release | Resolved 2026-07-11: policy recorded. |",
+        ])
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = self.service(tmp, needs_text=needs_text).payload()
+
+        needs_check = next(check for check in payload["checks"] if check["id"] == "needs_operator")
+        self.assertEqual(needs_check["status"], "passed")
+        self.assertEqual(needs_check["evidence"]["open_items"], 0)
+        self.assertEqual(payload["operator_handoff"]["open_count"], 0)
+
     def test_operator_handoff_structures_open_needs_operator_rows(self):
         needs_text = "| Item | Needs | Status |\n| --- | --- | --- |\n| Dedicated capacity | GPU capacity | Operator/live-cloud gated |\n| Release policy | Version decision | Open |\n"
         with tempfile.TemporaryDirectory() as tmp:

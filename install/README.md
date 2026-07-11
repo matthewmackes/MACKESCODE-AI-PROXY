@@ -11,16 +11,15 @@ Build and install the RPM package:
 ```bash
 # Build the RPM (requires rpm-build package)
 cd /path/to/project
-mkdir -p ~/rpmbuild/{SOURCES,SPECS}
-cp install/matts-value-set.spec ~/rpmbuild/SPECS/
-tar czf ~/rpmbuild/SOURCES/matts-value-set-1.0.0.tar.gz --exclude='.git' --exclude='*.pyc' *
-
-# Build the RPM
-rpmbuild -ba ~/rpmbuild/SPECS/matts-value-set.spec
+scripts/build-rpm.sh
 
 # Install the RPM
-sudo rpm -ivh ~/rpmbuild/RPMS/noarch/matts-value-set-1.0.0-1.*.noarch.rpm
+sudo rpm -ivh build/rpmbuild/RPMS/noarch/matts-value-set-2.0.0-1.*.noarch.rpm
 ```
+
+The build script refreshes `frontend/dist`, vendors pure-Python runtime
+dependencies into the source archive, and fails if any native `.so` extension is
+included so the RPM remains `noarch`.
 
 ### 2. Manual Installation (All Distributions)
 
@@ -50,6 +49,7 @@ sudo ./uninstall.sh
 
 ### Packaging
 - `matts-value-set.spec` - RPM spec file
+- `../scripts/build-rpm.sh` - Source staging, dependency vendoring, and RPM build
 - `install.sh` - Manual installer script
 - `uninstall.sh` - Manual uninstaller script
 

@@ -59,6 +59,22 @@ class LegacyConsoleAdapter:
         except Exception as exc:
             return [], str(exc)
 
+    def _split_tmux_sessions(self, sessions: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        current: list[dict[str, Any]] = []
+        previous: list[dict[str, Any]] = []
+        for row in sessions:
+            item = dict(row)
+            if item.get("live"):
+                current.append(item)
+                continue
+            item["live"] = False
+            item["attached"] = False
+            item["read_only"] = True
+            item.setdefault("process_status", "stopped")
+            item.setdefault("status", "previous")
+            previous.append(item)
+        return current, previous
+
     def agentboard(self) -> tuple[dict[str, Any], str]:
         try:
             payload = self.module().agentboard_payload()
@@ -301,13 +317,14 @@ class LegacyConsoleAdapter:
 
     def tmux_workspace(self) -> dict[str, Any]:
         sessions, session_error = self.tmux_sessions()
-        live_sessions = [row for row in sessions if row.get("live")]
-        read_only_sessions = [row for row in sessions if row.get("read_only") or not row.get("live")]
-        attached_sessions = [row for row in sessions if row.get("attached")]
+        live_sessions, previous_sessions = self._split_tmux_sessions(sessions)
+        read_only_sessions = [row for row in live_sessions if row.get("read_only")]
+        attached_sessions = [row for row in live_sessions if row.get("attached")]
         errors = {"sessions": session_error} if session_error else {}
         return {
             "generated_at": self.clock(),
-            "sessions": sessions,
+            "sessions": live_sessions,
+            "previous_sessions": previous_sessions,
             "allowed_keys": list(TMUX_ALLOWED_KEYS),
             "terminal": {
                 "path": "/#code",
@@ -316,12 +333,13 @@ class LegacyConsoleAdapter:
                 "default_legacy_port": 18182,
             },
             "summary": {
-                "sessions_total": len(sessions),
+                "sessions_total": len(live_sessions),
                 "sessions_live": len(live_sessions),
                 "sessions_read_only": len(read_only_sessions),
+                "sessions_previous": len(previous_sessions),
                 "sessions_attached": len(attached_sessions),
-                "estimated_cost_usd": round(sum(float(row.get("estimated_cost_usd") or 0) for row in sessions), 8),
-                "estimated_tokens": sum(int(row.get("estimated_tokens") or 0) for row in sessions),
+                "estimated_cost_usd": round(sum(float(row.get("estimated_cost_usd") or 0) for row in live_sessions), 8),
+                "estimated_tokens": sum(int(row.get("estimated_tokens") or 0) for row in live_sessions),
             },
             "errors": errors,
         }

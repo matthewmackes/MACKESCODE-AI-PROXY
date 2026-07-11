@@ -300,6 +300,7 @@ export default function ConsolePage() {
             <Tag color="green">Live {tmuxSummary?.sessions_live ?? tmuxSessions.filter((row) => row.live).length}</Tag>
             <Tag>Attached {tmuxSummary?.sessions_attached ?? tmuxSessions.filter((row) => row.attached).length}</Tag>
             <Tag>Read-only {tmuxSummary?.sessions_read_only ?? tmuxSessions.filter((row) => row.read_only || !row.live).length}</Tag>
+            <Tag>Previous {tmuxSummary?.sessions_previous ?? tmuxWorkspace.data?.previous_sessions?.length ?? 0}</Tag>
             <Tag>Tokens {valueText(tmuxSummary?.estimated_tokens, '0')}</Tag>
             <Tag>Cost {money(tmuxSummary?.estimated_cost_usd)}</Tag>
           </Space>
