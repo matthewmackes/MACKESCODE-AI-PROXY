@@ -82,6 +82,43 @@ class LocalPersistenceServiceTests(unittest.TestCase):
         self.assertEqual(loaded["id"], doc["id"])
         self.assertTrue(deleted)
 
+    def test_fork_chat_preserves_source_metadata_and_comparison(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp, now=2000)
+            source = service.save_chat({
+                "messages": [
+                    {"role": "user", "content": "Explain the build"},
+                    {"role": "assistant", "content": "Ready", "model": "model-a", "meta": {"trace": {"trace_id": "trace-a", "latency_ms": 123}, "routing": {"used": "model-a", "backend": "serverless"}, "cost": {"total_cost_usd": 0.01}}},
+                    {"role": "user", "content": "Use another model"},
+                ],
+                "model": "model-a",
+            })
+            branch = service.fork_chat({
+                "source_chat_id": source["id"],
+                "message_index": 1,
+                "model": "model-b",
+                "notes": "try concise",
+            })
+            comparison = service.branch_comparison(source["id"])
+            deleted = service.delete_chat(branch["id"])
+            after_delete = service.branch_comparison(source["id"])
+
+        self.assertEqual(branch["model"], "model-b")
+        self.assertEqual(len(branch["messages"]), 2)
+        self.assertEqual(branch["branch"]["parent_chat_id"], source["id"])
+        self.assertEqual(branch["branch"]["source_message_index"], 1)
+        self.assertEqual(branch["branch"]["source_trace_id"], "trace-a")
+        self.assertEqual(branch["branch"]["source_route"]["backend"], "serverless")
+        self.assertEqual(branch["branch"]["source_cost"]["total_cost_usd"], 0.01)
+        self.assertEqual(branch["branch"]["source_latency_ms"], 123)
+        self.assertEqual(branch["branch"]["selected_model"], "model-b")
+        self.assertEqual(comparison["branches"][0]["id"], branch["id"])
+        self.assertEqual(comparison["branches"][0]["branch"]["notes"], "try concise")
+        self.assertEqual(comparison["branches"][0]["metrics"]["notes"], "try concise")
+        self.assertIn("branch_delta_chars", comparison["branches"][0]["diff"])
+        self.assertTrue(deleted)
+        self.assertEqual(after_delete["branches"], [])
+
     def test_load_chat_handles_missing_or_malformed_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             service = self.service(tmp)

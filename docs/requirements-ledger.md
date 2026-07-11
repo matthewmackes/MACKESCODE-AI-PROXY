@@ -2,7 +2,7 @@
 
 **Purpose:** Durable product decisions extracted from the completed worklist and interface surveys.
 
-**Last updated:** 2026-07-09
+**Last updated:** 2026-07-10
 
 This ledger keeps survey decisions executable after chat compaction. It is not a transcript. Each item is mapped to an owning worklist task and uses one of these evidence levels:
 
@@ -24,6 +24,14 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 | Text comparison should support up to five models in the same conversation, with strict unavailable-model handling, cost/latency detail, and one saved comparison history entry. | Confirmed | `INT-014`, `INT-021` |
 | Weather should degrade gracefully when geolocation or weather data is unavailable. | Confirmed | `INT-014` |
 | Wallpaper should use remote/cache metadata with attribution, not bundled copyrighted wallpaper assets. | Confirmed | `INT-014`, `INT-018` |
+
+## Research Experience
+
+| Decision | Evidence | Owner |
+| --- | --- | --- |
+| Research should normalize Bing, Google Programmable Search, Brave Search, DigitalOcean docs/catalog, and Local RAG into one evidence-card contract. | Confirmed | `V2-008` |
+| Missing external search credentials should degrade into explicit setup-needed cards while DigitalOcean catalog/docs and Local RAG remain usable. | Confirmed | `INT-077`, `V2-008` |
+| Create Research mode should use the same Research result contract and show synthesis plus source-specific result cards, not raw placeholder text. | Confirmed | `INT-077`, `V2-008` |
 
 ## Code Experience
 
@@ -53,7 +61,7 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 | --- | --- | --- |
 | `config/models.json` is the private-operator source of truth for model availability, metadata, access state, pricing, and enabled policy. | Confirmed | `INT-015`, `INT-018` |
 | Serverless catalog sync should add all DigitalOcean models, retain removed models as unavailable records, and avoid routing disabled or forbidden models. | Confirmed | `INT-015` |
-| Newly discovered low-cost models should be auto-enabled only when every known price is below `$0.45` per 1M/unit and access probes pass. | Confirmed | `INT-015` |
+| Newly discovered DigitalOcean text LLMs should become routable by default after a live access probe succeeds; failed probes remain visible but disabled regardless of price. | Confirmed | `INT-015`, `V2-007` |
 | Model labels should include human-readable cost, training-origin country, brand/provider identity, access state, and use-case/comparison context. | Confirmed | `INT-015`, `INT-017` |
 | New models should receive a seven-day global sparkle treatment and generated style fallback when no curated provider style exists. | Confirmed | `INT-014`, `INT-015`, `INT-017` |
 | Each chat message should expose a Show Detail view with requested model, routed model, fallback reason, provider, endpoint mode, trace ID, cost, and latency where available. | Confirmed | `INT-015`, `INT-020` |
@@ -121,10 +129,16 @@ These items were requested through survey flow, but the specific answer content 
 
 ## Priority Order
 
-Completed prerequisites: `INT-001`, `INT-002`, `INT-003`, `INT-004`, `INT-005`, `INT-006`, `INT-015`, `INT-016`, `INT-018`, `INT-020`, `INT-021`, `INT-022`, `INT-025`, and `INT-026`.
+Current state: the code-owned worklist is drained as of the latest audit pass.
+Completed work is preserved in `MAIN-WORKLIST.md`; operator-owned release gates
+are tracked in `docs/NEEDS-OPERATOR.md`.
 
-1. `INT-014` finish the remaining Create/Image visual workflow gaps.
-2. `INT-017` complete detailed model hero cards.
-3. `INT-019` reconcile documentation.
-4. `INT-024` finish packaging, upgrade, rollback, and release checklist.
-5. `INT-023` add governance, RBAC, and audit hardening.
+- Do not reopen completed INT/V2 tasks from this ledger as active priorities.
+- Treat `docs/NEEDS-OPERATOR.md` rows as release-handoff items, not code defects,
+  unless new local evidence shows the code is wrong.
+- Continue platform improvement through audit-driven work: add a new worklist item,
+  implement it, verify it, and close it with evidence.
+- Prefer concrete polish in release readiness, endpoint resilience, Research/Create
+  experience quality, accessibility, browser smoke coverage, and governance drift.
+- Preserve unrecoverable answer-only survey choices as open confirmations until the
+  user restates the product decision.

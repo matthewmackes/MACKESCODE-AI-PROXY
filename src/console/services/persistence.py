@@ -115,6 +115,7 @@ class LocalPersistenceService:
         model = data.get("model") or self.default_text_model()
         chat_id = data.get("id") or ("chat_%d_%s" % (now, self.uuid_factory().hex[:12]))
         title = data.get("title") or self.make_title(messages)
+        branch = data.get("branch") if isinstance(data.get("branch"), dict) else {}
 
         for msg in messages:
             if not msg.get("timestamp"):
@@ -144,6 +145,8 @@ class LocalPersistenceService:
             "total_tokens": running_tokens,
             "total_cost_usd": round(running_cost, 8),
         }
+        if branch:
+            doc["branch"] = branch
         path = self.chat_filename(chat_id)
         path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return doc
@@ -164,6 +167,7 @@ class LocalPersistenceService:
                 "updated_at": doc.get("updated_at", doc.get("created_at", 0)),
                 "message_count": len(doc.get("messages") or []),
                 "total_cost_usd": doc.get("total_cost_usd", 0),
+                "branch": doc.get("branch") if isinstance(doc.get("branch"), dict) else {},
             })
         return result
 
@@ -182,3 +186,101 @@ class LocalPersistenceService:
             return False
         path.unlink()
         return True
+
+    def fork_chat(self, data):
+        data = data if isinstance(data, dict) else {}
+        source_id = data.get("source_chat_id") or data.get("id")
+        source = self.load_chat(source_id)
+        if source is None:
+            raise ValueError("source chat not found")
+        messages = source.get("messages") if isinstance(source.get("messages"), list) else []
+        try:
+            index = int(data.get("message_index"))
+        except (TypeError, ValueError):
+            index = len(messages) - 1
+        index = max(0, min(index, len(messages) - 1)) if messages else 0
+        forked = [dict(message) for message in messages[:index + 1]]
+        now = self.clock()
+        source_message = messages[index] if messages and isinstance(messages[index], dict) else {}
+        source_meta = source_message.get("meta") if isinstance(source_message.get("meta"), dict) else {}
+        source_trace = source_meta.get("trace") if isinstance(source_meta.get("trace"), dict) else {}
+        source_route = source_meta.get("routing") if isinstance(source_meta.get("routing"), dict) else {}
+        source_cost = source_meta.get("cost") if isinstance(source_meta.get("cost"), dict) else {}
+        model = data.get("model") or source.get("model") or self.default_text_model()
+        branch = {
+            "parent_chat_id": source.get("id"),
+            "source_message_index": index,
+            "source_trace_id": source_trace.get("trace_id"),
+            "source_model": source_message.get("model") or source_meta.get("model") or source.get("model"),
+            "source_route": source_route,
+            "source_cost": source_cost,
+            "source_latency_ms": source_trace.get("latency_ms") or source_meta.get("latency_ms"),
+            "selected_model": model,
+            "forked_at": now,
+            "notes": str(data.get("notes") or ""),
+            "prompt_profile": str(data.get("prompt_profile") or ""),
+            "gateway_policy": data.get("gateway_policy") if isinstance(data.get("gateway_policy"), dict) else {},
+        }
+        title = data.get("title") or ("%s branch @ %s" % (source.get("title") or "Chat", index))
+        return self.save_chat({
+            "model": model,
+            "messages": forked,
+            "title": title,
+            "branch": branch,
+            "created_at": now,
+        })
+
+    def branch_comparison(self, chat_id):
+        parent = self.load_chat(chat_id)
+        parent_messages = parent.get("messages") if isinstance(parent, dict) and isinstance(parent.get("messages"), list) else []
+        parent_last = parent_messages[-1] if parent_messages else {}
+        parent_text = str(parent_last.get("content") or "")
+        branches = []
+        for item in self.list_chats():
+            branch = item.get("branch") if isinstance(item.get("branch"), dict) else {}
+            if branch.get("parent_chat_id") == chat_id:
+                doc = self.load_chat(item["id"]) or item
+                messages = doc.get("messages") or []
+                last = messages[-1] if messages else {}
+                meta = last.get("meta") if isinstance(last.get("meta"), dict) else {}
+                trace = meta.get("trace") if isinstance(meta.get("trace"), dict) else {}
+                route = meta.get("routing") if isinstance(meta.get("routing"), dict) else {}
+                cost = meta.get("cost") if isinstance(meta.get("cost"), dict) else {}
+                branch_text = str(last.get("content") or "")
+                shared_prefix = 0
+                for left, right in zip(parent_text, branch_text):
+                    if left != right:
+                        break
+                    shared_prefix += 1
+                branches.append({
+                    "id": doc.get("id"),
+                    "title": doc.get("title"),
+                    "model": doc.get("model"),
+                    "message_count": len(messages),
+                    "total_cost_usd": doc.get("total_cost_usd", 0),
+                    "updated_at": doc.get("updated_at"),
+                    "branch": doc.get("branch") or {},
+                    "metrics": {
+                        "model": last.get("model") or meta.get("model") or doc.get("model"),
+                        "route": route,
+                        "cost": cost,
+                        "latency_ms": trace.get("latency_ms") or meta.get("latency_ms"),
+                        "notes": branch.get("notes", ""),
+                    },
+                    "diff": {
+                        "shared_prefix_chars": shared_prefix,
+                        "branch_delta_chars": len(branch_text) - len(parent_text),
+                        "parent_preview": parent_text[:240],
+                        "branch_preview": branch_text[:240],
+                    },
+                    "last_message": {
+                        "role": last.get("role"),
+                        "preview": str(last.get("content") or "")[:240],
+                        "model": last.get("model") or meta.get("model"),
+                        "routing": route,
+                        "cost": cost,
+                        "trace": trace,
+                        "streaming_metrics": meta.get("streaming_metrics") or {},
+                    },
+                })
+        return {"parent": parent, "branches": branches}

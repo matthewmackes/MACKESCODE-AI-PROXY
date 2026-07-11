@@ -1,0 +1,13 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../prometheus/mde-llm-proxy-console.yml:/etc/prometheus/prometheus.yml:ro
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboards:/var/lib/grafana/dashboards:ro

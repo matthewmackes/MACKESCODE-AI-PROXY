@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Matts Value Set Claude Code Proxy - a private Claude Code launcher and Anthropic-compatible local proxy for Matts Value Set models. The system provides a local proxy server that translates Anthropic API calls to OpenAI-compatible endpoints for various LLM models.
+This is MDE LLM-PROXY - a private Claude Code launcher and Anthropic-compatible local proxy for curated LLM-PROXY models. The system provides a local proxy server that translates Anthropic API calls to OpenAI-compatible endpoints for various LLM models.
 
 ## Governance
 

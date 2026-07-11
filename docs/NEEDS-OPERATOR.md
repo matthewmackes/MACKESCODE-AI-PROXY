@@ -9,6 +9,11 @@ DigitalOcean account state, GPU availability, public endpoint assignment,
 GitHub/release ownership, billing/prepay visibility, or a user choice that is
 not recoverable from project files.
 
+The release-candidate handoff derives gate type, owner, next action, and
+evidence requirements from each row's Item/Needs/Status text. Keep those fields
+specific enough for an operator to prove closure without reading implementation
+history.
+
 ## Current Items
 
 | Item | Needs | Status |

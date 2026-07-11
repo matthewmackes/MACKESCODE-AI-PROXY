@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mackes Code : FOR PRIVATE USE</title>
+<title>MDE LLM-PROXY Console</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm/css/xterm.css">
 <style>
 html,body{height:100%;margin:0;background:linear-gradient(180deg,#141311,#1a1815);color:#f4f4f4;font-family:"IBM Plex Sans",system-ui,sans-serif}
@@ -15,7 +15,7 @@ body.fullscreen .bar,body.embedded .bar{display:none}body.fullscreen #terminal,b
 </style>
 </head>
 <body>
-<div class="bar"><div><b>Mackes Code : FOR PRIVATE USE</b> <span id="meta"></span><span class="status" id="ws-status">connecting</span></div><div class="actions"><button id="fullscreen">Fullscreen</button><button id="fit">Fit</button><button id="reconnect">Reconnect</button></div></div>
+<div class="bar"><div><b>MDE LLM-PROXY Console</b> <span id="meta"></span><span class="status" id="ws-status">connecting</span></div><div class="actions"><button id="fullscreen">Fullscreen</button><button id="fit">Fit</button><button id="reconnect">Reconnect</button></div></div>
 <div id="terminal"></div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit/lib/addon-fit.js"></script>
@@ -23,6 +23,8 @@ body.fullscreen .bar,body.embedded .bar{display:none}body.fullscreen #terminal,b
 const params=new URLSearchParams(location.search);
 const token=params.get('token')||localStorage.getItem('mattsConsoleToken')||'';
 const name=params.get('name')||'matts-claude';
+const autoConnectParam=(params.get('autoconnect')||'1').toLowerCase();
+const autoConnect=!['0','false','off','no'].includes(autoConnectParam);
 if(params.get('embed')==='1')document.body.classList.add('embedded');
 if(token)localStorage.setItem('mattsConsoleToken',token);
 document.getElementById('meta').textContent='tmux session: '+name;
@@ -60,7 +62,11 @@ document.addEventListener('fullscreenchange',()=>{document.body.classList.toggle
 document.getElementById('fit').onclick=resize;
 document.getElementById('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen()};
 document.getElementById('reconnect').onclick=connect;
-connect();
+if(autoConnect)connect();
+else{
+  setWsStatus('preview','warn');
+  term.writeln('\r\n[terminal preview; WebSocket connection disabled]');
+}
 </script>
 </body>
 </html>

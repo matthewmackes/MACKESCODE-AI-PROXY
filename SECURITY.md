@@ -33,7 +33,7 @@ When the launcher writes the token file, it creates it with `0600` permissions. 
 
 Treat these as sensitive:
 
-- Matts Value Set access keys
+- MDE LLM-PROXY access keys
 - DigitalOcean API tokens and account metadata
 - Dedicated Inference public/private endpoint FQDNs, access tokens, CA certificates, VPC UUIDs, inference IDs, and raw DigitalOcean payloads
 - token files
@@ -51,6 +51,10 @@ Treat these as sensitive:
 - Unified console port: `18181`
 - Unified console auth token file: `$HOME/.cache/matts-value-set/studio/console-auth-token`
 - Unified console auth sessions file: `$HOME/.cache/matts-value-set/studio/auth-sessions.json`
+- V2 FastAPI/React console default bind address: `127.0.0.1`
+- V2 FastAPI/React console default port: `18182`
+- V2 run workspace database: `$HOME/.cache/matts-value-set/studio/v2-run.sqlite3`
+- V2 Console TUI audit file: `$HOME/.cache/matts-value-set/studio/tui-audit.jsonl`
 - Token file: `$HOME/.mcnf-do-model-access-token`
 - Usage file: `$HOME/.cache/matts-value-set/usage.jsonl`
 - Budget file: `$HOME/.cache/matts-value-set/budgets.json`
@@ -99,6 +103,16 @@ Built-in roles:
 
 Sensitive actions are permission-checked and appended to the audit log. This includes model registry changes, model access audits, Dedicated build/teardown/policy actions, budget updates, billing reports, eval runs, tmux control, and terminal writes.
 
+The V2 React console uses the same role/capability model for `/v2/*` routes. The standing Console TUI bridge is read-only unless the actor has `tui.control`; control leases and denied writes are written to the TUI audit log. Operate actions such as automation dispatch, rollback apply, CI launch, review updates, and model deprecation migrations are capability-gated before reaching the legacy service adapter.
+
 Rotate scoped role tokens by replacing the JSON/file/config entry, restarting the console, and removing the old token from the configured role-token source.
 
 JWT sessions are issued by `POST /api/v1/auth/session` for an already authenticated owner or scoped role token. Access tokens are short-lived; refresh tokens rotate on every refresh and are invalid after replay, expiration, revocation, or owner-token rotation. Active session metadata is stored in `auth-sessions.json` with `0600` permissions and should be treated as sensitive runtime state. Use `POST /api/v1/auth/revoke` to revoke a session and delete `auth-sessions.json` to clear all sessions during incident response.
+
+## Frontend Dependency Audit
+
+Clean V2 frontend installs are lockfile-reproducible: the launcher, V2 browser smoke, and release gate use `npm ci --no-audit` when `frontend/package-lock.json` exists and `frontend/node_modules` is missing. Plain `npm install --no-audit` is reserved for trees without a lockfile. Install steps skip npm's implicit audit output because the release gate enforces the explicit production audit check below.
+
+The release gate enforces shipped React dependency hygiene with `npm audit --omit=dev` through `scripts/check-v2-frontend-audit.py`. Current production dependencies are expected to audit clean.
+
+A full frontend `npm audit` can report Vite/esbuild development-server advisories while the host uses the current Node 16 toolchain. The first Vite line that clears those development-only findings requires Node 18+ or Node 20+, so treat the Vite dev server as a local trusted tool and serve production operators only through `matts-v2-console.py` and the built `frontend/dist` assets until the Node baseline is upgraded.

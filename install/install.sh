@@ -1,5 +1,5 @@
 #!/bin/bash
-# Matts Value Set Claude Code Proxy - Manual Installer
+# MDE LLM-PROXY - Manual Installer
 # For systems without RPM package manager
 
 set -euo pipefail
@@ -20,7 +20,7 @@ DATA_DIR="/var/lib/matts-value-set"
 LOG_DIR="/var/log/matts-value-set"
 DOC_DIR="/usr/share/doc/matts-value-set"
 
-echo -e "${BLUE}=== Matts Value Set Claude Code Proxy Installer ===${NC}"
+echo -e "${BLUE}=== MDE LLM-PROXY Installer ===${NC}"
 echo
 
 # Check if running as root
@@ -175,7 +175,7 @@ fi
 
 if ! getent passwd matts >/dev/null; then
     useradd -r -g matts -s /usr/sbin/nologin \
-            -d "$DATA_DIR" -c "Matts Value Set Service User" matts
+            -d "$DATA_DIR" -c "MDE LLM-PROXY Service User" matts
 fi
 
 # Set permissions

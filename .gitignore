@@ -13,3 +13,6 @@ build/
 tmux-sessions.json
 dedicated-events.jsonl
 config/dedicated-inference.json
+
+# Frontend dependencies are restored via npm ci; never commit them.
+frontend/node_modules/

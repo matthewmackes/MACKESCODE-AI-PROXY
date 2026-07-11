@@ -40,6 +40,8 @@ class ServerlessCatalogService:
         fetch_serverless_catalog=None,
         serverless_catalog_payload=None,
         probe_serverless_text_model=None,
+        model_access_drift_file=None,
+        append_audit=None,
     ):
         self.env = env
         self.token_file = token_file
@@ -68,6 +70,149 @@ class ServerlessCatalogService:
         self.fetch_serverless_catalog_func = fetch_serverless_catalog
         self.serverless_catalog_payload_func = serverless_catalog_payload
         self.probe_serverless_text_model_func = probe_serverless_text_model
+        self.model_access_drift_file = model_access_drift_file
+        self.append_audit = append_audit or (lambda *args, **kwargs: None)
+
+    def model_access_drift_path(self):
+        if self.model_access_drift_file:
+            path = self.model_access_drift_file()
+        else:
+            path = self.catalog_cache_file().parent / "model-access-drift.json"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def default_access_drift_state(self):
+        return {"schema_version": 1, "models": {}, "events": {}}
+
+    def load_access_drift_state(self):
+        path = self.model_access_drift_path()
+        if not path.exists():
+            return self.default_access_drift_state()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return self.default_access_drift_state()
+        return {
+            "schema_version": 1,
+            "models": data.get("models") if isinstance(data.get("models"), dict) else {},
+            "events": data.get("events") if isinstance(data.get("events"), dict) else {},
+        }
+
+    def save_access_drift_state(self, state):
+        path = self.model_access_drift_path()
+        path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.chmod(0o600)
+        return state
+
+    def access_drift_payload(self):
+        state = self.load_access_drift_state()
+        events = [event for event in (state.get("events") or {}).values() if not event.get("acknowledged_at")]
+        events.sort(key=lambda event: (float(event.get("created_at") or 0), event.get("id") or ""), reverse=True)
+        return {"state_file": str(self.model_access_drift_path()), "events": events, "active_count": len(events), "models": state.get("models") or {}}
+
+    def acknowledge_access_drift(self, data, actor=None):
+        data = data if isinstance(data, dict) else {}
+        state = self.load_access_drift_state()
+        events = state.get("events") if isinstance(state.get("events"), dict) else {}
+        ids = data.get("ids") if isinstance(data.get("ids"), list) else []
+        if not ids:
+            ids = [event_id for event_id, event in events.items() if not event.get("acknowledged_at")]
+        now = float(self.clock())
+        acknowledged = []
+        for event_id in ids:
+            event = events.get(str(event_id))
+            if not isinstance(event, dict):
+                continue
+            event["acknowledged_at"] = now
+            event["acknowledged_by"] = actor if isinstance(actor, dict) else {}
+            acknowledged.append(event_id)
+        self.save_access_drift_state(state)
+        self.append_audit("model_access_drift.acknowledge", actor=actor or {}, outcome="completed", permission="model_access.audit", request={"ids": acknowledged}, status=200)
+        payload = self.access_drift_payload()
+        payload["acknowledged"] = acknowledged
+        return payload
+
+    def access_status_from_probe(self, ok, status):
+        if ok:
+            return "ok"
+        return "forbidden" if int(status) in {401, 403} else ("rate_limited" if int(status) == 429 else "probe_failed")
+
+    def record_access_drift(self, outcomes, source="audit"):
+        if not outcomes:
+            return {"events": [], "active_count": self.access_drift_payload()["active_count"], "state_file": str(self.model_access_drift_path())}
+        state = self.load_access_drift_state()
+        models = state.setdefault("models", {})
+        events = state.setdefault("events", {})
+        key = self.active_model_access_key_info()
+        now = float(self.clock())
+        new_events = []
+        bad_statuses = {"forbidden", "rate_limited", "probe_failed", "removed", "unauthorized"}
+        for outcome in outcomes:
+            model_id = str(outcome.get("id") or "")
+            if not model_id:
+                continue
+            current = str(outcome.get("access_status") or "unknown")
+            previous = models.get(model_id) if isinstance(models.get(model_id), dict) else {}
+            previous_status = str(previous.get("access_status") or "")
+            same_key = not previous.get("key_fingerprint") or previous.get("key_fingerprint") == key.get("fingerprint")
+            previous_good = previous_status == "ok" or float(previous.get("last_ok_at") or 0) > 0
+            failure_count = 0 if current == "ok" else int(previous.get("failure_count") or 0) + 1
+            event = None
+            if current == "ok" and previous_status in bad_statuses and same_key:
+                event = self.access_drift_event("restored", "low", outcome, previous, "Model access restored", source, now, key, failure_count)
+            elif current == "removed" and previous_good:
+                event = self.access_drift_event("removed", "high", outcome, previous, "Model removed from provider catalog", source, now, key, failure_count)
+            elif current in {"forbidden", "rate_limited", "probe_failed"} and previous_good and same_key:
+                code = "repeated_probe_failure" if current == "probe_failed" and failure_count >= 2 else "access_regression"
+                severity = "high" if current == "forbidden" else "medium"
+                event = self.access_drift_event(code, severity, outcome, previous, "Model access regressed to %s" % current, source, now, key, failure_count)
+            record = {
+                "id": model_id,
+                "display_name": outcome.get("display_name") or previous.get("display_name") or model_id,
+                "access_status": current,
+                "http_status": int(outcome.get("status") or 0),
+                "last_error": outcome.get("error") or "",
+                "last_checked_at": now,
+                "key_fingerprint": key.get("fingerprint") or "",
+                "failure_count": failure_count,
+                "last_ok_at": now if current == "ok" else float(previous.get("last_ok_at") or 0),
+            }
+            models[model_id] = record
+            if event:
+                existing = events.get(event["id"]) if isinstance(events.get(event["id"]), dict) else {}
+                if existing.get("acknowledged_at"):
+                    event["acknowledged_at"] = existing.get("acknowledged_at")
+                    event["acknowledged_by"] = existing.get("acknowledged_by") or {}
+                events[event["id"]] = event
+                new_events.append(event)
+                self.append_audit("model_access_drift.%s" % event["code"], actor={}, outcome="completed", permission="model_access.audit", request={"model": model_id, "access_status": current, "source": source}, status=200)
+        self.save_access_drift_state(state)
+        active = [event for event in events.values() if not event.get("acknowledged_at")]
+        return {"events": new_events, "active_count": len(active), "state_file": str(self.model_access_drift_path())}
+
+    def access_drift_event(self, code, severity, outcome, previous, title, source, now, key, failure_count):
+        model_id = str(outcome.get("id") or "")
+        current = str(outcome.get("access_status") or "")
+        event_id = "model_access_%s_%s_%s" % (code, model_id.replace("/", "-"), current)
+        return {
+            "id": event_id,
+            "code": code,
+            "severity": severity,
+            "model_id": model_id,
+            "display_name": outcome.get("display_name") or previous.get("display_name") or model_id,
+            "title": title,
+            "detail": outcome.get("error") or previous.get("last_error") or "",
+            "previous_status": previous.get("access_status") or "",
+            "access_status": current,
+            "http_status": int(outcome.get("status") or 0),
+            "failure_count": int(failure_count or 0),
+            "key_fingerprint": key.get("fingerprint") or "",
+            "source": source,
+            "created_at": now,
+            "acknowledged_at": None,
+            "acknowledged_by": {},
+        }
 
     def model_access_key_candidates(self):
         candidates = []
@@ -217,9 +362,6 @@ class ServerlessCatalogService:
         for model in models:
             if not model.get("serverless") or model.get("type") != "text":
                 continue
-            pricing = model.get("pricing") if isinstance(model.get("pricing"), dict) else {}
-            if not self.model_enabled_by_default(pricing):
-                continue
             checked += 1
             ok, status, detail = probe(model["id"])
             if ok:
@@ -229,9 +371,8 @@ class ServerlessCatalogService:
                 continue
             model["access_status"] = "forbidden" if int(status) in {401, 403} else ("rate_limited" if int(status) == 429 else "probe_failed")
             model["last_error"] = detail
-            if int(status) in {401, 403}:
-                model["enabled"] = False
-                disabled += 1
+            model["enabled"] = False
+            disabled += 1
         return {"checked": checked, "disabled": disabled}
 
     def audit_model_access_key(self):
@@ -254,22 +395,25 @@ class ServerlessCatalogService:
                 "pricing": model.get("pricing") or {},
                 "status": int(status),
             }
+            access_status = self.access_status_from_probe(ok, status)
             if ok:
                 model["access_status"] = "ok"
                 model["last_error"] = ""
                 model["enabled"] = True
+                row["access_status"] = "ok"
                 allowed.append(row)
                 continue
-            access_status = "forbidden" if int(status) in {401, 403} else ("rate_limited" if int(status) == 429 else "probe_failed")
             model["access_status"] = access_status
             model["last_error"] = detail
             row["access_status"] = access_status
             row["error"] = detail
+            model["enabled"] = False
             if int(status) in {401, 403}:
-                model["enabled"] = False
                 blocked.append(row)
             else:
                 skipped.append(row)
+        outcomes = allowed + blocked + skipped
+        access_drift = self.record_access_drift(outcomes, source="audit")
         self.save_model_registry(models)
         self.refresh_model_globals()
         sync = self.proxy_sync_payload(force=True)
@@ -284,6 +428,7 @@ class ServerlessCatalogService:
             "allowed": allowed,
             "blocked": blocked,
             "skipped": skipped,
+            "access_drift": access_drift,
             "active_text_models": self.active_text_models(),
             "text_model_options": self.model_options("text", include_disabled=True),
             "image_model_options": self.model_options("image", include_disabled=True),
@@ -319,7 +464,7 @@ class ServerlessCatalogService:
             if existing and isinstance(existing.get("dedicated"), dict):
                 continue
             entry = self.serverless_registry_entry(item, existing=existing)
-            if self.model_enabled_by_default(entry.get("pricing") or {}) and not validate_access and entry.get("access_status") != "forbidden":
+            if not validate_access and entry.get("access_status") == "ok":
                 entry["enabled"] = True
             if existing != entry:
                 updated += 1 if existing else 0
@@ -335,6 +480,12 @@ class ServerlessCatalogService:
                 model["last_error"] = "DigitalOcean catalog no longer lists this model."
                 by_id[model_id] = model
                 removed += 1
+        removed_outcomes = [
+            {"id": model.get("id"), "display_name": model.get("display_name") or model.get("id"), "access_status": "removed", "status": 410, "error": model.get("last_error") or ""}
+            for model in by_id.values()
+            if model.get("access_status") == "removed" and not isinstance(model.get("dedicated"), dict)
+        ]
+        access_drift = self.record_access_drift(removed_outcomes, source="catalog_sync") if removed_outcomes else self.access_drift_payload()
         dedicated = [model for model in existing_models if isinstance(model.get("dedicated"), dict) and model["id"] not in by_id]
         merged = list(by_id.values()) + dedicated
         access = self.validate_serverless_access(merged) if validate_access else {"checked": 0, "disabled": 0}
@@ -355,6 +506,7 @@ class ServerlessCatalogService:
             },
             "auto_enable_threshold_usd": self.auto_enable_max_usd,
             "access_validation": access,
+            "access_drift": access_drift,
             "text_model_options": self.model_options("text", include_disabled=True),
             "image_model_options": self.model_options("image", include_disabled=True),
             "model_metadata": self.model_metadata_map(),

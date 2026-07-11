@@ -1,6 +1,6 @@
-# Matts Value Set Claude Code Proxy - Installation Guide
+# MDE LLM-PROXY - Installation Guide
 
-This directory contains installation files for the Matts Value Set Claude Code Proxy system.
+This directory contains installation files for MDE LLM-PROXY.
 
 ## Installation Options
 

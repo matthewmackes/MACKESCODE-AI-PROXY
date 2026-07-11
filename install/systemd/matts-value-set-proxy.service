@@ -1,5 +1,5 @@
 [Unit]
-Description=Matts Value Set Claude Code Proxy
+Description=MDE LLM-PROXY Anthropic-compatible Proxy
 Documentation=https://github.com/user/matts-value-set-proxy
 After=network.target
 Wants=network.target

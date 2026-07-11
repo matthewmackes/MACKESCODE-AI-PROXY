@@ -1,5 +1,5 @@
 [Unit]
-Description=Matts Value Set Web Console
+Description=MDE LLM-PROXY Web Console
 Documentation=https://github.com/user/matts-value-set-proxy
 After=network.target matts-value-set-proxy.service
 Wants=network.target matts-value-set-proxy.service

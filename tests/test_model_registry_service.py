@@ -119,6 +119,24 @@ class ModelRegistryServiceTests(unittest.TestCase):
         self.assertEqual(option["policy_decision"]["decision"], "access_forbidden_rejection")
         self.assertEqual(option["policy_decision"]["access_status"], "forbidden")
 
+    def test_deprecation_metadata_blocks_routing_and_survives_normalization(self):
+        model = self.service().normalize({
+            "id": "old-model",
+            "type": "text",
+            "enabled": True,
+            "serverless": True,
+            "access_status": "ok",
+            "pricing": {"input": 0.1},
+            "deprecation": {"status": "superseded", "replacement_model": "new-model"},
+        })
+        option = self.service().enriched_option(model)
+
+        self.assertFalse(self.service().route_enabled(model))
+        self.assertEqual(model["deprecation"]["replacement_model"], "new-model")
+        self.assertTrue(option["disabled"])
+        self.assertEqual(option["status"], "Superseded")
+        self.assertEqual(option["policy_decision"]["decision"], "model_deprecation_migration")
+
     def test_catalog_pricing_detects_common_shapes(self):
         pricing = self.service().catalog_pricing_from_item({
             "pricing": {

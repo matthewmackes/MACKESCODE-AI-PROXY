@@ -77,6 +77,24 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["cost"]["input"], "hello")
         self.assertEqual(payload["cost"]["output"], "Hi there")
 
+    def test_serverless_forwards_bounded_request_timeout_to_proxy(self):
+        requests = []
+
+        def request_json(url, payload=None, timeout=240, method="POST"):
+            requests.append((url, payload, timeout, method))
+            return 200, {"content": [{"text": "quick"}], "usage": {}}
+
+        service, _, _ = self.service(request_json=request_json)
+        status, payload = service.serverless_completion({
+            "messages": [{"role": "user", "content": "research"}],
+            "request_timeout_seconds": "7",
+        }, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["text"], "quick")
+        self.assertEqual(requests[0][1]["request_timeout_seconds"], 7)
+        self.assertEqual(requests[0][2], 12)
+
     def test_serverless_success_emits_trace_and_response_trace_id(self):
         traces = MemoryTraceService()
         service, _, _ = self.service(trace_service=traces)
@@ -89,6 +107,45 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(traces.records[0]["requested_model"], "model-a")
         self.assertEqual(traces.records[0]["routed_model"], "model-a")
         self.assertEqual(traces.records[0]["message_summary"]["last_user_preview"], "hello")
+
+    def test_serverless_success_carries_streaming_metrics_to_trace(self):
+        traces = MemoryTraceService()
+        metrics = {"elapsed_ms": 1200, "first_token_latency_ms": 300, "tokens_per_second": 8.5, "route_health": "client_streamed_from_buffer"}
+        service, _, _ = self.service(
+            trace_service=traces,
+            request_json=lambda *args, **kwargs: (200, {
+                "content": [{"text": "Hi"}],
+                "usage": {"output_tokens": 2},
+                "claude_do": {"streaming_metrics": metrics},
+            }),
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hello"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["streaming_metrics"], metrics)
+        self.assertEqual(traces.records[0]["streaming_metrics"], metrics)
+
+    def test_research_fallback_hint_marks_upstream_error_trace_non_blocking(self):
+        traces = MemoryTraceService()
+        service, _, _ = self.service(
+            trace_service=traces,
+            request_json=lambda *args, **kwargs: (HTTPStatus.GATEWAY_TIMEOUT, {"message": "research role timed out"}),
+        )
+
+        status, payload = service.serverless_completion({
+            "messages": [{"role": "user", "content": "research"}],
+            "trace_status_on_error": "fallback",
+            "trace_origin": "research_llm",
+        }, "model-a")
+
+        self.assertEqual(status, HTTPStatus.GATEWAY_TIMEOUT)
+        self.assertEqual(payload["trace_id"], "trace-memory")
+        self.assertEqual(traces.records[0]["status"], "fallback")
+        self.assertEqual(traces.records[0]["http_status"], int(HTTPStatus.GATEWAY_TIMEOUT))
+        self.assertEqual(traces.records[0]["routing_reason"], "upstream_error")
+        self.assertEqual(traces.records[0]["trace_origin"], "research_llm")
+        self.assertEqual(traces.records[0]["error_category"], "http_504")
 
     def test_serverless_rejects_unknown_model_and_missing_messages(self):
         service, started, _ = self.service()

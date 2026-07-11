@@ -1,8 +1,8 @@
 #!/bin/bash
-# Test script for Matts Value Set Installer
+# Test script for MDE LLM-PROXY Installer
 # Runs without sudo to verify installation components
 
-echo "=== Matts Value Set Installer Test ==="
+echo "=== MDE LLM-PROXY Installer Test ==="
 echo
 
 echo "1. Checking installed files..."

@@ -87,7 +87,9 @@ A change is done only when it is runtime-reachable and observably works.
 - Documentation must be updated when behavior, operator workflows, security
   posture, release process, or runtime-state boundaries change.
 - Release candidates must pass `scripts/release-check.sh`; strict local/CI runs
-  should set `MATTS_BROWSER_SMOKE_REQUIRED=1`.
+  should set `MATTS_BROWSER_SMOKE_REQUIRED=1`. The gate must cover Python
+  tests, generated V2 OpenAPI/client freshness, React build, legacy browser
+  smoke, V2 browser smoke, and the standing Console TUI bridge.
 
 ## Work Tracking
 

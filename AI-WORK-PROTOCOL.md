@@ -1,4 +1,4 @@
-# AI WORK PROTOCOL - Matts Value Set Proxy
+# AI WORK PROTOCOL - MDE LLM-PROXY
 
 ## Quick Reference for All AI Assistants
 

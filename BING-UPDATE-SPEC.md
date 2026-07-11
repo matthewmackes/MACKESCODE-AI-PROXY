@@ -1,6 +1,6 @@
 # BING-UPDATE-SPEC
 
-Purpose: Exhaustive implementation instructions for GLM-5 to build the "Bing Update" GUI transformation in the Matts Value Set Claude Code Proxy console.
+Purpose: Exhaustive implementation instructions for GLM-5 to build the "Bing Update" GUI transformation in the MDE LLM-PROXY console.
 
 Audience: GLM-5 coding agent.
 

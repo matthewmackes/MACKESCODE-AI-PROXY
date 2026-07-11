@@ -1,5 +1,5 @@
 #!/bin/bash
-# Matts Value Set Claude Code Proxy - Uninstaller
+# MDE LLM-PROXY - Uninstaller
 # For manual removal
 
 set -euo pipefail
@@ -20,7 +20,7 @@ DATA_DIR="/var/lib/matts-value-set"
 LOG_DIR="/var/log/matts-value-set"
 DOC_DIR="/usr/share/doc/matts-value-set"
 
-echo -e "${BLUE}=== Matts Value Set Claude Code Proxy Uninstaller ===${NC}"
+echo -e "${BLUE}=== MDE LLM-PROXY Uninstaller ===${NC}"
 echo
 
 # Check if running as root
@@ -31,7 +31,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Confirm removal
-read -p "Are you sure you want to uninstall Matts Value Set Claude Code Proxy? [y/N] " -n 1 -r
+read -p "Are you sure you want to uninstall MDE LLM-PROXY? [y/N] " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Uninstall cancelled${NC}"
@@ -118,7 +118,7 @@ fi
 
 echo -e "\n${GREEN}=== Uninstall Complete ===${NC}"
 echo
-echo "Matts Value Set Claude Code Proxy has been uninstalled."
+echo "MDE LLM-PROXY has been uninstalled."
 echo
 echo "Note: If you want to completely remove all traces:"
 echo "  1. Remove any remaining configuration in ~/.cache/matts-value-set/"

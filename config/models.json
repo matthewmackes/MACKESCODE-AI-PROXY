@@ -1,5 +1,4 @@
 {
-  "schema_version": 1,
   "models": [
     {
       "access_status": "not_checked",
@@ -304,7 +303,7 @@
       "display_name": "Alibaba Qwen3 32b",
       "enabled": true,
       "id": "alibaba-qwen3-32b",
-      "max_output_tokens": 32768,
+      "max_output_tokens": 6554,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.25,
@@ -554,7 +553,7 @@
       "display_name": "DeepSeek 3.2",
       "enabled": true,
       "id": "deepseek-3.2",
-      "max_output_tokens": 131072,
+      "max_output_tokens": 26214,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.425,
@@ -574,7 +573,7 @@
       "enabled": true,
       "id": "deepseek-4-flash",
       "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
-      "max_output_tokens": 65536,
+      "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.112,
@@ -614,7 +613,7 @@
       "display_name": "DeepSeek V4 Pro",
       "enabled": true,
       "id": "deepseek-v4-pro",
-      "max_output_tokens": 87040,
+      "max_output_tokens": 17408,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 1.392,
@@ -654,7 +653,7 @@
       "display_name": "GLM 5",
       "enabled": true,
       "id": "glm-5",
-      "max_output_tokens": 64000,
+      "max_output_tokens": 12800,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.75,
@@ -674,7 +673,7 @@
       "enabled": false,
       "id": "glm-5.1",
       "last_error": "{\"error\":{\"message\":\"Platform overloaded. Please try again later.\",\"type\":\"rate_limit_exceeded_error\"},\"message\":\"Platform overloaded. Please try again later.\",\"status_code\":429}\n",
-      "max_output_tokens": 65536,
+      "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.975,
@@ -693,7 +692,7 @@
       "display_name": "GLM 5.2",
       "enabled": true,
       "id": "glm-5.2",
-      "max_output_tokens": 262144,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 1.05,
@@ -731,7 +730,7 @@
       "display_name": "Kimi K2.6",
       "enabled": true,
       "id": "kimi-k2.6",
-      "max_output_tokens": 96000,
+      "max_output_tokens": 19200,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.76,
@@ -788,7 +787,7 @@
       "display_name": "Mimo V2.5",
       "enabled": true,
       "id": "mimo-v2.5",
-      "max_output_tokens": 32000,
+      "max_output_tokens": 6400,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.105,
@@ -807,7 +806,7 @@
       "display_name": "Mimo V2.5 Pro",
       "enabled": true,
       "id": "mimo-v2.5-pro",
-      "max_output_tokens": 87040,
+      "max_output_tokens": 17408,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.6,
@@ -826,7 +825,7 @@
       "display_name": "Minimax M2.5",
       "enabled": true,
       "id": "minimax-m2.5",
-      "max_output_tokens": 65536,
+      "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.225,
@@ -865,7 +864,7 @@
       "display_name": "Nemotron 3 Nano Omni",
       "enabled": true,
       "id": "nemotron-3-nano-omni",
-      "max_output_tokens": 65536,
+      "max_output_tokens": 13107,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.5,
@@ -884,7 +883,7 @@
       "display_name": "Nemotron 3 Ultra 550b",
       "enabled": true,
       "id": "nemotron-3-ultra-550b",
-      "max_output_tokens": 131072,
+      "max_output_tokens": 26214,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.9,
@@ -1236,6 +1235,54 @@
       "type": "text"
     },
     {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 1050000,
+      "created": 1783634907,
+      "display_name": "Openai Gpt 5.6 Luna",
+      "enabled": false,
+      "id": "openai-gpt-5.6-luna",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {},
+      "pricing_source": "unknown",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 1050000,
+      "created": 1783716594,
+      "display_name": "Openai Gpt 5.6 Sol",
+      "enabled": false,
+      "id": "openai-gpt-5.6-sol",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {},
+      "pricing_source": "unknown",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
+      "access_status": "not_checked",
+      "aliases": [],
+      "context_window": 1050000,
+      "created": 1783716611,
+      "display_name": "Openai Gpt 5.6 Terra",
+      "enabled": false,
+      "id": "openai-gpt-5.6-terra",
+      "max_output_tokens": 128000,
+      "owned_by": "openai",
+      "pricing": {},
+      "pricing_source": "unknown",
+      "provider": "DigitalOcean",
+      "serverless": true,
+      "type": "text"
+    },
+    {
       "access_status": "ok",
       "aliases": [],
       "context_window": 128000,
@@ -1391,5 +1438,6 @@
       "serverless": true,
       "type": "video"
     }
-  ]
+  ],
+  "schema_version": 1
 }

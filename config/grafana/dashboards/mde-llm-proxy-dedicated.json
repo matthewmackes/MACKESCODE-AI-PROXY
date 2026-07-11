@@ -1,0 +1,22 @@
+{
+  "uid": "mde-llm-proxy-dedicated",
+  "title": "MDE LLM-PROXY Dedicated",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["mde", "llm-proxy", "dedicated"],
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Dedicated State",
+      "targets": [{"expr": "matts_dedicated_state"}],
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Runtime Seconds",
+      "targets": [{"expr": "matts_dedicated_runtime_seconds_total"}],
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 0}
+    }
+  ]
+}

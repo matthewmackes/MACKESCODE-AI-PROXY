@@ -23,6 +23,15 @@
   "serverless": {
     "catalog_ttl_seconds": 3600
   },
+  "observability": {
+    "opentelemetry": {
+      "enabled": false,
+      "endpoint": "",
+      "service_name": "mde-llm-proxy-console",
+      "timeout_seconds": 3,
+      "headers": {}
+    }
+  },
   "plugins": {
     "enabled": true,
     "directories": ["plugins"],
@@ -52,6 +61,7 @@
     "serverless_catalog_cache_file": "serverless-model-catalog.json",
     "dedicated_events_file": "dedicated-events.jsonl",
     "audit_file": "audit.jsonl",
+    "quota_file": "quotas.jsonl",
     "auth_session_file": "auth-sessions.json",
     "tmux_session_registry_file": "tmux-sessions.json",
     "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
@@ -68,13 +78,51 @@
     "paths": {
       "/api/chat": {"limit": 120},
       "/api/chat/compare": {"limit": 40},
+      "/api/cost-forecast": {"limit": 120},
       "/api/generate": {"limit": 30},
       "/api/model-access-audit": {"limit": 10},
       "/api/models/serverless-catalog": {"limit": 12},
+      "/api/reviews": {"limit": 60},
+      "/api/reviews/update": {"limit": 60},
+      "/api/reviews/promote": {"limit": 20},
+      "/api/replay/snapshot": {"limit": 60},
+      "/api/replay": {"limit": 30},
       "/api/dedicated/build": {"limit": 8},
       "/api/dedicated/teardown": {"limit": 20},
       "/api/test-models": {"limit": 5},
       "/api/evals/run": {"limit": 20}
+    },
+    "quotas": {
+      "enabled": true,
+      "warn_fraction": 0.8,
+      "default_policy": {
+        "daily": {"requests": 1000, "usd": 25},
+        "monthly": {"requests": 20000, "usd": 500}
+      },
+      "roles": {
+        "viewer": {
+          "daily": {"requests": 100, "usd": 2},
+          "monthly": {"requests": 1000, "usd": 20}
+        },
+        "operator": {
+          "daily": {"requests": 500, "usd": 15},
+          "monthly": {"requests": 10000, "usd": 300}
+        },
+        "owner": {
+          "daily": {"requests": 1500, "usd": 50},
+          "monthly": {"requests": 30000, "usd": 1000}
+        }
+      },
+      "actions": {
+        "chat": {"daily": {"requests": 600, "usd": 12}},
+        "comparison": {"daily": {"requests": 80, "usd": 8}},
+        "eval": {"daily": {"requests": 40, "usd": 10}},
+        "image": {"daily": {"requests": 80, "usd": 12}},
+        "dedicated": {"daily": {"requests": 8, "usd": 30}},
+        "smoke_test": {"daily": {"requests": 10, "usd": 2}}
+      },
+      "models": {},
+      "projects": {}
     }
   }
 }

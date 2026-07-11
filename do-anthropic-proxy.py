@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Anthropic Messages API compatibility proxy for Matts Value Set models."""
+"""Anthropic Messages API compatibility proxy for MDE LLM-PROXY models."""
 import argparse
 import json
 import os
@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import requests
+
+from src.console.services.streaming_metrics import StreamingMetricsService
 
 
 DEFAULT_DO_BASE_URL = "https://inference.do-ai.run"
@@ -64,6 +66,23 @@ DEFAULT_GATEWAY_POLICY = {
         "enforce_proxy_budget_file": True,
         "trace_budget_blocks": True,
         "dedicated_budget_fallback": True,
+    },
+    "slo_routing": {
+        "enabled": True,
+        "default_goal": "balanced",
+        "router_models": ["router:slo", "router:cheapest", "router:fastest", "router:quality", "router:context"],
+        "enforce_explicit_constraints": False,
+        "constraints": {
+            "modality": "text",
+            "min_context_window": 0,
+            "max_estimated_cost_usd": 0,
+            "max_input_cost_per_mtok": 0,
+            "max_output_cost_per_mtok": 0,
+            "max_latency_ms": 0,
+            "require_tools": False
+        },
+        "quality_scores": {},
+        "latency_targets_ms": {}
     },
 }
 MATTS_VALUE_SET_MODELS = [
@@ -828,6 +847,19 @@ def _cost_for_usage(model, usage, costs):
     }
 
 
+def _streaming_metrics(started_at, usage=None, output_text="", cost=None, stream_requested=False, client_streaming=False, provider_streaming=False, chunk_count=0):
+    return StreamingMetricsService(clock=time.time).finalize(
+        started_at=started_at,
+        usage=usage,
+        output_text=output_text,
+        cost=cost,
+        stream_requested=stream_requested,
+        client_streaming=client_streaming,
+        provider_streaming=provider_streaming,
+        chunk_count=chunk_count,
+    )
+
+
 def _cost_for_images(model, image_count, costs):
     rates = costs.get(model) or {}
     image_cost = int(image_count or 0) * float(rates.get("image", 0.0))
@@ -1001,6 +1033,262 @@ def _positive_int(value):
     except (TypeError, ValueError):
         return 0
     return max(0, value)
+
+
+def _request_timeout_seconds(body, default=600):
+    if not isinstance(body, dict):
+        return default
+    timeout = _positive_int(body.get("request_timeout_seconds") or body.get("timeout_seconds"))
+    if not timeout:
+        return default
+    return max(1, min(default, timeout))
+
+
+def _positive_float(value):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, value)
+
+
+def _request_text_chars(body):
+    messages = body.get("messages") if isinstance(body, dict) and isinstance(body.get("messages"), list) else []
+    return sum(len(_content_to_text(msg.get("content"), include_tool_markers=False)) for msg in messages if isinstance(msg, dict))
+
+
+def _estimate_chat_tokens(body):
+    input_tokens = max(1, int(_request_text_chars(body) / 4))
+    max_tokens = _positive_int((body or {}).get("max_tokens")) or 512
+    return input_tokens, max_tokens
+
+
+def _model_supports_tools(record):
+    if not isinstance(record, dict):
+        return False
+    if record.get("supports_tools") is not None:
+        return bool(record.get("supports_tools"))
+    capabilities = record.get("capabilities") if isinstance(record.get("capabilities"), dict) else {}
+    if capabilities.get("tools") is not None:
+        return bool(capabilities.get("tools"))
+    if record.get("tool_support") is not None:
+        return str(record.get("tool_support")).lower() not in {"", "false", "none", "no"}
+    return False
+
+
+def _gateway_model_stats(server, model):
+    stats = getattr(server, "gateway_model_stats", None)
+    if stats is None:
+        stats = {}
+        server.gateway_model_stats = stats
+    row = stats.get(model) or {}
+    requests = int(row.get("requests") or 0)
+    errors = int(row.get("errors") or 0)
+    total_latency = float(row.get("total_latency_ms") or 0)
+    return {
+        "requests": requests,
+        "errors": errors,
+        "avg_latency_ms": int(total_latency / requests) if requests else 0,
+        "error_rate": round(errors / requests, 4) if requests else 0.0,
+        "total_cost_usd": round(float(row.get("total_cost_usd") or 0), 8),
+    }
+
+
+def _gateway_record_model_result(server, model, status, latency_ms=0, cost=None):
+    if not model:
+        return None
+    stats = getattr(server, "gateway_model_stats", None)
+    if stats is None:
+        stats = {}
+        server.gateway_model_stats = stats
+    row = stats.get(model) or {"requests": 0, "errors": 0, "total_latency_ms": 0.0, "total_cost_usd": 0.0}
+    row["requests"] = int(row.get("requests") or 0) + 1
+    row["errors"] = int(row.get("errors") or 0) + (1 if int(status) >= 400 else 0)
+    row["total_latency_ms"] = float(row.get("total_latency_ms") or 0) + max(0, float(latency_ms or 0))
+    if isinstance(cost, dict):
+        row["total_cost_usd"] = float(row.get("total_cost_usd") or 0) + float(cost.get("total_cost_usd") or 0)
+    row["last_status"] = int(status)
+    row["last_updated"] = time.time()
+    stats[model] = row
+    return _gateway_model_stats(server, model)
+
+
+def _gateway_slo_policy(server):
+    policy = getattr(server, "gateway_policy", DEFAULT_GATEWAY_POLICY)
+    if not policy.get("enabled", True):
+        return None
+    slo = policy.get("slo_routing") if isinstance(policy.get("slo_routing"), dict) else {}
+    if not slo.get("enabled", True):
+        return None
+    return slo
+
+
+def _gateway_slo_request(body):
+    if not isinstance(body, dict):
+        return {}
+    metadata = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
+    request = body.get("slo") if isinstance(body.get("slo"), dict) else metadata.get("slo")
+    return request if isinstance(request, dict) else {}
+
+
+def _gateway_slo_goal(slo_policy, requested_model, body):
+    request = _gateway_slo_request(body)
+    explicit_goal = str(request.get("goal") or "").strip().lower()
+    if explicit_goal:
+        return explicit_goal
+    requested = str(requested_model or "").strip().lower()
+    if requested == "router:cheapest":
+        return "cheapest"
+    if requested == "router:fastest":
+        return "fastest"
+    if requested in {"router:quality", "router:highest-quality"}:
+        return "highest_quality"
+    if requested == "router:context":
+        return "context_fit"
+    return str((slo_policy or {}).get("default_goal") or "balanced").strip().lower()
+
+
+def _gateway_slo_constraints(slo_policy, body):
+    base = slo_policy.get("constraints") if isinstance(slo_policy.get("constraints"), dict) else {}
+    requested = _gateway_slo_request(body).get("constraints")
+    requested = requested if isinstance(requested, dict) else {}
+    return _deep_merge(base, requested)
+
+
+def _gateway_is_router_model(slo_policy, requested_model, body):
+    request = _gateway_slo_request(body)
+    if request:
+        return bool(request.get("route") or request.get("goal") or request.get("constraints"))
+    routers = {str(item).lower() for item in (slo_policy.get("router_models") or [])}
+    return str(requested_model or "").lower() in routers
+
+
+def _gateway_candidate_models(server):
+    records = getattr(server, "model_registry_records", []) or []
+    by_id = {str(record.get("id")): record for record in records if isinstance(record, dict) and record.get("id")}
+    out = []
+    for model in getattr(server, "models", []) or []:
+        model = str(model)
+        record = by_id.get(model, {})
+        if (record.get("type") or "text") != "text":
+            continue
+        out.append((model, record))
+    return out
+
+
+def _gateway_slo_candidate(server, model, record, body, constraints, goal, slo_policy):
+    input_tokens, output_tokens = _estimate_chat_tokens(body)
+    rates = getattr(server, "costs", {}).get(model) or {}
+    input_rate = float(rates.get("input") or 0)
+    output_rate = float(rates.get("output") or 0)
+    estimated_cost = (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
+    context_window = int(record.get("context_window") or 0)
+    max_output_tokens = int(record.get("max_output_tokens") or 0)
+    modality = str(record.get("type") or "text")
+    tool_support = _model_supports_tools(record)
+    stats = _gateway_model_stats(server, model)
+    latency_targets = slo_policy.get("latency_targets_ms") if isinstance(slo_policy.get("latency_targets_ms"), dict) else {}
+    avg_latency_ms = int(latency_targets.get(model) or stats["avg_latency_ms"] or 0)
+    quality_scores = slo_policy.get("quality_scores") if isinstance(slo_policy.get("quality_scores"), dict) else {}
+    quality_score = float(quality_scores.get(model) or record.get("quality_score") or 0)
+    reasons = []
+    if constraints.get("modality") and str(constraints.get("modality")) != modality:
+        reasons.append("modality_mismatch")
+    if _positive_int(constraints.get("min_context_window")) and context_window and context_window < _positive_int(constraints.get("min_context_window")):
+        reasons.append("context_window_too_small")
+    if _positive_int(constraints.get("min_context_window")) and not context_window:
+        reasons.append("context_window_unknown")
+    if _positive_float(constraints.get("max_estimated_cost_usd")) and estimated_cost > _positive_float(constraints.get("max_estimated_cost_usd")):
+        reasons.append("estimated_cost_too_high")
+    if _positive_float(constraints.get("max_input_cost_per_mtok")) and input_rate > _positive_float(constraints.get("max_input_cost_per_mtok")):
+        reasons.append("input_price_too_high")
+    if _positive_float(constraints.get("max_output_cost_per_mtok")) and output_rate > _positive_float(constraints.get("max_output_cost_per_mtok")):
+        reasons.append("output_price_too_high")
+    if _positive_int(constraints.get("max_latency_ms")) and avg_latency_ms and avg_latency_ms > _positive_int(constraints.get("max_latency_ms")):
+        reasons.append("latency_too_high")
+    if constraints.get("require_tools") and not tool_support:
+        reasons.append("tools_not_supported")
+    score = _gateway_slo_score(goal, estimated_cost, avg_latency_ms, context_window, quality_score, stats["error_rate"])
+    return {
+        "model": model,
+        "accepted": not reasons,
+        "reasons": reasons,
+        "score": score,
+        "estimated_cost_usd": round(estimated_cost, 8),
+        "input_cost_per_mtok": input_rate,
+        "output_cost_per_mtok": output_rate,
+        "estimated_input_tokens": input_tokens,
+        "estimated_output_tokens": output_tokens,
+        "context_window": context_window,
+        "max_output_tokens": max_output_tokens,
+        "modality": modality,
+        "tool_support": tool_support,
+        "avg_latency_ms": avg_latency_ms,
+        "error_rate": stats["error_rate"],
+        "quality_score": quality_score,
+    }
+
+
+def _gateway_slo_score(goal, estimated_cost, avg_latency_ms, context_window, quality_score, error_rate):
+    goal = goal or "balanced"
+    if goal == "cheapest":
+        return round(estimated_cost, 10)
+    if goal == "fastest":
+        return avg_latency_ms or 999999999
+    if goal in {"highest_quality", "quality"}:
+        return round(-quality_score + error_rate, 6)
+    if goal == "context_fit":
+        return -(context_window or 0)
+    latency_component = (avg_latency_ms or 5000) / 5000
+    cost_component = estimated_cost * 1000
+    quality_component = -quality_score
+    return round(cost_component + latency_component + error_rate + quality_component, 6)
+
+
+def _gateway_select_slo_model(server, requested_model, resolved_model, body):
+    slo_policy = _gateway_slo_policy(server)
+    if not slo_policy:
+        return resolved_model, None, None
+    router_requested = _gateway_is_router_model(slo_policy, requested_model, body)
+    if not router_requested and not bool(slo_policy.get("enforce_explicit_constraints")):
+        return resolved_model, None, None
+    goal = _gateway_slo_goal(slo_policy, requested_model, body)
+    constraints = _gateway_slo_constraints(slo_policy, body)
+    candidates = []
+    for model, record in _gateway_candidate_models(server):
+        if not router_requested and model != resolved_model:
+            continue
+        candidates.append(_gateway_slo_candidate(server, model, record, body, constraints, goal, slo_policy))
+    accepted = [candidate for candidate in candidates if candidate["accepted"]]
+    rejected = [candidate for candidate in candidates if not candidate["accepted"]]
+    if not accepted:
+        proof = {
+            "decision": "slo_route_rejected",
+            "requested_model": requested_model,
+            "resolved_model": resolved_model,
+            "goal": goal,
+            "constraints": constraints,
+            "candidates": candidates,
+            "rejections": rejected,
+        }
+        return resolved_model, proof, {
+            "type": "slo_route_rejected",
+            "message": "No model satisfies SLO routing constraints for %s." % (requested_model or resolved_model),
+            "policy_decision": proof,
+        }
+    selected = sorted(accepted, key=lambda item: (item["score"], item["estimated_cost_usd"], item["model"]))[0]
+    proof = {
+        "decision": "slo_route_selected" if router_requested else "slo_constraints_satisfied",
+        "requested_model": requested_model,
+        "resolved_model": resolved_model,
+        "selected_model": selected["model"],
+        "goal": goal,
+        "constraints": constraints,
+        "selected": selected,
+        "candidates": candidates,
+        "rejections": rejected,
+    }
+    return selected["model"], proof, None
 
 
 def _rate_limit_candidates(policy, model, session_id):
@@ -1368,6 +1656,9 @@ def _write_anthropic_stream(wfile, anthropic):
         "delta": {"stop_reason": anthropic["stop_reason"], "stop_sequence": None},
         "usage": {"output_tokens": anthropic["usage"]["output_tokens"]},
     })
+    metrics = ((anthropic.get("claude_do") or {}).get("streaming_metrics") if isinstance(anthropic.get("claude_do"), dict) else None)
+    if isinstance(metrics, dict):
+        event("metrics", {"type": "metrics", "streaming_metrics": metrics})
     event("message_stop", {"type": "message_stop"})
 
 
@@ -1397,6 +1688,10 @@ def _models_payload(models, aliases=None, records=None, routeable=None, availabi
                 "provider": record.get("provider") or "DigitalOcean",
                 "access_status": record.get("access_status") or ("ok" if available else "not_checked"),
                 "enabled": record.get("enabled") is not False,
+                "context_window": int(record.get("context_window") or 0),
+                "max_output_tokens": int(record.get("max_output_tokens") or 0),
+                "pricing": record.get("pricing") if isinstance(record.get("pricing"), dict) else {},
+                "tool_support": _model_supports_tools(record),
             })
     else:
         out = [{
@@ -1703,6 +1998,24 @@ class Handler(BaseHTTPRequestHandler):
         budget_error = _budget_error(self.server.cost_file, self.server.budget_file)
         requested_model = body.get("model", self.server.default_model)
         model = _resolve_model(requested_model, self.server.model_aliases)
+        model, slo_proof, slo_error = _gateway_select_slo_model(self.server, requested_model, model, body)
+        if slo_error:
+            payload = {"type": "error", "error": slo_error, "routing": {"requested": requested_model, "used": None, "backend": "gateway", "reason": "slo_route_rejected", "policy_decision": slo_error.get("policy_decision")}}
+            trace = _trace_request(
+                self.server,
+                action="proxy.chat",
+                status=409,
+                body=body,
+                requested_model=requested_model,
+                routed_model=None,
+                endpoint_mode="gateway",
+                routing_reason="slo_route_rejected",
+                started_at=request_started,
+                error_category="slo_route_rejected",
+                human_message=slo_error.get("message") or "",
+                extra={"gateway_policy": slo_error.get("policy_decision")},
+            )
+            return self._json(409, _attach_trace(payload, trace))
         rate_limit_error = _gateway_rate_limit_error(self.server, body, model, "chat", now=request_started)
         if rate_limit_error:
             payload = {"type": "error", "error": rate_limit_error}
@@ -1718,7 +2031,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category="rate_limit_exceeded",
                 human_message=rate_limit_error.get("message") or "",
-                extra={"gateway_policy": {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key")}},
+                extra={"gateway_policy": {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key"), "slo_routing": slo_proof} if slo_proof else {"decision": "rate_limited", "scope": rate_limit_error.get("scope"), "key": rate_limit_error.get("key")}},
             )
             return self._json(429, _attach_trace(payload, trace))
         if budget_error:
@@ -1735,7 +2048,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category=budget_error.get("type") or "budget_exceeded",
                 human_message=budget_error.get("message") or "",
-                extra={"gateway_policy": {"decision": "budget_exceeded_rejection", "model": model, "reason": "budget_exceeded"}},
+                extra={"gateway_policy": {"decision": "budget_exceeded_rejection", "model": model, "reason": "budget_exceeded", "slo_routing": slo_proof} if slo_proof else {"decision": "budget_exceeded_rejection", "model": model, "reason": "budget_exceeded"}},
             )
             return self._json(402, _attach_trace(payload, trace))
         if model not in self.server.models:
@@ -1744,7 +2057,7 @@ class Handler(BaseHTTPRequestHandler):
                 "type": "error",
                 "error": {
                     "type": "not_found_error",
-                    "message": "model is not configured for Matts Value Set",
+                    "message": "model is not configured for MDE LLM-PROXY",
                     "model": model,
                     "policy_decision": policy_decision,
                 },
@@ -1761,8 +2074,8 @@ class Handler(BaseHTTPRequestHandler):
                 routing_reason="model_not_configured",
                 started_at=request_started,
                 error_category="not_found_error",
-                human_message="model is not configured for Matts Value Set",
-                extra={"gateway_policy": policy_decision},
+                human_message="model is not configured for MDE LLM-PROXY",
+                extra={"gateway_policy": {**policy_decision, "slo_routing": slo_proof} if slo_proof else policy_decision},
             )
             return self._json(404, _attach_trace(payload, trace))
         lifecycle = _dedicated_lifecycle(model)
@@ -1789,7 +2102,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=request_started,
                 error_category="service_unavailable_error",
                 human_message=payload.get("error", {}).get("message", ""),
-                extra={"dedicated_lifecycle": lifecycle, "gateway_policy": {"decision": "dedicated_wait_not_ready", "model": model, "state": lifecycle.get("state"), "reason": "dedicated_not_ready"}},
+                extra={"dedicated_lifecycle": lifecycle, "gateway_policy": {"decision": "dedicated_wait_not_ready", "model": model, "state": lifecycle.get("state"), "reason": "dedicated_not_ready", "slo_routing": slo_proof} if slo_proof else {"decision": "dedicated_wait_not_ready", "model": model, "state": lifecycle.get("state"), "reason": "dedicated_not_ready"}},
             )
             return self._json(409, _attach_trace(payload, trace))
         route = _dedicated_route(model)
@@ -1801,6 +2114,7 @@ class Handler(BaseHTTPRequestHandler):
             token_clamp = _apply_dedicated_runtime_limits(payload, route["config"])
         upstream_url = route["url"] if route else self.server.chat_url
         upstream_token = route["token"] if route else self._token()
+        upstream_timeout = _request_timeout_seconds(body)
         failover_decision = None
         started = time.time()
         if not body.get("stream"):
@@ -1816,8 +2130,10 @@ class Handler(BaseHTTPRequestHandler):
                     endpoint_mode="gateway-cache",
                     routing_reason="cache_hit",
                     started_at=started,
-                    extra={"gateway_policy": {"decision": "cache_hit", "route": "chat"}},
+                    extra={"gateway_policy": {"decision": "cache_hit", "route": "chat", "slo_routing": slo_proof} if slo_proof else {"decision": "cache_hit", "route": "chat"}},
                 )
+                if slo_proof:
+                    cached.setdefault("claude_do", {})["slo_routing"] = slo_proof
                 _attach_trace(cached, trace)
                 return self._json(200, cached)
         circuit_error = _gateway_circuit_open_error(self.server, "chat", payload_model, now=started)
@@ -1835,7 +2151,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=started,
                 error_category="circuit_open",
                 human_message=circuit_error.get("message") or "",
-                extra={"gateway_policy": {"decision": "circuit_open", "route": "chat"}},
+                extra={"gateway_policy": {"decision": "circuit_open", "route": "chat", "slo_routing": slo_proof} if slo_proof else {"decision": "circuit_open", "route": "chat"}},
             )
             return self._json(503, _attach_trace(payload_error, trace))
         try:
@@ -1847,7 +2163,7 @@ class Handler(BaseHTTPRequestHandler):
                     "user-agent": "matts-claude-code-proxy/1.0",
                 },
                 json=payload,
-                timeout=600,
+                timeout=upstream_timeout,
             )
         except Exception as exc:
             _write_jsonl(self.server.log_file, {
@@ -1859,6 +2175,7 @@ class Handler(BaseHTTPRequestHandler):
                 "latency_ms": int((time.time() - started) * 1000),
                 "error": str(exc),
             })
+            _gateway_record_model_result(self.server, payload_model, 502, int((time.time() - started) * 1000))
             _gateway_record_circuit_result(self.server, "chat", payload_model, 502, now=time.time())
             payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
             trace = _trace_request(
@@ -1874,6 +2191,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=started,
                 error_category="network_error",
                 human_message=str(exc),
+                extra={"gateway_policy": {"decision": "upstream_exception", "slo_routing": slo_proof}} if slo_proof else None,
             )
             return self._json(502, _attach_trace(payload, trace))
 
@@ -1906,7 +2224,7 @@ class Handler(BaseHTTPRequestHandler):
                             "user-agent": "matts-claude-code-proxy/1.0",
                         },
                         json=retry_payload,
-                        timeout=600,
+                        timeout=upstream_timeout,
                     )
                     payload = retry_payload
                     token_clamp = {"from": current_tokens, "to": retry_tokens, "reason": "context length retry"}
@@ -1920,6 +2238,7 @@ class Handler(BaseHTTPRequestHandler):
                         "latency_ms": int((time.time() - started) * 1000),
                         "error": str(exc),
                     })
+                    _gateway_record_model_result(self.server, retry_payload.get("model"), 502, int((time.time() - started) * 1000))
                     _gateway_record_circuit_result(self.server, "chat", retry_payload.get("model"), 502, now=time.time())
                     payload = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
                     trace = _trace_request(
@@ -1935,6 +2254,7 @@ class Handler(BaseHTTPRequestHandler):
                         started_at=started,
                         error_category="network_error",
                         human_message=str(exc),
+                        extra={"gateway_policy": {"decision": "context_retry_exception", "slo_routing": slo_proof}} if slo_proof else None,
                     )
                     return self._json(502, _attach_trace(payload, trace))
 
@@ -1944,6 +2264,7 @@ class Handler(BaseHTTPRequestHandler):
                 original_status = resp.status_code
                 original_body = resp.text[:1000]
                 _gateway_record_circuit_result(self.server, "chat", payload.get("model"), resp.status_code, now=time.time())
+                _gateway_record_model_result(self.server, payload.get("model"), resp.status_code, int((time.time() - started) * 1000))
                 _write_jsonl(self.server.log_file, {
                     "ts": time.time(),
                     "provider": self.server.provider,
@@ -1966,7 +2287,7 @@ class Handler(BaseHTTPRequestHandler):
                             "user-agent": "matts-claude-code-proxy/1.0",
                         },
                         json=failover_payload,
-                        timeout=600,
+                        timeout=upstream_timeout,
                     )
                     payload = failover_payload
                     failover_decision = {
@@ -1978,7 +2299,10 @@ class Handler(BaseHTTPRequestHandler):
                         "original_status": original_status,
                         "original_error": original_body,
                     }
+                    if slo_proof:
+                        failover_decision["slo_routing"] = slo_proof
                 except Exception as exc:
+                    _gateway_record_model_result(self.server, fallback_model, 502, int((time.time() - started) * 1000))
                     _gateway_record_circuit_result(self.server, "chat", fallback_model, 502, now=time.time())
                     payload_error = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
                     trace = _trace_request(
@@ -1994,7 +2318,7 @@ class Handler(BaseHTTPRequestHandler):
                         started_at=started,
                         error_category="network_error",
                         human_message=str(exc),
-                        extra={"gateway_policy": {"decision": "failover_exception", "from": payload.get("model"), "to": fallback_model}},
+                        extra={"gateway_policy": {"decision": "failover_exception", "from": payload.get("model"), "to": fallback_model, "slo_routing": slo_proof} if slo_proof else {"decision": "failover_exception", "from": payload.get("model"), "to": fallback_model}},
                     )
                     return self._json(502, _attach_trace(payload_error, trace))
 
@@ -2009,6 +2333,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": resp.text[:1000],
                 })
             _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), resp.status_code, now=time.time())
+            _gateway_record_model_result(self.server, payload.get("model", model), resp.status_code, int((time.time() - started) * 1000))
             friendly = _friendly_error(resp.status_code, resp.text)
             payload = {"type": "error", "error": friendly}
             trace = _trace_request(
@@ -2024,6 +2349,7 @@ class Handler(BaseHTTPRequestHandler):
                 started_at=started,
                 error_category=friendly.get("type") or "api_error",
                 human_message=friendly.get("message") or "",
+                extra={"gateway_policy": {"decision": "upstream_error", "slo_routing": slo_proof}} if slo_proof else None,
             )
             return self._json(resp.status_code, _attach_trace(payload, trace))
 
@@ -2042,18 +2368,33 @@ class Handler(BaseHTTPRequestHandler):
             },
         )
         cost = _cost_for_usage(payload.get("model", model), data.get("usage"), self.server.costs)
+        output_text = "".join(str(part.get("text") or "") for part in anthropic.get("content", []) if isinstance(part, dict) and part.get("type") == "text")
+        streaming_metrics = _streaming_metrics(
+            started,
+            usage=data.get("usage") or {},
+            output_text=output_text,
+            cost=cost,
+            stream_requested=bool(body.get("stream")),
+            client_streaming=bool(body.get("stream")),
+            provider_streaming=False,
+            chunk_count=sum(1 for part in anthropic.get("content", []) if isinstance(part, dict)),
+        )
         anthropic["claude_do"] = {
             "provider": self.server.provider,
             "requested_model": requested_model,
             "upstream_model": payload.get("model"),
             "upstream_url": upstream_url,
             "cost": cost,
+            "streaming_metrics": streaming_metrics,
         }
         if failover_decision:
             anthropic["claude_do"]["failover"] = failover_decision
+        if slo_proof:
+            anthropic["claude_do"]["slo_routing"] = slo_proof
         if token_clamp:
             anthropic["claude_do"]["token_clamp"] = token_clamp
         _gateway_record_circuit_result(self.server, "chat", payload.get("model", model), resp.status_code, now=time.time())
+        _gateway_record_model_result(self.server, payload.get("model", model), resp.status_code, int((time.time() - started) * 1000), cost)
         if not body.get("stream"):
             _gateway_cache_store(self.server, "chat", payload.get("model", model), payload, anthropic, now=time.time())
         record = {
@@ -2065,10 +2406,13 @@ class Handler(BaseHTTPRequestHandler):
             "status": resp.status_code,
             "latency_ms": int((time.time() - started) * 1000),
             "stream": bool(body.get("stream")),
+            "streaming_metrics": streaming_metrics,
             "cost": cost,
         }
         if token_clamp:
             record["token_clamp"] = token_clamp
+        if slo_proof:
+            record["slo_routing"] = slo_proof
         _write_jsonl(self.server.log_file, record)
         _write_jsonl(self.server.cost_file, record)
         trace = _trace_request(
@@ -2085,7 +2429,10 @@ class Handler(BaseHTTPRequestHandler):
             usage=data.get("usage") or {},
             cost=cost,
             started_at=started,
-            extra={"gateway_policy": {"decision": "failover", "details": failover_decision}} if failover_decision else None,
+            extra={
+                "streaming_metrics": streaming_metrics,
+                **({"gateway_policy": {"decision": "failover", "details": failover_decision, "slo_routing": slo_proof} if failover_decision else slo_proof} if (failover_decision or slo_proof) else {}),
+            },
         )
         _attach_trace(anthropic, trace)
 

@@ -11,6 +11,15 @@ DEFAULT_CONSOLE_CONFIG = {
     "logging": {"level": "INFO"},
     "models": {"auto_enable_max_usd": 0.45},
     "serverless": {"catalog_ttl_seconds": 3600},
+    "observability": {
+        "opentelemetry": {
+            "enabled": False,
+            "endpoint": "",
+            "service_name": "mde-llm-proxy-console",
+            "timeout_seconds": 3,
+            "headers": {},
+        }
+    },
     "proxy": {
         "host": "127.0.0.1",
         "port": 18081,
@@ -26,6 +35,7 @@ DEFAULT_CONSOLE_CONFIG = {
         "serverless_catalog_cache_file": "serverless-model-catalog.json",
         "dedicated_events_file": "dedicated-events.jsonl",
         "tmux_session_registry_file": "tmux-sessions.json",
+        "quota_file": "quotas.jsonl",
         "wallpaper_cache_dir": ".cache/matts-value-set/wallpapers",
         "auth_token_file": "console-auth-token",
         "cost_file": ".cache/matts-value-set/usage.jsonl",
@@ -82,16 +92,27 @@ class ConsoleConfigService:
             "MATTS_VALUE_SET_PROXY_PORT": ("proxy", "port", int),
             "MATTS_VALUE_SET_BASE_URL": ("proxy", "base_url", str),
             "MATTS_VALUE_SET_PROXY_SCRIPT": ("proxy", "script", str),
+            "OTEL_EXPORTER_OTLP_ENDPOINT": ("observability", "opentelemetry", "endpoint", str),
+            "OTEL_SERVICE_NAME": ("observability", "opentelemetry", "service_name", str),
+            "OTEL_EXPORTER_OTLP_TIMEOUT": ("observability", "opentelemetry", "timeout_seconds", lambda value: int(value) / 1000),
         }
-        for env_name, (section, key, cast) in mappings.items():
+        for env_name, path_and_cast in mappings.items():
             if env_name in self.env and str(self.env.get(env_name, "")).strip() != "":
+                *path, cast = path_and_cast
                 try:
                     value = cast(self.env[env_name])
                 except (TypeError, ValueError) as exc:
                     raise ConfigError("%s has invalid value %r" % (env_name, self.env[env_name])) from exc
-                overrides.setdefault(section, {})[key] = value
+                target = overrides
+                for part in path[:-1]:
+                    target = target.setdefault(part, {})
+                target[path[-1]] = value
         if self.env.get("MATTS_CONSOLE_DISABLE_AUTH") == "1":
             overrides.setdefault("auth", {})["enabled"] = False
+        if self.env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            overrides.setdefault("observability", {}).setdefault("opentelemetry", {})["enabled"] = True
+        if self.env.get("OTEL_EXPORTER_OTLP_HEADERS"):
+            overrides.setdefault("observability", {}).setdefault("opentelemetry", {})["headers"] = self.parse_headers(self.env.get("OTEL_EXPORTER_OTLP_HEADERS"))
         return overrides
 
     def load(self):
@@ -103,12 +124,14 @@ class ConsoleConfigService:
     def validate(self, config):
         if not isinstance(config, dict):
             raise ConfigError("console config must be a JSON object")
-        for section in ("server", "auth", "logging", "models", "serverless", "proxy", "paths", "rate_limits"):
+        for section in ("server", "auth", "logging", "models", "serverless", "observability", "proxy", "paths", "rate_limits"):
             self.require_section(config, section)
+        self.require_section(config["observability"], "opentelemetry")
         self.require_int(config, ("server", "port"), 1, 65535)
         self.require_int(config, ("proxy", "port"), 1, 65535)
         self.require_float(config, ("models", "auto_enable_max_usd"), 0)
         self.require_int(config, ("serverless", "catalog_ttl_seconds"), 1)
+        self.require_float(config, ("observability", "opentelemetry", "timeout_seconds"), 0)
         self.require_string(config, ("server", "host"))
         self.require_string(config, ("proxy", "host"))
         self.require_string(config, ("proxy", "base_url"))
@@ -120,6 +143,15 @@ class ConsoleConfigService:
             raise ConfigError("auth.enabled must be a boolean")
         if not isinstance(config["rate_limits"].get("enabled"), bool):
             raise ConfigError("rate_limits.enabled must be a boolean")
+        otel = config["observability"]["opentelemetry"]
+        if not isinstance(otel.get("enabled"), bool):
+            raise ConfigError("observability.opentelemetry.enabled must be a boolean")
+        if not isinstance(otel.get("endpoint"), str):
+            raise ConfigError("observability.opentelemetry.endpoint must be a string")
+        if not isinstance(otel.get("service_name"), str) or not otel.get("service_name").strip():
+            raise ConfigError("observability.opentelemetry.service_name must be a non-empty string")
+        if not isinstance(otel.get("headers"), dict):
+            raise ConfigError("observability.opentelemetry.headers must be an object")
         return True
 
     def require_section(self, config, name):
@@ -154,3 +186,13 @@ class ConsoleConfigService:
         value = self.value_at(config, path)
         if not isinstance(value, str) or not value.strip():
             raise ConfigError("%s must be a non-empty string" % ".".join(path))
+
+    def parse_headers(self, raw):
+        headers = {}
+        for item in str(raw or "").split(","):
+            if "=" not in item:
+                continue
+            key, value = item.split("=", 1)
+            if key.strip():
+                headers[key.strip()] = value.strip()
+        return headers

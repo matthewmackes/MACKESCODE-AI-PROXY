@@ -46,5 +46,22 @@
     "enforce_proxy_budget_file": true,
     "trace_budget_blocks": true,
     "dedicated_budget_fallback": true
+  },
+  "slo_routing": {
+    "enabled": true,
+    "default_goal": "balanced",
+    "router_models": ["router:slo", "router:cheapest", "router:fastest", "router:quality", "router:context"],
+    "enforce_explicit_constraints": false,
+    "constraints": {
+      "modality": "text",
+      "min_context_window": 0,
+      "max_estimated_cost_usd": 0,
+      "max_input_cost_per_mtok": 0,
+      "max_output_cost_per_mtok": 0,
+      "max_latency_ms": 0,
+      "require_tools": false
+    },
+    "quality_scores": {},
+    "latency_targets_ms": {}
   }
 }

@@ -1,7 +1,7 @@
 Name:           matts-value-set
 Version:        1.0.0
 Release:        1%{?dist}
-Summary:        Matts Value Set Claude Code Proxy - Local Anthropic-compatible proxy for various LLM models
+Summary:        MDE LLM-PROXY - Local Anthropic-compatible proxy for various LLM models
 License:        MIT
 URL:            https://github.com/user/matts-value-set-proxy
 Source0:        %{name}-%{version}.tar.gz
@@ -17,7 +17,7 @@ Requires(postun): systemd
 BuildArch:      noarch
 
 %description
-Matts Value Set Claude Code Proxy is a local Anthropic API-compatible proxy server
+MDE LLM-PROXY is a local Anthropic API-compatible proxy server
 that translates Anthropic Messages API calls to OpenAI-compatible endpoints for
 various LLM models. It provides:
 
@@ -108,7 +108,7 @@ fi
 
 if ! getent passwd matts >/dev/null; then
     useradd -r -g matts -s /usr/sbin/nologin \
-            -d /var/lib/matts-value-set -c "Matts Value Set Service User" matts
+            -d /var/lib/matts-value-set -c "MDE LLM-PROXY Service User" matts
 fi
 
 # Set permissions
@@ -211,7 +211,7 @@ fi
 /var/log/matts-value-set/usage.jsonl
 
 %changelog
-* Mon Jul 7 2026 Matts Value Set <matts@example.com> 1.0.0-1
+* Mon Jul 7 2026 MDE LLM-PROXY <matts@example.com> 1.0.0-1
 - Initial RPM package
 - Systemd service integration
 - Web console with authentication

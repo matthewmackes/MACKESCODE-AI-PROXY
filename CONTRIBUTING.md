@@ -16,7 +16,7 @@ Playwright is available. CI requires browser smoke.
 
 For proxy changes, verify:
 
-- `/v1/models` exposes only the current Matts Value Set models and aliases.
+- `/v1/models` exposes only the current MDE LLM-PROXY models and aliases.
 - `/v1/messages` translates Claude Code requests to DigitalOcean chat completions.
 - `/v1/images/generations` still routes Stable Diffusion requests.
 - cost and budget endpoints keep returning valid JSON.

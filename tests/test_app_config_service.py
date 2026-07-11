@@ -23,6 +23,10 @@ class ConsoleConfigServiceTests(unittest.TestCase):
                     "MATTS_STUDIO_HOST": "127.0.0.1",
                     "MATTS_VALUE_SET_PROXY_PORT": "19999",
                     "MATTS_CONSOLE_DISABLE_AUTH": "1",
+                    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+                    "OTEL_SERVICE_NAME": "matts-test-console",
+                    "OTEL_EXPORTER_OTLP_TIMEOUT": "500",
+                    "OTEL_EXPORTER_OTLP_HEADERS": "x-api-key=abc,tenant=dev",
                 },
             )
 
@@ -34,6 +38,11 @@ class ConsoleConfigServiceTests(unittest.TestCase):
         self.assertEqual(config["proxy"]["port"], 19999)
         self.assertEqual(config["paths"]["template_dir"], "templates")
         self.assertFalse(config["auth"]["enabled"])
+        self.assertTrue(config["observability"]["opentelemetry"]["enabled"])
+        self.assertEqual(config["observability"]["opentelemetry"]["endpoint"], "http://collector:4318")
+        self.assertEqual(config["observability"]["opentelemetry"]["service_name"], "matts-test-console")
+        self.assertEqual(config["observability"]["opentelemetry"]["timeout_seconds"], 0.5)
+        self.assertEqual(config["observability"]["opentelemetry"]["headers"]["x-api-key"], "abc")
 
     def test_validation_rejects_bad_ports_and_bad_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +59,8 @@ class ConsoleConfigServiceTests(unittest.TestCase):
     def test_invalid_environment_override_reports_name(self):
         with self.assertRaisesRegex(ConfigError, "MATTS_STUDIO_PORT"):
             ConsoleConfigService(env={"MATTS_STUDIO_PORT": "nope"}, config_path=Path("/missing")).load()
+        with self.assertRaisesRegex(ConfigError, "OTEL_EXPORTER_OTLP_TIMEOUT"):
+            ConsoleConfigService(env={"OTEL_EXPORTER_OTLP_TIMEOUT": "slow"}, config_path=Path("/missing")).load()
 
 
 if __name__ == "__main__":

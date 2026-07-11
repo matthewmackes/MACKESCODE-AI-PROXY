@@ -1,32 +1,27 @@
 """Request trace persistence and redaction helpers."""
-import json
 import time
 import uuid
+
+from src.console.domain.traces import MessageSummary, TraceRecord
+from src.console.store import TraceRepository
 
 
 class TraceService:
     """Append and query privacy-safe trace records."""
 
-    def __init__(self, trace_file, clock=None, uuid_factory=None):
+    def __init__(self, trace_file, clock=None, uuid_factory=None, otel_exporter=None, event_bus=None, repository=None):
         self.trace_file = trace_file
         self.clock = clock or time.time
         self.uuid_factory = uuid_factory or uuid.uuid4
+        self.otel_exporter = otel_exporter
+        self.event_bus = event_bus
+        self.repository = repository or TraceRepository(trace_file, clock=self.clock)
 
     def new_id(self):
         return "trace_%s" % self.uuid_factory().hex
 
     def summarize_messages(self, messages, limit=160):
-        rows = messages if isinstance(messages, list) else []
-        last_user = ""
-        for msg in rows:
-            if isinstance(msg, dict) and msg.get("role") == "user":
-                last_user = str(msg.get("content") or "")
-        preview = " ".join(last_user.split())[:limit]
-        return {
-            "message_count": len(rows),
-            "last_user_preview": preview,
-            "last_user_chars": len(last_user),
-        }
+        return MessageSummary.from_messages(messages, limit=limit).to_dict()
 
     def normalize(self, record):
         now = self.clock()
@@ -34,30 +29,34 @@ class TraceService:
         rec.setdefault("trace_id", self.new_id())
         rec.setdefault("timestamp", now)
         rec.setdefault("status", "unknown")
-        if "latency_ms" in rec:
-            rec["latency_ms"] = int(max(0, rec["latency_ms"]))
-        return rec
+        return TraceRecord.from_dict(rec).to_dict()
 
     def append(self, record):
         rec = self.normalize(record)
-        path = self.trace_file()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(rec, sort_keys=True) + "\n")
+        self.repository.append(rec)
+        if self.event_bus is not None:
+            try:
+                self.event_bus.publish(
+                    "trace.created",
+                    severity="error" if rec.get("status") == "error" else "info",
+                    subject={"type": "trace", "id": rec.get("trace_id")},
+                    correlation={"trace_id": rec.get("trace_id"), "session_id": rec.get("session_id") or rec.get("chat_id") or rec.get("tmux_session") or ""},
+                    payload=rec,
+                )
+            except Exception:
+                pass
+        if self.otel_exporter is not None:
+            try:
+                self.otel_exporter.export_trace(rec)
+            except Exception:
+                pass
         return rec
 
     def read(self, limit=200, model=None, status=None, session=None, min_cost=None):
         rows = []
-        path = self.trace_file()
-        if not path.exists():
-            return rows
-        try:
-            raw_lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            return rows
-        for line in reversed(raw_lines):
+        for row in self.repository.read(limit=limit or 200):
             try:
-                row = json.loads(line)
+                row = TraceRecord.from_dict(row).to_dict()
             except ValueError:
                 continue
             if model and model not in {row.get("requested_model"), row.get("routed_model")}:
@@ -76,3 +75,6 @@ class TraceService:
             if len(rows) >= int(limit or 200):
                 break
         return rows
+
+    def metadata(self):
+        return self.repository.metadata()

@@ -1,6 +1,6 @@
 import unittest
 
-from src.console.utils.errors import error_category, error_payload, json_error, normalize_error_payload
+from src.console.utils.errors import error_category, error_payload, json_error, normalize_error_payload, route_not_found_details, route_suggestions
 
 
 class ErrorUtilsTests(unittest.TestCase):
@@ -37,6 +37,45 @@ class ErrorUtilsTests(unittest.TestCase):
         self.assertEqual(payload["status"], 403)
         self.assertEqual(payload["request_id"], "req")
         self.assertEqual(payload["details"]["upstream_error"], {"message": "provider denied"})
+
+    def test_route_suggestions_rank_nearby_paths_without_query_values(self):
+        suggestions = route_suggestions("/api/proxy/stats?token=secret", ["/api/proxy/status", "/api/models", "/api/traces"])
+        details = route_not_found_details("/api/proxy/stats?token=secret", "GET", ["/api/proxy/status", "/api/models"])
+
+        self.assertEqual(suggestions[0], "/api/proxy/status")
+        self.assertEqual(details["path"], "/api/proxy/stats")
+        self.assertEqual(details["method"], "GET")
+        self.assertEqual(details["suggested_endpoints"][0], "/api/proxy/status")
+        self.assertNotIn("secret", str(details))
+
+    def test_route_not_found_details_report_exact_path_method_mismatch(self):
+        details = route_not_found_details(
+            "/v2/research/search?token=secret",
+            "GET",
+            ["/v2/research/search", "/v2/research/engines"],
+            route_methods={"/v2/research/search": ["POST"], "/v2/research/engines": ["GET"]},
+        )
+
+        self.assertTrue(details["method_mismatch"])
+        self.assertEqual(details["path"], "/v2/research/search")
+        self.assertEqual(details["method"], "GET")
+        self.assertEqual(details["allowed_methods"], ["POST"])
+        self.assertEqual(details["suggested_endpoints"], ["/v2/research/search"])
+        self.assertEqual(details["nearby_endpoints"], [{"path": "/v2/research/search", "methods": ["POST"]}])
+        self.assertIn("Use POST /v2/research/search", details["suggested_fix"])
+        self.assertNotIn("secret", str(details))
+
+    def test_route_not_found_details_preserve_nearby_other_method_routes(self):
+        details = route_not_found_details(
+            "/v2/research/searc",
+            "GET",
+            ["/v2/research/search", "/v2/research/engines", "/v2/research"],
+            route_methods={"/v2/research/search": ["POST"], "/v2/research/engines": ["GET"], "/v2/research": ["GET"]},
+        )
+
+        self.assertIn("/v2/research", details["suggested_endpoints"])
+        self.assertIn({"path": "/v2/research/search", "methods": ["POST"]}, details["nearby_endpoints"])
+        self.assertIn({"path": "/v2/research/search", "methods": ["POST"]}, details["other_method_endpoints"])
 
 
 if __name__ == "__main__":

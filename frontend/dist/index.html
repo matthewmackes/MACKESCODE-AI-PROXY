@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MDE LLM-PROXY Console v2</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "IBM Plex Sans", "Inter", "Helvetica Neue", Arial, sans-serif;
+        background: #f4f4f4;
+        color: #161616;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: #f4f4f4;
+      }
+      .bootShell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-content: center;
+        justify-items: center;
+        padding: 24px;
+        background: #161616;
+        color: #f4f4f4;
+      }
+      .bootPanel {
+        width: min(760px, 100%);
+        display: grid;
+        gap: 18px;
+        padding: 24px;
+        border: 1px solid #525252;
+        border-left: 4px solid #0f62fe;
+        background: #262626;
+      }
+      .bootMark {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        background: #0f62fe;
+        color: #ffffff;
+        font-weight: 700;
+      }
+      .bootPanel span {
+        color: #78a9ff;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      .bootPanel h1 {
+        margin: 0;
+        max-width: 680px;
+        font-size: clamp(36px, 8vw, 72px);
+        line-height: .96;
+        font-weight: 400;
+      }
+      .bootPanel p {
+        margin: 0;
+        max-width: 620px;
+        color: #c6c6c6;
+        line-height: 1.5;
+      }
+      .bootActions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .bootActions a {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 14px;
+        border: 1px solid #6f6f6f;
+        color: #f4f4f4;
+        text-decoration: none;
+      }
+      .bootActions a:first-child {
+        border-color: #0f62fe;
+        background: #0f62fe;
+        color: #ffffff;
+      }
+      .bootActions a:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-707d93be.js"></script>
+    <link rel="stylesheet" href="/assets/index-f794bc9f.css">
+  </head>
+  <body>
+    <div id="root">
+      <section class="bootShell" data-testid="v2-boot-fallback" aria-label="MDE LLM-PROXY Console v2 is starting">
+        <div class="bootPanel">
+          <div class="bootMark" aria-hidden="true">M</div>
+          <div>
+            <span>LLM-PROXY Console v2</span>
+            <h1>MDE LLM-PROXY is starting</h1>
+          </div>
+          <p>The React console is loading. If this screen remains visible, refresh the browser session or check the V2 health endpoint.</p>
+          <div class="bootActions">
+            <a href="">Reload Console</a>
+            <a href="/v2/health">V2 Health</a>
+          </div>
+        </div>
+      </section>
+    </div>
+    
+  </body>
+</html>

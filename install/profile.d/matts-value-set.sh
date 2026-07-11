@@ -1,5 +1,5 @@
 #!/bin/bash
-# Matts Value Set Claude Code Proxy - Bash Login Integration
+# MDE LLM-PROXY - Bash Login Integration
 # Source this file from /etc/profile.d/matts-value-set.sh
 
 # Skip if disabled
@@ -46,9 +46,9 @@ _matts_get_url() {
     fi
 }
 
-# Show welcome message if Matts Value Set is installed
+# Show welcome message if MDE LLM-PROXY is installed
 if command -v claude-do >/dev/null 2>&1; then
-    echo -e "\n\033[1;36m=== Matts Value Set Claude Code Proxy ===\033[0m"
+    echo -e "\n\033[1;36m=== MDE LLM-PROXY ===\033[0m"
 
     # Service status
     echo -e "\033[1;34mServices:\033[0m"

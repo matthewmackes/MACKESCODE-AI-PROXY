@@ -6,7 +6,7 @@
 - Removed old `claude-pro`, `claude-flash`, and `claude-sonnet` wrappers.
 - Added wrappers for the current text models: DeepSeek V4, GLM, Mistral, and Codex.
 - Replaced stale Codex references with `openai-gpt-5.3-codex`.
-- Simplified the proxy model list to the current Matts Value Set models.
+- Simplified the proxy model list to the current MDE LLM-PROXY models.
 - Removed catalog filtering, provider fallback, and upstream Anthropic model pass-through code.
 - Added `./claude-DO.sh --test-models` to smoke-test all configured current models.
 - Added the pure Python `image-studio.py` unified web console with embedded Claude Code, text model chat, image studio, history, budgets, costs, and logs.

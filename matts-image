@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-shot image generator for Matts Value Set image models."""
+"""One-shot image generator for MDE LLM-PROXY image models."""
 import argparse
 import base64
 import json
@@ -135,7 +135,7 @@ def write_output(response, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate one image through Matts Value Set.")
+    parser = argparse.ArgumentParser(description="Generate one image through MDE LLM-PROXY.")
     parser.add_argument("prompt_arg", nargs="?", help="Prompt text.")
     parser.add_argument("--prompt", "-p", help="Prompt text.")
     parser.add_argument("--size", default=os.environ.get("MATTS_IMAGE_SIZE", "1024x1024"))

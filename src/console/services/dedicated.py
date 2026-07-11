@@ -8,6 +8,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from src.console.policy import PolicyService
+
 
 class DedicatedInferenceService:
     """Owns Dedicated Inference state, registry integration, and chat routing."""
@@ -32,8 +34,11 @@ class DedicatedInferenceService:
         serverless_chat_completion,
         active_text_models,
         default_text_model,
+        local_usage_report=None,
         clock=None,
         legacy_config_file=None,
+        event_bus=None,
+        policy_service=None,
     ):
         self.default_config = dict(default_config)
         self.steps = list(steps)
@@ -51,7 +56,10 @@ class DedicatedInferenceService:
         self.serverless_chat_completion = serverless_chat_completion
         self.active_text_models = active_text_models
         self.default_text_model = default_text_model
+        self.local_usage_report = local_usage_report or (lambda start_date, end_date: {"total_usd": 0.0, "by_model": []})
         self.clock = clock or time.time
+        self.event_bus = event_bus
+        self.policy_service = policy_service or PolicyService()
 
     def validate_config_document(self, data):
         if not isinstance(data, dict):
@@ -137,6 +145,11 @@ class DedicatedInferenceService:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(event, sort_keys=True) + "\n")
+        if self.event_bus is not None:
+            try:
+                self.event_bus.publish("lifecycle.dedicated", severity=severity, subject={"type": "dedicated", "id": state}, correlation={}, payload=event)
+            except Exception:
+                pass
         return event
 
     def events(self, limit=80):
@@ -340,16 +353,18 @@ class DedicatedInferenceService:
         cfg = self.load_config()
         idle_policy = self.idle_policy_state(cfg)
         unhealthy_policy = self.unhealthy_policy_state(cfg)
+        policy_decision = self.policy_service.dedicated_lifecycle_decision(cfg, idle_policy, unhealthy_policy).to_dict()
         if cfg.get("state") != "active":
-            return {"action": "none", "reason": "not_active", "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
+            return {"action": "none", "reason": "not_active", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
         if unhealthy_policy["teardown_due"]:
             self.append_event("unhealthy_teardown", "Dedicated unhealthy policy triggered teardown", "error", {
                 "unhealthy_policy": unhealthy_policy,
                 "model_id": cfg.get("model_id"),
                 "inference_id": cfg.get("inference_id"),
+                "policy_decision": policy_decision,
             })
             status, payload = self.teardown({"reason": "unhealthy_timeout"})
-            return {"action": "teardown", "reason": "unhealthy_timeout", "status": int(status), "payload": payload}
+            return {"action": "teardown", "reason": "unhealthy_timeout", "status": int(status), "payload": payload, "policy_decision": policy_decision}
         if idle_policy["teardown_due"]:
             reason = "keep_alive_extension_expired" if idle_policy["extension_expired_unused"] else "idle_timeout"
             self.append_event("idle_teardown", "Dedicated idle policy triggered teardown", "warning", {
@@ -357,9 +372,10 @@ class DedicatedInferenceService:
                 "idle_policy": idle_policy,
                 "model_id": cfg.get("model_id"),
                 "inference_id": cfg.get("inference_id"),
+                "policy_decision": policy_decision,
             })
             status, payload = self.teardown({"reason": reason})
-            return {"action": "teardown", "reason": reason, "status": int(status), "payload": payload}
+            return {"action": "teardown", "reason": reason, "status": int(status), "payload": payload, "policy_decision": policy_decision}
         if idle_policy["warning"]:
             warning_started = float(cfg.get("idle_warning_started_at") or 0)
             last_work = float(cfg.get("last_work_at") or cfg.get("run_started_at") or 0)
@@ -370,9 +386,10 @@ class DedicatedInferenceService:
                     "idle_policy": idle_policy,
                     "model_id": cfg.get("model_id"),
                     "inference_id": cfg.get("inference_id"),
+                    "policy_decision": policy_decision,
                 })
-                return {"action": "warning", "reason": "idle_warning", "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
-        return {"action": "none", "reason": "within_policy", "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
+                return {"action": "warning", "reason": "idle_warning", "policy_decision": policy_decision, "idle_policy": idle_policy, "dedicated": self.public_payload(cfg)}
+        return {"action": "none", "reason": "within_policy", "policy_decision": policy_decision, "idle_policy": idle_policy, "unhealthy_policy": unhealthy_policy, "dedicated": self.public_payload(cfg)}
 
     def keep_alive(self, data):
         data = data or {}
@@ -382,10 +399,11 @@ class DedicatedInferenceService:
             seconds = int(data.get("seconds") or data.get("duration_seconds") or 0)
         except (TypeError, ValueError):
             seconds = 0
+        policy_decision = self.policy_service.dedicated_keep_alive_decision(cfg, seconds, allowed).to_dict()
         if seconds not in allowed:
-            return HTTPStatus.BAD_REQUEST, {"error": "Keep-alive duration must be one of 300, 600, 1800, or 3600 seconds."}
+            return HTTPStatus.BAD_REQUEST, {"error": "Keep-alive duration must be one of 300, 600, 1800, or 3600 seconds.", "policy_decision": policy_decision}
         if cfg.get("state") != "active":
-            return HTTPStatus.CONFLICT, {"error": "Keep-alive is only available while Dedicated Inference is active.", "dedicated": self.public_payload(cfg)}
+            return HTTPStatus.CONFLICT, {"error": "Keep-alive is only available while Dedicated Inference is active.", "dedicated": self.public_payload(cfg), "policy_decision": policy_decision}
         now = self.clock()
         cfg["keep_alive_started_at"] = now
         cfg["keep_alive_until"] = now + seconds
@@ -396,8 +414,11 @@ class DedicatedInferenceService:
             "until": cfg["keep_alive_until"],
             "operator": data.get("operator") or data.get("session_id") or "console-token-user",
             "idle_policy": self.idle_policy_state(cfg, now),
+            "policy_decision": policy_decision,
         })
-        return HTTPStatus.OK, self.status_payload(poll=False)
+        payload = self.status_payload(poll=False)
+        payload["policy_decision"] = policy_decision
+        return HTTPStatus.OK, payload
 
     def public_payload(self, cfg):
         now = self.clock()
@@ -422,6 +443,7 @@ class DedicatedInferenceService:
         budget = float(cfg.get("daily_budget_usd") or 0)
         clean["budget_percent"] = round((clean["estimated_cost_usd"] / budget) * 100, 2) if budget else 0
         clean["budget_state"] = self.budget_state(cfg, now)
+        clean["budget_state"]["policy_decision"] = self.policy_service.dedicated_build_budget_decision(clean["budget_state"], cfg=cfg).to_dict()
         return clean
 
     def extract_id(self, response):
@@ -593,6 +615,111 @@ class DedicatedInferenceService:
             warnings.append("Dedicated daily budget is at %.2f%% of the configured limit." % budget_state["percent"])
         return {"ok": not errors, "errors": errors, "warnings": warnings, "config": self.public_payload(cfg)}
 
+    def value_in_payload(self, payload, needle):
+        needle = str(needle or "").strip().lower()
+        if not needle:
+            return False
+        if isinstance(payload, dict):
+            return any(self.value_in_payload(value, needle) for value in payload.values())
+        if isinstance(payload, list):
+            return any(self.value_in_payload(value, needle) for value in payload)
+        return str(payload or "").strip().lower() == needle
+
+    def capacity_plan(self, data=None):
+        cfg = self.load_config()
+        cfg.update({k: v for k, v in (data or {}).items() if k in self.default_config})
+        now = self.clock()
+        try:
+            hourly = max(0.0, float(cfg.get("price_per_hour") or 0.0))
+        except (TypeError, ValueError):
+            hourly = 0.0
+        try:
+            projected_daily_serverless = float((data or {}).get("projected_serverless_daily_usd") or 0.0)
+        except (TypeError, ValueError):
+            projected_daily_serverless = 0.0
+        if not projected_daily_serverless:
+            today = datetime.datetime.fromtimestamp(now, datetime.timezone.utc).date()
+            projected_daily_serverless = float((self.local_usage_report(today - datetime.timedelta(days=1), today) or {}).get("total_usd") or 0.0)
+        dedicated_daily = round(hourly * 24.0, 8)
+        dedicated_monthly = round(hourly * 24.0 * 30.0, 8)
+        delta_daily = round(dedicated_daily - projected_daily_serverless, 8)
+        idle_policy = self.idle_policy_state(cfg, now)
+        idle_teardown_hours = round(float(idle_policy.get("teardown_seconds") or 0) / 3600.0, 4)
+        idle_window_cost = round(hourly * idle_teardown_hours, 8)
+        preflight = self.preflight(cfg)
+        health = self.digitalocean_health_snapshot() or {}
+        token = self.digitalocean_token()
+        sizes = {"status": 0, "ok": False, "payload": {}, "error": "DigitalOcean token is not configured"}
+        gpu_config = {"status": 0, "ok": False, "payload": {}, "error": "DigitalOcean token is not configured"}
+        if token:
+            size_status, size_payload = self.do_request("/v2/dedicated-inferences/sizes", token, method="GET", timeout=60)
+            gpu_status, gpu_payload = self.do_request("/v2/dedicated-inferences/gpu-model-config", token, method="GET", timeout=60)
+            sizes = {"status": int(size_status), "ok": int(size_status) < 400, "payload": size_payload if isinstance(size_payload, dict) else {}, "error": "" if int(size_status) < 400 else json.dumps(size_payload)[:500]}
+            gpu_config = {"status": int(gpu_status), "ok": int(gpu_status) < 400, "payload": gpu_payload if isinstance(gpu_payload, dict) else {}, "error": "" if int(gpu_status) < 400 else json.dumps(gpu_payload)[:500]}
+        region = str(cfg.get("region") or "")
+        accelerator = str(cfg.get("accelerator_slug") or "")
+        model_slug = str(cfg.get("model_slug") or "")
+        region_known = region in {"atl1", "nyc2", "tor1"}
+        gpu_seen = self.value_in_payload(sizes.get("payload"), accelerator) or self.value_in_payload(gpu_config.get("payload"), accelerator)
+        model_seen = self.value_in_payload(gpu_config.get("payload"), model_slug)
+        capacity_uncertain = not token or not sizes["ok"] or not gpu_config["ok"] or not gpu_seen or not model_seen
+        notes = []
+        if not hourly:
+            notes.append("Dedicated hourly price is missing; cost comparison is incomplete.")
+        if capacity_uncertain:
+            notes.append("Live capacity or GPU/model fit is uncertain from DigitalOcean discovery.")
+        if not region_known:
+            notes.append("Region is outside the currently documented Dedicated Inference regions.")
+        if (health.get("account") or {}).get("status") not in {None, "active", "ok"}:
+            notes.append("DigitalOcean account status may block Dedicated capacity.")
+        if (health.get("prepay") or {}).get("status") == "payment_due":
+            notes.append("DigitalOcean billing/prepay status needs attention before build.")
+        recommendation = "build" if preflight["ok"] and hourly and not capacity_uncertain and delta_daily <= 0 else "review"
+        if not preflight["ok"] or not token:
+            recommendation = "blocked"
+        elif hourly and projected_daily_serverless and delta_daily > 0:
+            recommendation = "prefer_serverless"
+        return {
+            "generated_at": now,
+            "recommendation": recommendation,
+            "config": self.public_payload(cfg),
+            "cost": {
+                "hourly_usd": round(hourly, 8),
+                "daily_usd": dedicated_daily,
+                "monthly_30d_usd": dedicated_monthly,
+                "idle_teardown_hours": idle_teardown_hours,
+                "idle_window_cost_usd": idle_window_cost,
+            },
+            "serverless_comparison": {
+                "projected_daily_usd": round(projected_daily_serverless, 8),
+                "break_even_daily_serverless_usd": dedicated_daily,
+                "delta_daily_usd": delta_daily,
+                "dedicated_cheaper": bool(projected_daily_serverless and delta_daily <= 0),
+            },
+            "capacity": {
+                "region": region,
+                "region_known": region_known,
+                "accelerator_slug": accelerator,
+                "accelerator_seen": bool(gpu_seen),
+                "model_slug": model_slug,
+                "model_seen": bool(model_seen),
+                "uncertain": capacity_uncertain,
+                "sizes_status": sizes["status"],
+                "gpu_model_config_status": gpu_config["status"],
+            },
+            "readiness": {
+                "preflight": preflight,
+                "account": health.get("account") if isinstance(health, dict) else None,
+                "billing": health.get("prepay") if isinstance(health, dict) else None,
+            },
+            "fallback": {
+                "model": cfg.get("fallback_model") or self.default_text_model(),
+                "active_text_models": self.active_text_models(),
+            },
+            "uncertainty_notes": notes,
+            "live_discovery": {"sizes": sizes, "gpu_model_config": gpu_config},
+        }
+
     def update_from_resource(self, cfg, resource):
         status = str(resource.get("status") or cfg.get("state") or "provisioning")
         endpoints = resource.get("endpoints") if isinstance(resource.get("endpoints"), dict) else {}
@@ -703,6 +830,7 @@ class DedicatedInferenceService:
             self.save_config(cfg)
             return HTTPStatus.BAD_REQUEST, {"error": cfg["last_error"], "preflight": preflight, "dedicated": self.public_payload(cfg)}
         budget_state = self.budget_state(cfg)
+        budget_policy_decision = self.policy_service.dedicated_build_budget_decision(budget_state, cfg=cfg).to_dict()
         budget_override = bool(data.get("budget_override") or data.get("override_budget"))
         if budget_state["critical"] and not budget_override:
             message = "Dedicated build blocked because the daily budget is at %.2f%% of the configured limit. Use a Serverless fallback or explicitly override the budget guard." % budget_state["percent"]
@@ -715,9 +843,11 @@ class DedicatedInferenceService:
                 "region": cfg.get("region"),
                 "accelerator_slug": cfg.get("accelerator_slug"),
                 "fallback_model": cfg.get("fallback_model"),
+                "policy_decision": budget_policy_decision,
             })
-            return HTTPStatus.PAYMENT_REQUIRED, {"error": message, "message": message, "budget_state": budget_state, "preflight": preflight, "dedicated": self.public_payload(cfg)}
+            return HTTPStatus.PAYMENT_REQUIRED, {"error": message, "message": message, "budget_state": budget_state, "policy_decision": budget_policy_decision, "preflight": preflight, "dedicated": self.public_payload(cfg)}
         if budget_state["critical"] and budget_override:
+            budget_policy_decision["overrides"] = {"budget_override": True, "operator": data.get("operator") or data.get("session_id") or data.get("console_token") or "console-token-user"}
             self.append_event("budget_override", "Dedicated daily budget guard overridden for build", "warning", {
                 "budget_state": budget_state,
                 "model_id": cfg.get("model_id"),
@@ -727,6 +857,7 @@ class DedicatedInferenceService:
                 "price_per_hour": cfg.get("price_per_hour"),
                 "fallback_model": cfg.get("fallback_model"),
                 "operator": data.get("operator") or data.get("session_id") or data.get("console_token") or "console-token-user",
+                "policy_decision": budget_policy_decision,
             })
         cfg["state"] = "creating"
         cfg["created_at"] = self.clock()
@@ -853,11 +984,13 @@ class DedicatedInferenceService:
             }
         budget_state = self.budget_state(cfg)
         if budget_state["critical"]:
+            policy_decision = self.policy_service.dedicated_build_budget_decision(budget_state, cfg=cfg).to_dict()
             notice = "Dedicated Inference is over the configured daily budget guard, so this request was routed to %s instead." % fallback
             self.append_event("budget_blocked_fallback", notice, "warning", {
                 "budget_state": budget_state,
                 "requested": data.get("model"),
                 "fallback_model": fallback,
+                "policy_decision": policy_decision,
             })
             status, fallback_payload = self.serverless_chat_completion(data, fallback, allow_unregistered=True)
             if isinstance(fallback_payload, dict):
@@ -869,12 +1002,7 @@ class DedicatedInferenceService:
                     "reason": "budget_blocked_fallback",
                     "backend": "serverless",
                     "budget_state": budget_state,
-                    "policy_decision": {
-                        "decision": "budget_blocked_fallback",
-                        "model": data.get("model"),
-                        "fallback_model": fallback,
-                        "budget_percent": budget_state.get("percent"),
-                    },
+                    "policy_decision": {**policy_decision, "action": "budget_blocked_fallback", "subject": {**policy_decision.get("subject", {}), "fallback_model": fallback}},
                 }
             return status, fallback_payload
         if cfg.get("state") != "active" or not endpoint or not cfg.get("access_token"):

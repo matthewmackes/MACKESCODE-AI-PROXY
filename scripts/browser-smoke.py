@@ -8,6 +8,7 @@ import tempfile
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlencode, urljoin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,29 @@ def load_studio():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def smoke_quota_decision(path="", data=None, actor=None, actor_key=""):
+    data = data if isinstance(data, dict) else {}
+    return {
+        "enabled": False,
+        "managed": False,
+        "allowed": True,
+        "status": "allowed",
+        "action": str(data.get("action") or ""),
+        "route": str(path or data.get("path") or ""),
+        "actor": actor or {},
+        "actor_key": actor_key or "",
+        "warnings": [],
+        "blocks": [],
+        "checks": [],
+        "policy_decision": {
+            "domain": "quota",
+            "allowed": True,
+            "reason": "browser_smoke_quota_disabled",
+            "effects": {},
+        },
+    }
 
 
 def patch_for_smoke(studio, tmp):
@@ -96,13 +120,39 @@ def patch_for_smoke(studio, tmp):
         "title": "Browser smoke wallpaper",
         "copyright": "",
     }
+    studio.quota_planner_payload = lambda actor=None, actor_key="": {
+        "enabled": False,
+        "warn_fraction": 0.0,
+        "actor": actor or {},
+        "actor_key": actor_key or "",
+        "quotas": [],
+        "recent": [],
+        "policy": {},
+    }
+    studio.quota_planner_preview = smoke_quota_decision
+    studio.quota_planner_consume = smoke_quota_decision
 
 
-def start_server(studio):
-    server = ThreadingHTTPServer(("127.0.0.1", 0), studio.StudioHandler)
+def smoke_handler_class(studio, quiet=False):
+    if not quiet:
+        return studio.StudioHandler
+
+    class QuietSmokeHandler(studio.StudioHandler):
+        def log_message(self, fmt, *args):
+            return None
+
+    return QuietSmokeHandler
+
+
+def start_server(studio, quiet=False):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), smoke_handler_class(studio, quiet=quiet))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, "http://127.0.0.1:%d/" % server.server_address[1]
+
+
+def terminal_smoke_url(base_url):
+    return urljoin(base_url, "terminal") + "?" + urlencode({"name": "browser-smoke", "autoconnect": "0"})
 
 
 def run_browser_smoke(base_url):
@@ -157,7 +207,7 @@ def run_browser_smoke(base_url):
 
         metrics = collect_metrics()
         assert metrics["viewActive"], "Create view is not active"
-        assert metrics["activePane"] == "chat", "Text mode should open the chat pane"
+        assert metrics["activePane"] == "chat", "Chat mode should open the chat pane"
         assert metrics["visible"]["greeting"], "Create greeting is not visible"
         assert metrics["visible"]["caption"], "Wallpaper caption is not visible"
         assert metrics["visible"]["mood"], "Weather/mood pill is not visible"
@@ -178,7 +228,7 @@ def run_browser_smoke(base_url):
         assert abs(image_center - image_metrics["viewportWidth"] / 2) <= max(24, image_metrics["viewportWidth"] * 0.08), "Image prompt is not centered"
         assert page.locator("#create-image-model").is_visible(), "Image model selector is not visible in Image mode"
         assert page.locator("#generate").is_visible(), "Image generation controls are not visible"
-        page.get_by_role("button", name="Text", exact=True).click()
+        page.get_by_role("button", name="Chat", exact=True).click()
         page.wait_for_selector("#chat.active")
 
     with sync_playwright() as p:
@@ -195,16 +245,17 @@ def run_browser_smoke(base_url):
         page.get_by_role("button", name="Coding").click()
         page.wait_for_selector("#claude.active")
         header = page.locator("header").inner_text(timeout=5000)
-        assert "Mackes Code" in header
-        page.goto(base_url + "terminal?name=browser-smoke", wait_until="domcontentloaded")
+        assert "MDE LLM-PROXY Console" in header
+        page.goto(terminal_smoke_url(base_url), wait_until="domcontentloaded")
         page.wait_for_selector("#terminal")
-        assert "Mackes Code" in page.title()
+        assert "MDE LLM-PROXY Console" in page.title()
         browser.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--required", action="store_true", help="fail instead of skipping when Playwright is unavailable")
+    parser.add_argument("--quiet", action="store_true", help="suppress expected access logs from the isolated smoke server")
     args = parser.parse_args()
     try:
         import playwright  # noqa: F401
@@ -218,7 +269,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         studio = load_studio()
         patch_for_smoke(studio, Path(tmpdir))
-        server, url = start_server(studio)
+        server, url = start_server(studio, quiet=args.quiet)
         try:
             run_browser_smoke(url)
             print("Browser smoke passed: %s" % url)

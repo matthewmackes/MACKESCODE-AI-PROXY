@@ -1,0 +1,22 @@
+{
+  "uid": "mde-llm-proxy-evals",
+  "title": "MDE LLM-PROXY Evals",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["mde", "llm-proxy", "evals"],
+  "time": {"from": "now-7d", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Eval Runs",
+      "targets": [{"expr": "sum by (dataset, status) (increase(matts_eval_runs_total[1d]))"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Pass Rate",
+      "targets": [{"expr": "matts_eval_pass_rate"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    }
+  ]
+}

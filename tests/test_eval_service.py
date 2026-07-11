@@ -82,6 +82,63 @@ class EvalServiceTests(unittest.TestCase):
         self.assertEqual(current["baseline"]["id"], baseline["id"])
         self.assertEqual(current["baseline"]["deltas"][0]["model"], "model-a")
 
+    def test_builder_requires_redaction_and_preserves_runtime_metadata(self):
+        service, calls = self.service()
+
+        with self.assertRaisesRegex(ValueError, "requires redaction_reviewed"):
+            service.build_dataset({
+                "id": "from-trace",
+                "examples": [{"source_type": "trace", "input": "private prompt"}],
+            })
+
+        dataset = service.build_dataset({
+            "id": "from-trace",
+            "name": "From Trace",
+            "operator_notes": "Reviewed by operator",
+            "examples": [
+                {
+                    "source_type": "trace",
+                    "redaction_reviewed": True,
+                    "input": "Redacted user goal",
+                    "expected": "Expected answer",
+                    "trace": {
+                        "trace_id": "trace-a",
+                        "requested_model": "model-a",
+                        "routed_model": "model-b",
+                        "routing_reason": "fallback",
+                        "cost_usd": 0.02,
+                    },
+                    "tags": ["trace"],
+                }
+            ],
+        })
+        result = service.run({"dataset_id": "from-trace", "models": ["model-a"]})
+
+        self.assertEqual(dataset["id"], "from-trace")
+        self.assertEqual(dataset["metadata"]["source_types"], ["trace"])
+        self.assertEqual(dataset["examples"][0]["input"], "Redacted user goal")
+        self.assertEqual(dataset["examples"][0]["metadata"]["source_trace_id"], "trace-a")
+        self.assertEqual(dataset["examples"][0]["metadata"]["requested_model"], "model-a")
+        self.assertEqual(dataset["examples"][0]["metadata"]["cost_usd"], 0.02)
+        self.assertEqual(result["dataset"]["id"], "from-trace")
+        self.assertEqual(calls[0]["messages"][0]["content"], "Redacted user goal")
+
+    def test_manual_dataset_save_supports_editing_examples(self):
+        service, _ = self.service()
+
+        created = service.save_dataset({
+            "id": "manual",
+            "name": "Manual",
+            "examples": [{"input": "Say ok", "expected": "ok", "metadata": {"source_type": "manual"}}],
+        })
+        edited = service.save_dataset({
+            **created,
+            "examples": [{"id": "one", "input": "Say ok now", "expected": "ok", "metadata": {"source_type": "manual"}}],
+        })
+
+        self.assertEqual(edited["examples"][0]["input"], "Say ok now")
+        self.assertEqual(service.load_dataset("manual")["examples"][0]["metadata"]["source_type"], "manual")
+
 
 if __name__ == "__main__":
     unittest.main()

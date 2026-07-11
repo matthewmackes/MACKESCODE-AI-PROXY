@@ -7,7 +7,7 @@ from src.console.services.session import SessionService
 
 
 class SessionServiceTests(unittest.TestCase):
-    def service(self, tmp, live_output="", tmux_existing=None, now=1000):
+    def service(self, tmp, live_output="", tmux_existing=None, now=1000, resource_monitor=None):
         root = Path(tmp)
         registry_path = root / "tmux-sessions.json"
         log_path = root / "usage.jsonl"
@@ -33,6 +33,7 @@ class SessionServiceTests(unittest.TestCase):
             tmux_cmd=tmux_cmd,
             model_metadata_map=lambda: {"model-a": {"display_name": "Model A", "cost_label": "$0.10 input / 1M tokens"}},
             clock=lambda: now,
+            resource_monitor=resource_monitor,
         )
 
     def test_session_name_sanitizes_and_defaults(self):
@@ -50,14 +51,20 @@ class SessionServiceTests(unittest.TestCase):
     def test_upsert_and_session_items_enrich_live_rows(self):
         live = "work\t900\t980\t0\t1\n"
         with tempfile.TemporaryDirectory() as tmp:
-            service = self.service(tmp, live_output=live, now=1000)
-            service.upsert("work", {"display_name": "Work", "model": "model-a", "project_dir": tmp}, live=True)
+            class Monitor:
+                def summarize(self, name, project_dir="", idle_seconds=0, panes=None):
+                    return {"cpu_percent": 12.5, "rss_mb": 64, "pane_count": 1, "warnings": [{"code": "stale_session"}]}
+            service = self.service(tmp, live_output=live, now=1000, resource_monitor=lambda: Monitor())
+            service.upsert("work", {"display_name": "Work", "model": "model-a", "project_dir": tmp, "imported_context": {"provider": "github", "repo": "app", "number": 42}}, live=True)
             item = service.session_items()[0]
 
         self.assertEqual(item["display_name"], "Work")
         self.assertEqual(item["model_display"], "Model A")
         self.assertEqual(item["status"], "live")
         self.assertFalse(item["read_only"])
+        self.assertEqual(item["imported_context"]["number"], 42)
+        self.assertEqual(item["resource_metrics"]["cpu_percent"], 12.5)
+        self.assertEqual(item["resource_warnings"][0]["code"], "stale_session")
 
     def test_previous_session_rename_is_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:

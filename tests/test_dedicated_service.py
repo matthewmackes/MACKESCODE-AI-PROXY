@@ -48,7 +48,7 @@ DEFAULT_CONFIG = {
 
 
 class DedicatedInferenceServiceTests(unittest.TestCase):
-    def service(self, tmp, token="do-token", now=1000, do_request=None, health=None, legacy_config_file=None):
+    def service(self, tmp, token="do-token", now=1000, do_request=None, health=None, legacy_config_file=None, local_usage_report=None):
         root = Path(tmp)
         config_path = root / "dedicated.json"
         events_path = root / "dedicated-events.jsonl"
@@ -83,6 +83,7 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
             serverless_chat_completion=lambda data, model, allow_unregistered=False: (HTTPStatus.OK, {"text": "fallback"}),
             active_text_models=lambda: ["serverless-a"],
             default_text_model=lambda: "serverless-a",
+            local_usage_report=local_usage_report,
             clock=lambda: now,
         )
         return service, registry
@@ -208,6 +209,91 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
         self.assertEqual(override["details"]["operator"], "console-token:abc")
         self.assertEqual(override["details"]["model_slug"], "Qwen/Qwen3-32B")
         self.assertEqual(override["details"]["fallback_model"], "serverless-a")
+
+    def test_capacity_plan_estimates_cost_break_even_and_fit(self):
+        calls = []
+
+        def do_request(path, token, payload=None, timeout=60, method="GET"):
+            calls.append((path, method))
+            if path.endswith("/sizes"):
+                return 200, {
+                    "sizes": [{
+                        "slug": "gpu-mi325x1-256gb",
+                        "regions": ["nyc2", "tor1"],
+                    }]
+                }
+            if path.endswith("/gpu-model-config"):
+                return 200, {
+                    "config": [{
+                        "accelerator_slug": "gpu-mi325x1-256gb",
+                        "models": ["Qwen/Qwen3-32B"],
+                    }]
+                }
+            return 200, {}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(
+                tmp,
+                now=200000,
+                do_request=do_request,
+                health=lambda: {
+                    "configured": True,
+                    "account": {"status": "active"},
+                    "prepay": {"status": "ok"},
+                    "platform": {"indicator": "none"},
+                },
+            )
+            plan = service.capacity_plan(dict(
+                self.critical_build_data(),
+                region="nyc2",
+                vpc_uuid="vpc-1",
+                price_per_hour=2,
+                daily_budget_usd=100,
+                projected_serverless_daily_usd=80,
+                idle_teardown_seconds=1800,
+            ))
+
+        self.assertEqual(plan["recommendation"], "build")
+        self.assertEqual(plan["cost"]["hourly_usd"], 2.0)
+        self.assertEqual(plan["cost"]["daily_usd"], 48.0)
+        self.assertEqual(plan["cost"]["monthly_30d_usd"], 1440.0)
+        self.assertEqual(plan["cost"]["idle_teardown_hours"], 0.5)
+        self.assertEqual(plan["cost"]["idle_window_cost_usd"], 1.0)
+        self.assertEqual(plan["serverless_comparison"]["break_even_daily_serverless_usd"], 48.0)
+        self.assertEqual(plan["serverless_comparison"]["delta_daily_usd"], -32.0)
+        self.assertTrue(plan["serverless_comparison"]["dedicated_cheaper"])
+        self.assertFalse(plan["capacity"]["uncertain"])
+        self.assertTrue(plan["capacity"]["accelerator_seen"])
+        self.assertTrue(plan["capacity"]["model_seen"])
+        self.assertEqual(calls, [
+            ("/v2/dedicated-inferences/sizes", "GET"),
+            ("/v2/dedicated-inferences/gpu-model-config", "GET"),
+        ])
+
+    def test_capacity_plan_surfaces_missing_price_and_capacity_uncertainty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _ = self.service(
+                tmp,
+                token="",
+                local_usage_report=lambda start, end: {"total_usd": 12.5},
+            )
+            plan = service.capacity_plan(dict(
+                self.critical_build_data(),
+                region="sfo3",
+                price_per_hour=0,
+                projected_serverless_daily_usd="",
+            ))
+
+        self.assertEqual(plan["recommendation"], "blocked")
+        self.assertEqual(plan["cost"]["daily_usd"], 0.0)
+        self.assertEqual(plan["serverless_comparison"]["projected_daily_usd"], 12.5)
+        self.assertTrue(plan["capacity"]["uncertain"])
+        self.assertFalse(plan["capacity"]["region_known"])
+        notes = " ".join(plan["uncertainty_notes"])
+        self.assertIn("hourly price is missing", notes)
+        self.assertIn("Live capacity", notes)
+        self.assertIn("Region is outside", notes)
+        self.assertFalse(plan["readiness"]["preflight"]["ok"])
 
     def test_budget_blocked_chat_routes_to_serverless_with_notice(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -6,7 +6,7 @@ from http import HTTPStatus
 class SessionService:
     """Owns tmux session naming, registry persistence, and enriched session rows."""
 
-    def __init__(self, registry_file, log_file, script_dir, tmux_exists, tmux_cmd, model_metadata_map, clock):
+    def __init__(self, registry_file, log_file, script_dir, tmux_exists, tmux_cmd, model_metadata_map, clock, resource_monitor=None):
         self.registry_file = registry_file
         self.log_file = log_file
         self.script_dir = script_dir
@@ -14,6 +14,7 @@ class SessionService:
         self.tmux_cmd = tmux_cmd
         self.model_metadata_map = model_metadata_map
         self.clock = clock
+        self.resource_monitor = resource_monitor
         self.hidden = {"matts-console-web", "matts-value-set-proxy"}
 
     def session_name(self, value):
@@ -68,6 +69,8 @@ class SessionService:
                 "claude_session_name": data.get("claude_session_name") or record.get("claude_session_name") or "",
                 "max_budget_usd": data.get("max_budget_usd") or record.get("max_budget_usd") or "",
             })
+            if isinstance(data.get("imported_context"), dict):
+                record["imported_context"] = data.get("imported_context")
         record.setdefault("created_at", now)
         if stopped:
             record["live"] = False
@@ -174,6 +177,11 @@ class SessionService:
                 "status": "live" if record.get("live") else "previous",
                 "read_only": not bool(record.get("live")),
             })
+            if callable(self.resource_monitor) and record.get("live"):
+                monitor = self.resource_monitor()
+                resources = monitor.summarize(name, project_dir=record.get("project_dir") or str(self.script_dir()), idle_seconds=item["idle_seconds"])
+                item["resource_metrics"] = resources
+                item["resource_warnings"] = resources.get("warnings") or []
             items.append(item)
         items.sort(key=lambda item: (0 if item.get("live") else 1, -float(item.get("created_at") or item.get("stopped_at") or 0)))
         return items

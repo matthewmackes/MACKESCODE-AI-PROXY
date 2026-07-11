@@ -1,7 +1,7 @@
 # Digital Ocean Serverless Inference Model Catalog Integration
 
 ## Overview
-This document specifies the implementation of dynamic Digital Ocean Serverless Inference model catalog integration for the Matts Value Set Claude Code Proxy.
+This document specifies the implementation of dynamic Digital Ocean Serverless Inference model catalog integration for MDE LLM-PROXY.
 
 ## Requirements Summary (from user answers)
 1. **Model Source**: Digital Ocean API (dynamic fetch)

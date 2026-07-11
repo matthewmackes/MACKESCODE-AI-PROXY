@@ -156,8 +156,10 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
 
         self.assertEqual(catalog_priced["pricing_source"], "digitalocean_catalog")
         self.assertEqual(documented["pricing_source"], "digitalocean_pricing_docs_2026_07_01")
-        self.assertEqual(result, {"checked": 1, "disabled": 0})
+        self.assertEqual(result, {"checked": 2, "disabled": 1})
         self.assertEqual(models[0]["access_status"], "ok")
+        self.assertEqual(models[1]["access_status"], "forbidden")
+        self.assertFalse(models[1]["enabled"])
 
     def test_sync_catalog_adds_removes_preserves_dedicated_and_refreshes(self):
         catalog = {
@@ -186,11 +188,11 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
         self.assertEqual(state["refreshes"], 1)
 
     def test_audit_updates_access_and_syncs_proxy(self):
-        catalog = {"ok": False, "payload": {"data": []}, "error": "skip"}
+        catalog_holder = {"payload": {"ok": False, "payload": {"data": []}, "error": "skip"}}
         with tempfile.TemporaryDirectory() as tmp:
             service, state, _ = self.service(
                 tmp,
-                serverless_catalog_payload=lambda force=False: catalog,
+                serverless_catalog_payload=lambda force=False: catalog_holder["payload"],
                 probe_serverless_text_model=lambda model_id: (model_id == "allowed", 200 if model_id == "allowed" else 403, "denied"),
             )
             state["models"] = [
@@ -208,6 +210,54 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
         self.assertEqual(by_id["blocked"]["access_status"], "forbidden")
         self.assertFalse(by_id["blocked"]["enabled"])
         self.assertEqual(state["proxy_syncs"], [True])
+
+    def test_access_drift_tracks_regressions_removed_repeated_failures_and_restore(self):
+        catalog_holder = {"payload": {"ok": False, "payload": {"data": []}, "error": "skip"}}
+        mode = {"value": "ok"}
+
+        def probe(model_id):
+            if mode["value"] == "ok" or (mode["value"] == "restore" and model_id != "removed"):
+                return True, 200, ""
+            if model_id == "forbidden":
+                return False, 403, "denied"
+            if model_id == "rate":
+                return False, 429, "limited"
+            if model_id == "probe":
+                return False, 502, "offline"
+            return True, 200, ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, state, root = self.service(
+                tmp,
+                env={"MODEL_ACCESS_KEY": "stable-token"},
+                serverless_catalog_payload=lambda force=False: catalog_holder["payload"],
+                probe_serverless_text_model=probe,
+            )
+            state["models"] = [
+                {"id": "forbidden", "type": "text", "enabled": True, "serverless": True, "pricing": {"input": 0.1, "output": 0.2}},
+                {"id": "rate", "type": "text", "enabled": True, "serverless": True, "pricing": {"input": 0.1, "output": 0.2}},
+                {"id": "probe", "type": "text", "enabled": True, "serverless": True, "pricing": {"input": 0.1, "output": 0.2}},
+                {"id": "removed", "type": "text", "enabled": True, "serverless": True, "pricing": {"input": 0.1, "output": 0.2}},
+            ]
+            first = service.audit_model_access_key()
+            mode["value"] = "bad"
+            second = service.audit_model_access_key()
+            repeated = service.audit_model_access_key()
+            catalog_holder["payload"] = {"ok": True, "source": "test", "fetched_at": 1000, "payload": {"data": [{"id": "forbidden"}, {"id": "rate"}, {"id": "probe"}]}, "error": ""}
+            service.sync_serverless_model_catalog(force=True, validate_access=False)
+            mode["value"] = "restore"
+            restored = service.audit_model_access_key()
+            drift_state = json.loads((root / "model-access-drift.json").read_text(encoding="utf-8"))
+            by_id = {model["id"]: model for model in state["models"]}
+
+        self.assertEqual(first["access_drift"]["events"], [])
+        statuses = {event["access_status"] for event in second["access_drift"]["events"]}
+        self.assertTrue({"forbidden", "rate_limited", "probe_failed"}.issubset(statuses))
+        self.assertEqual(by_id["forbidden"]["access_status"], "ok")
+        self.assertTrue(any(event["code"] == "repeated_probe_failure" for event in repeated["access_drift"]["events"]))
+        self.assertTrue(any(event["access_status"] == "removed" for event in drift_state["events"].values()))
+        self.assertTrue(any(event["code"] == "restored" for event in restored["access_drift"]["events"]))
+        self.assertTrue(drift_state["models"]["forbidden"]["last_ok_at"])
 
 
 if __name__ == "__main__":

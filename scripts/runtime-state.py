@@ -31,10 +31,18 @@ def default_items(include_secrets=False):
         ("serverless_catalog_cache", env_path("MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir / "serverless-model-catalog.json")),
         ("trace_log", env_path("MATTS_TRACE_FILE", app_dir / "traces.jsonl")),
         ("tmux_registry", env_path("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir / "tmux-sessions.json")),
+        ("v2_run_db", env_path("MATTS_V2_RUN_DB", app_dir / "v2-run.sqlite3")),
         ("image_history", app_dir / "history.jsonl"),
         ("images", app_dir / "images"),
         ("chats", app_dir / "chats"),
+        ("eval_datasets", env_path("MATTS_EVALS_DIR", app_dir / "evals")),
         ("eval_runs", env_path("MATTS_EVAL_RUNS_DIR", app_dir / "eval-runs")),
+        ("automation_rules", env_path("MATTS_AUTOMATION_RULES_FILE", app_dir / "automation-rules.json")),
+        ("automation_executions", env_path("MATTS_AUTOMATION_EXECUTION_LOG_FILE", app_dir / "automation-executions.jsonl")),
+        ("review_queue", env_path("MATTS_REVIEW_QUEUE_FILE", app_dir / "reviews.jsonl")),
+        ("model_deprecations", env_path("MATTS_MODEL_DEPRECATION_FILE", app_dir / "model-deprecations.json")),
+        ("release_candidate_reports", env_path("MATTS_RELEASE_CANDIDATE_REPORTS_DIR", app_dir / "release-candidates")),
+        ("reporting_exports", env_path("MATTS_REPORTING_EXPORT_DIR", app_dir / "reporting-exports")),
         ("usage_log", env_path("MATTS_VALUE_SET_COST_FILE", home / ".cache/matts-value-set/usage.jsonl")),
         ("budgets", env_path("MATTS_VALUE_SET_BUDGET_FILE", home / ".cache/matts-value-set/budgets.json")),
         ("wallpapers", env_path("MATTS_WALLPAPER_CACHE_DIR", home / ".cache/matts-value-set/wallpapers")),
@@ -106,12 +114,17 @@ def restore(args):
                 tar.extract(member, staging)
     manifest = json.loads((staging / "manifest.json").read_text(encoding="utf-8"))
     restored = []
+    would_restore = []
     for entry in manifest.get("items", []):
         if not entry.get("exists"):
             continue
         src = staging / "payload" / entry["name"]
         dest = Path(entry["path"]).expanduser()
         if not src.exists():
+            continue
+        impact = {"name": entry["name"], "path": str(dest), "exists": dest.exists(), "will_move_existing_aside": bool(dest.exists() and not args.overwrite)}
+        if args.dry_run:
+            would_restore.append(impact)
             continue
         if dest.exists() and not args.overwrite:
             backup_path = dest.with_name(dest.name + ".pre-restore-%d" % int(time.time()))
@@ -125,7 +138,10 @@ def restore(args):
         copy_into_payload(src, dest)
         restored.append({"name": entry["name"], "path": str(dest)})
     shutil.rmtree(staging)
-    print(json.dumps({"ok": True, "restored": restored}, indent=2, sort_keys=True))
+    if args.dry_run:
+        print(json.dumps({"ok": True, "dry_run": True, "would_restore": would_restore}, indent=2, sort_keys=True))
+    else:
+        print(json.dumps({"ok": True, "restored": restored}, indent=2, sort_keys=True))
     return 0
 
 
@@ -139,6 +155,7 @@ def main(argv=None):
     r = sub.add_parser("restore", help="Restore a runtime-state archive.")
     r.add_argument("archive")
     r.add_argument("--overwrite", action="store_true", help="Overwrite existing files instead of moving them aside.")
+    r.add_argument("--dry-run", action="store_true", help="Preview restore impact without writing files.")
     r.set_defaults(func=restore)
     args = parser.parse_args(argv)
     return args.func(args)

@@ -1,0 +1,22 @@
+{
+  "uid": "mde-llm-proxy-gateway",
+  "title": "MDE LLM-PROXY Gateway",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["mde", "llm-proxy", "gateway"],
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Fallbacks",
+      "targets": [{"expr": "sum by (reason, from_model, to_model) (rate(matts_gateway_fallbacks_total[5m]))"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate Limit Blocks",
+      "targets": [{"expr": "sum by (path, actor_type) (rate(matts_rate_limit_blocks_total[5m]))"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    }
+  ]
+}

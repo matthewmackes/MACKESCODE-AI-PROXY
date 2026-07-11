@@ -8,10 +8,11 @@ import time
 class AnalyticsService:
     """Build dashboard-friendly analytics from trace and local usage records."""
 
-    def __init__(self, read_traces, local_usage_report, cost_summary_payload, clock=None):
+    def __init__(self, read_traces, local_usage_report, cost_summary_payload, failure_taxonomy=None, clock=None):
         self.read_traces = read_traces
         self.local_usage_report = local_usage_report
         self.cost_summary_payload = cost_summary_payload
+        self.failure_taxonomy = failure_taxonomy
         self.clock = clock or time.time
 
     def payload(self, days=7):
@@ -26,14 +27,20 @@ class AnalyticsService:
         by_day = {item["date"]: {"date": item["date"], "requests": 0, "cost_usd": float(item.get("amount_usd") or 0)} for item in local_usage.get("daily", [])}
         latency_values = []
         errors = 0
+        failure_categories = {}
         for row in traces:
             model = row.get("routed_model") or row.get("requested_model") or "unknown"
-            model_row = by_model.setdefault(model, {"model": model, "requests": 0, "errors": 0, "cost_usd": 0.0, "latency_total_ms": 0, "latency_count": 0})
+            model_row = by_model.setdefault(model, {"model": model, "requests": 0, "errors": 0, "cost_usd": 0.0, "failure_categories": {}, "latency_total_ms": 0, "latency_count": 0})
             model_row["requests"] += 1
             status = str(row.get("status") or "")
             if status == "error":
                 errors += 1
                 model_row["errors"] += 1
+                failure = self.classify_failure(row)
+                category = failure.get("category") or "unknown"
+                failure_row = failure_categories.setdefault(category, {"category": category, "title": failure.get("title") or category, "count": 0, "suggested_fix": failure.get("suggested_fix") or ""})
+                failure_row["count"] += 1
+                model_row["failure_categories"][category] = model_row["failure_categories"].get(category, 0) + 1
             cost = float(row.get("cost_usd") or 0)
             model_row["cost_usd"] = round(model_row["cost_usd"] + cost, 8)
             try:
@@ -75,9 +82,17 @@ class AnalyticsService:
             "daily": daily_rows,
             "models": model_rows,
             "latency_buckets": self.latency_buckets(latency_values),
+            "failure_categories": sorted(failure_categories.values(), key=lambda item: (-item["count"], item["category"])),
         }
         result["export_csv"] = self.to_csv(result)
         return result
+
+    def classify_failure(self, row):
+        if self.failure_taxonomy is not None:
+            return self.failure_taxonomy.classify(row, status=row.get("http_status") or row.get("status_code"))
+        failure = row.get("failure") if isinstance(row.get("failure"), dict) else {}
+        category = failure.get("category") or row.get("error_category") or "unknown"
+        return {"category": category, "title": category, "suggested_fix": ""}
 
     def latency_buckets(self, values):
         buckets = [("0-1s", 0, 1000), ("1-3s", 1001, 3000), ("3-10s", 3001, 10000), ("10s+", 10001, None)]

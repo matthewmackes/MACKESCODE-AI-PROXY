@@ -9,12 +9,13 @@ class EvalService:
 
     schema_version = 1
 
-    def __init__(self, evals_dir, runs_dir, chat_completion, active_text_models, default_text_model, clock=None, uuid_factory=None):
+    def __init__(self, evals_dir, runs_dir, chat_completion, active_text_models, default_text_model, retrieval_augment=None, clock=None, uuid_factory=None):
         self.evals_dir = evals_dir
         self.runs_dir = runs_dir
         self.chat_completion = chat_completion
         self.active_text_models = active_text_models
         self.default_text_model = default_text_model
+        self.retrieval_augment = retrieval_augment or (lambda data, action="eval": {"data": data, "retrieval": {"enabled": False, "matches": []}})
         self.clock = clock or time.time
         self.uuid_factory = uuid_factory or uuid.uuid4
 
@@ -49,6 +50,7 @@ class EvalService:
             "name": str(data.get("name") or dataset_id),
             "description": str(data.get("description") or ""),
             "source": source,
+            "metadata": data.get("metadata") if isinstance(data.get("metadata"), dict) else {},
             "examples": [],
         }
         if normalized["schema_version"] != self.schema_version:
@@ -65,8 +67,77 @@ class EvalService:
                 "expected": str(example.get("expected") or ""),
                 "tags": list(example.get("tags") or []),
                 "notes": str(example.get("notes") or ""),
+                "metadata": example.get("metadata") if isinstance(example.get("metadata"), dict) else {},
             })
         return normalized
+
+    def save_dataset(self, data):
+        dataset = self.normalize_dataset(data)
+        dataset["source"] = "builder"
+        dataset["updated_at"] = self.clock()
+        path = self.dataset_path(dataset["id"])
+        path.write_text(json.dumps(dataset, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return self.normalize_dataset(json.loads(path.read_text(encoding="utf-8")), source=str(path))
+
+    def build_dataset(self, request):
+        request = request if isinstance(request, dict) else {}
+        raw_examples = request.get("examples") if isinstance(request.get("examples"), list) else []
+        if not raw_examples:
+            raise ValueError("Dataset builder requires at least one example.")
+        examples = []
+        for index, item in enumerate(raw_examples, start=1):
+            examples.append(self.build_example(item, index))
+        return self.save_dataset({
+            "id": request.get("id") or request.get("name") or "builder-dataset",
+            "name": request.get("name") or request.get("id") or "Builder Dataset",
+            "description": request.get("description") or "",
+            "metadata": {
+                "builder": "console",
+                "source_types": sorted({example["metadata"].get("source_type", "manual") for example in examples}),
+                "operator_notes": str(request.get("operator_notes") or ""),
+            },
+            "examples": examples,
+        })
+
+    def build_example(self, item, index):
+        if not isinstance(item, dict):
+            raise ValueError("Dataset builder example %s must be an object." % index)
+        source_type = str(item.get("source_type") or "manual").strip().lower()
+        if source_type not in {"manual", "trace", "chat", "comparison"}:
+            raise ValueError("Dataset builder example %s has unsupported source_type." % index)
+        if source_type != "manual" and not item.get("redaction_reviewed"):
+            raise ValueError("Dataset builder example %s requires redaction_reviewed before saving runtime data." % index)
+        prompt = str(item.get("input") or item.get("prompt") or "").strip()
+        if not prompt and source_type == "trace":
+            trace = item.get("trace") if isinstance(item.get("trace"), dict) else {}
+            summary = trace.get("message_summary") if isinstance(trace.get("message_summary"), dict) else {}
+            prompt = str(summary.get("last_user_preview") or "").strip()
+        if not prompt:
+            raise ValueError("Dataset builder example %s is missing reviewed input." % index)
+        source = item.get("source") if isinstance(item.get("source"), dict) else {}
+        trace = item.get("trace") if isinstance(item.get("trace"), dict) else {}
+        chat = item.get("chat") if isinstance(item.get("chat"), dict) else {}
+        comparison = item.get("comparison") if isinstance(item.get("comparison"), dict) else {}
+        metadata = {
+            "source_type": source_type,
+            "redaction_reviewed": bool(item.get("redaction_reviewed") or source_type == "manual"),
+            "source_trace_id": item.get("trace_id") or trace.get("trace_id") or source.get("trace_id"),
+            "source_chat_id": item.get("chat_id") or chat.get("id") or source.get("chat_id"),
+            "source_message_index": item.get("message_index") if item.get("message_index") is not None else source.get("message_index"),
+            "requested_model": item.get("requested_model") or trace.get("requested_model") or comparison.get("requested_model"),
+            "routed_model": item.get("routed_model") or trace.get("routed_model") or comparison.get("routed_model"),
+            "routing_reason": item.get("routing_reason") or trace.get("routing_reason") or comparison.get("routing_reason"),
+            "cost_usd": item.get("cost_usd") if item.get("cost_usd") is not None else trace.get("cost_usd"),
+        }
+        metadata = {key: value for key, value in metadata.items() if value not in (None, "")}
+        return {
+            "id": str(item.get("id") or "ex-%03d" % index),
+            "input": prompt,
+            "expected": str(item.get("expected") or ""),
+            "tags": list(item.get("tags") or []),
+            "notes": str(item.get("notes") or ""),
+            "metadata": metadata,
+        }
 
     def list_datasets(self):
         rows = []
@@ -83,6 +154,7 @@ class EvalService:
                 "valid": True,
                 "source": str(path),
                 "example_count": len(dataset["examples"]),
+                "metadata": dataset.get("metadata") or {},
             })
         return rows
 
@@ -124,7 +196,13 @@ class EvalService:
             row = {"example_id": example["id"], "input": example["input"], "expected": example.get("expected") or "", "responses": []}
             for model in models:
                 req_started = self.clock()
-                status, payload = self.chat_completion({"model": model, "messages": [{"role": "user", "content": example["input"]}], "max_tokens": request.get("max_tokens") or 512, "temperature": request.get("temperature", "")})
+                chat_request = {"model": model, "messages": [{"role": "user", "content": example["input"]}], "max_tokens": request.get("max_tokens") or 512, "temperature": request.get("temperature", "")}
+                if isinstance(request.get("retrieval"), dict):
+                    chat_request["retrieval"] = request.get("retrieval")
+                    augmented = self.retrieval_augment(chat_request, action="eval")
+                    chat_request = augmented.get("data") or chat_request
+                    row["retrieval"] = augmented.get("retrieval")
+                status, payload = self.chat_completion(chat_request)
                 latency_ms = int(max(0, (self.clock() - req_started) * 1000))
                 text = payload.get("text") if isinstance(payload, dict) else ""
                 score = self.score_answer(example.get("expected"), text)
@@ -167,6 +245,14 @@ class EvalService:
             "summary": list(summaries.values()),
             "baseline": self.compare_baseline(request.get("baseline_run_id"), summaries),
         }
+        if isinstance(request.get("change_gate"), dict):
+            gate = request.get("change_gate") or {}
+            doc["change_gate"] = {
+                "surface": str(gate.get("surface") or ""),
+                "change_hash": str(gate.get("change_hash") or gate.get("hash") or ""),
+                "target_id": str(gate.get("target_id") or ""),
+                "target_version": int(gate.get("target_version") or 0),
+            }
         self.run_path(run_id).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return doc
 
@@ -218,6 +304,7 @@ class EvalService:
                 "models": doc.get("models") or [],
                 "example_count": doc.get("example_count") or 0,
                 "summary": doc.get("summary") or [],
+                "change_gate": doc.get("change_gate") if isinstance(doc.get("change_gate"), dict) else {},
             })
             if len(rows) >= int(limit or 20):
                 break

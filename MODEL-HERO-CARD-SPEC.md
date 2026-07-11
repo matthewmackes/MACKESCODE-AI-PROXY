@@ -1,7 +1,7 @@
 # Model Hero Card Feature Specification
 
 ## Overview
-Create impressive, detailed Hero Cards for each AI model in the Matts Value Set Claude Code Proxy, providing users with clear guidance on what each model excels at, its limitations, typical use cases, and alternatives.
+Create impressive, detailed Hero Cards for each AI model in MDE LLM-PROXY, providing users with clear guidance on what each model excels at, its limitations, typical use cases, and alternatives.
 
 ## Design Decisions (from user answers)
 1. **Display Location**: Detailed modal (full-page overlay)

@@ -50,6 +50,9 @@ def write_mixed_registry(path):
                 "serverless": True,
                 "access_status": "ok",
                 "aliases": ["primary"],
+                "context_window": 8192,
+                "max_output_tokens": 2048,
+                "supports_tools": True,
                 "pricing": {"input": 0.11, "output": 0.22},
             },
             {
@@ -93,6 +96,12 @@ def server_for(path):
 
 
 class ProxyRegistryReloadTests(unittest.TestCase):
+    def test_request_timeout_seconds_clamps_to_existing_proxy_ceiling(self):
+        self.assertEqual(proxy._request_timeout_seconds({"request_timeout_seconds": 7}), 7)
+        self.assertEqual(proxy._request_timeout_seconds({"timeout_seconds": "9"}), 9)
+        self.assertEqual(proxy._request_timeout_seconds({"request_timeout_seconds": 900}), 600)
+        self.assertEqual(proxy._request_timeout_seconds({"request_timeout_seconds": "bad"}), 600)
+
     def test_refresh_tracks_fingerprint_and_skips_unchanged_registry(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
@@ -183,6 +192,9 @@ class ProxyRegistryReloadTests(unittest.TestCase):
 
         self.assertEqual([item["id"] for item in available["data"]], ["routeable-model", "primary"])
         self.assertTrue(available["data"][0]["available"])
+        self.assertEqual(available["data"][0]["context_window"], 8192)
+        self.assertTrue(available["data"][0]["tool_support"])
+        self.assertEqual(available["data"][0]["pricing"]["input"], 0.11)
         self.assertEqual({item["id"] for item in unavailable["data"]}, {"forbidden-model", "disabled-image"})
         self.assertTrue(all(not item["available"] for item in unavailable["data"]))
         self.assertEqual({item["id"] for item in all_models["data"]}, {"routeable-model", "forbidden-model", "disabled-image", "primary"})
@@ -236,6 +248,8 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         self.assertTrue(policy["rate_limits"]["enabled"])
         self.assertEqual(policy["rate_limits"]["global_per_minute"], 60)
         self.assertIn("chat", policy["cache"]["routes"])
+        self.assertTrue(policy["slo_routing"]["enabled"])
+        self.assertEqual(policy["slo_routing"]["default_goal"], "balanced")
 
     def test_gateway_policy_bad_schema_falls_back_to_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -425,6 +439,132 @@ class ProxyRegistryReloadTests(unittest.TestCase):
         )
 
         self.assertFalse(proxy._gateway_should_failover(server, 502))
+
+    def test_slo_routing_selects_cheapest_acceptable_model(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "slo_routing": {
+                    "enabled": True,
+                    "default_goal": "cheapest",
+                    "router_models": ["router:slo", "router:cheapest"],
+                    "constraints": {"modality": "text", "min_context_window": 4096},
+                    "quality_scores": {},
+                    "latency_targets_ms": {},
+                },
+            },
+            gateway_policy_file="/tmp/policy.json",
+            models=["expensive-fast", "cheap-good"],
+            costs={
+                "expensive-fast": {"input": 1.0, "output": 2.0},
+                "cheap-good": {"input": 0.1, "output": 0.2},
+            },
+            model_registry_records=[
+                {"id": "expensive-fast", "type": "text", "context_window": 8192, "pricing": {"input": 1.0, "output": 2.0}},
+                {"id": "cheap-good", "type": "text", "context_window": 8192, "pricing": {"input": 0.1, "output": 0.2}},
+            ],
+            gateway_model_stats={},
+        )
+
+        selected, proof, error = proxy._gateway_select_slo_model(
+            server,
+            "router:cheapest",
+            "router:cheapest",
+            {"model": "router:cheapest", "messages": [{"role": "user", "content": "hello"}], "max_tokens": 512},
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(selected, "cheap-good")
+        self.assertEqual(proof["decision"], "slo_route_selected")
+        self.assertEqual(proof["selected"]["model"], "cheap-good")
+        self.assertEqual(proof["goal"], "cheapest")
+
+    def test_slo_routing_rejects_candidates_before_provider_call(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "slo_routing": {
+                    "enabled": True,
+                    "default_goal": "context_fit",
+                    "router_models": ["router:slo"],
+                    "constraints": {"modality": "text", "min_context_window": 100000},
+                },
+            },
+            models=["small-context"],
+            costs={"small-context": {"input": 0.1, "output": 0.2}},
+            model_registry_records=[{"id": "small-context", "type": "text", "context_window": 4096}],
+            gateway_model_stats={},
+        )
+
+        selected, proof, error = proxy._gateway_select_slo_model(
+            server,
+            "router:slo",
+            "router:slo",
+            {"model": "router:slo", "messages": [{"role": "user", "content": "hello"}]},
+        )
+
+        self.assertEqual(selected, "router:slo")
+        self.assertEqual(proof["decision"], "slo_route_rejected")
+        self.assertEqual(error["type"], "slo_route_rejected")
+        self.assertEqual(proof["rejections"][0]["reasons"], ["context_window_too_small"])
+
+    def test_slo_routing_uses_latency_stats_and_quality_scores(self):
+        server = SimpleNamespace(
+            gateway_policy={
+                "enabled": True,
+                "slo_routing": {
+                    "enabled": True,
+                    "default_goal": "fastest",
+                    "router_models": ["router:fastest", "router:quality"],
+                    "constraints": {"modality": "text"},
+                    "quality_scores": {"slow-better": 0.99, "fast-ok": 0.2},
+                },
+            },
+            models=["slow-better", "fast-ok"],
+            costs={"slow-better": {"input": 0.1, "output": 0.2}, "fast-ok": {"input": 0.2, "output": 0.4}},
+            model_registry_records=[
+                {"id": "slow-better", "type": "text", "context_window": 8192},
+                {"id": "fast-ok", "type": "text", "context_window": 8192},
+            ],
+            gateway_model_stats={
+                "slow-better": {"requests": 2, "errors": 0, "total_latency_ms": 2000},
+                "fast-ok": {"requests": 2, "errors": 0, "total_latency_ms": 200},
+            },
+        )
+
+        fastest, fast_proof, _ = proxy._gateway_select_slo_model(server, "router:fastest", "router:fastest", {"messages": [{"role": "user", "content": "hello"}]})
+        quality, quality_proof, _ = proxy._gateway_select_slo_model(server, "router:quality", "router:quality", {"messages": [{"role": "user", "content": "hello"}]})
+
+        self.assertEqual(fastest, "fast-ok")
+        self.assertEqual(fast_proof["selected"]["avg_latency_ms"], 100)
+        self.assertEqual(quality, "slow-better")
+        self.assertEqual(quality_proof["goal"], "highest_quality")
+
+    def test_slo_trace_metadata_and_model_stats_are_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace_file = Path(tmp) / "traces.jsonl"
+            server = SimpleNamespace(provider="matts-value-set", trace_file=str(trace_file), gateway_model_stats={})
+            proof = {"decision": "slo_route_selected", "selected_model": "model-a", "goal": "balanced"}
+
+            stats = proxy._gateway_record_model_result(server, "model-a", 200, latency_ms=120, cost={"total_cost_usd": 0.01})
+            trace = proxy._trace_request(
+                server,
+                action="proxy.chat",
+                status=200,
+                body={"messages": [{"role": "user", "content": "hello"}]},
+                requested_model="router:slo",
+                routed_model="model-a",
+                endpoint_mode="serverless",
+                routing_reason="",
+                started_at=time.time(),
+                extra={"gateway_policy": proof},
+            )
+            row = json.loads(trace_file.read_text(encoding="utf-8").splitlines()[0])
+
+        self.assertEqual(stats["avg_latency_ms"], 120)
+        self.assertEqual(stats["total_cost_usd"], 0.01)
+        self.assertEqual(trace["gateway_policy"]["decision"], "slo_route_selected")
+        self.assertEqual(row["gateway_policy"]["selected_model"], "model-a")
 
 
 if __name__ == "__main__":

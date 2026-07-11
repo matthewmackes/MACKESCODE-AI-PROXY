@@ -39,6 +39,13 @@ class ChatRoutingService:
     def active_text_models(self):
         return list(self.text_models() if callable(self.text_models) else self.text_models)
 
+    def request_timeout_seconds(self, value):
+        try:
+            timeout = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return max(2, min(600, timeout)) if timeout else 0
+
     def trace(self, record):
         if not self.trace_service:
             return None
@@ -61,8 +68,13 @@ class ChatRoutingService:
         cost = payload.get("cost") if isinstance(payload.get("cost"), dict) else {}
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
         raw = payload.get("raw") if isinstance(payload.get("raw"), dict) else {}
+        claude_do = raw.get("claude_do") if isinstance(raw.get("claude_do"), dict) else {}
+        streaming_metrics = payload.get("streaming_metrics") if isinstance(payload.get("streaming_metrics"), dict) else claude_do.get("streaming_metrics") if isinstance(claude_do.get("streaming_metrics"), dict) else None
         upstream_id = payload.get("id") or raw.get("id")
         status_text = "success" if int(status) < 400 else "error"
+        trace_status_on_error = str(data.get("trace_status_on_error") or "").lower() if isinstance(data, dict) else ""
+        if int(status) >= 400 and trace_status_on_error in {"fallback", "degraded"}:
+            status_text = trace_status_on_error
         record = {
             "action": action,
             "status": status_text,
@@ -81,8 +93,13 @@ class ChatRoutingService:
             "error_category": payload.get("category") or payload.get("code") or ("http_%s" % int(status) if int(status) >= 400 else ""),
             "human_message": payload.get("message") or payload.get("error") or "",
         }
+        trace_origin = str(data.get("trace_origin") or "").strip() if isinstance(data, dict) else ""
+        if trace_origin:
+            record["trace_origin"] = trace_origin
         if policy_decision:
             record["gateway_policy"] = policy_decision
+        if streaming_metrics:
+            record["streaming_metrics"] = streaming_metrics
         trace = self.trace(record)
         if trace is not None:
             payload["trace_id"] = trace["trace_id"]
@@ -120,9 +137,12 @@ class ChatRoutingService:
             "max_tokens": max(1, min(8192, int(data.get("max_tokens") or 512))),
             "stream": False,
         }
+        request_timeout = self.request_timeout_seconds(data.get("request_timeout_seconds"))
+        if request_timeout:
+            payload["request_timeout_seconds"] = request_timeout
         if data.get("temperature") not in (None, ""):
             payload["temperature"] = float(data["temperature"])
-        status, response = self.request_json(self.proxy_url("/v1/messages"), payload, timeout=240)
+        status, response = self.request_json(self.proxy_url("/v1/messages"), payload, timeout=request_timeout + 5 if request_timeout else 240)
         if status >= 400:
             if isinstance(response, dict):
                 response.setdefault("routing", {"requested": model, "used": None, "backend": "serverless", "reason": "upstream_error"})
@@ -141,6 +161,9 @@ class ChatRoutingService:
             "cost": self.chat_cost_usd(model, input_text, text),
             "routing": routing,
         }
+        claude_do = response.get("claude_do") if isinstance(response.get("claude_do"), dict) else {}
+        if isinstance(claude_do.get("streaming_metrics"), dict):
+            payload["streaming_metrics"] = claude_do["streaming_metrics"]
         return HTTPStatus.OK, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.OK, payload, backend="serverless")
 
     def completion(self, data):

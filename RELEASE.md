@@ -15,8 +15,15 @@ The gate runs:
 - Python unit and smoke tests
 - line-hit coverage report
 - Python syntax checks
+- generated V2 OpenAPI/client freshness checks
 - template JavaScript syntax check when `node` is available
-- headless browser smoke when Playwright is installed
+- React frontend build when `npm` is available, using `npm ci --no-audit` if `frontend/package-lock.json` is present and dependencies are missing
+- V2 frontend bundle-boundary and production dependency audit checks
+- legacy and V2 headless browser smoke when Playwright is installed, including the V2 Console TUI bridge
+
+The V2 launcher, V2 browser smoke, and release gate treat `frontend/package-lock.json` as authoritative. On clean hosts, missing `frontend/node_modules` is restored with `npm ci --no-audit`; plain `npm install --no-audit` is only a no-lockfile fallback. Install steps intentionally skip npm's implicit audit output because the release gate runs the explicit production audit check below.
+
+The frontend audit gate intentionally checks shipped dependencies with `npm audit --omit=dev`. A full `npm audit` can still report Vite/esbuild development-server advisories on hosts using the current Node 16 toolchain; the first Vite releases that clear those advisories require Node 18+ or Node 20+. Treat the Vite dev server as a trusted local development tool until the project baseline moves to a newer Node runtime, and do not expose it as production infrastructure.
 
 For CI or strict local validation:
 
@@ -79,11 +86,18 @@ Store secret-bearing archives outside the repository.
    - `$HOME/.cache/matts-value-set/usage.jsonl`
    - `$HOME/.cache/matts-value-set/budgets.json`
 6. Start the proxy and Console.
+   - Legacy console: use the existing `claude-DO.sh`/`matts-console.py` path.
+   - V2 console: run `python3 matts-v2-console.py --host 127.0.0.1 --port 18182`; add `--build-frontend` to force a React rebuild before FastAPI starts.
 7. Run health validation:
 
 ```bash
 scripts/health-validate.py
 ```
+
+The default validator checks the legacy Console, the React/FastAPI V2 console
+(`/v2/health` and the React shell on port `18182`), and the proxy. Use
+`--no-v2` only for intentional legacy-only deployments, or `--v2-only` when
+validating a V2 endpoint in isolation.
 
 If Console is up but proxy is intentionally offline:
 
@@ -93,6 +107,11 @@ scripts/health-validate.py --allow-degraded-console
 
 8. Open Console > LLM Management and confirm registry/proxy sync.
 9. Open Console > Inference Hosting Lifecycle and confirm Dedicated state, idle policy, and cost counters.
+10. Review the Release Candidate dashboard. Missing drift baselines and active
+    medium/high/critical config drift block readiness; only-low-risk runtime
+    drift, such as tmux session registry churn from live Console/TUI validation,
+    is advisory and should be reviewed rather than treated as an automatic
+    release stop.
 
 ## Rollback Procedure
 

@@ -2,6 +2,7 @@ import datetime
 import unittest
 
 from src.console.services.analytics import AnalyticsService
+from src.console.services.failure_taxonomy import FailureTaxonomyService
 
 
 class AnalyticsServiceTests(unittest.TestCase):
@@ -9,7 +10,7 @@ class AnalyticsServiceTests(unittest.TestCase):
         now = datetime.datetime(2026, 7, 9, tzinfo=datetime.timezone.utc).timestamp()
         traces = [
             {"timestamp": now, "status": "success", "requested_model": "model-a", "routed_model": "model-a", "cost_usd": 0.1, "latency_ms": 900},
-            {"timestamp": now - 60, "status": "error", "requested_model": "model-a", "routed_model": "model-b", "cost_usd": 0.2, "latency_ms": 3200},
+            {"timestamp": now - 60, "status": "error", "requested_model": "model-a", "routed_model": "model-b", "cost_usd": 0.2, "latency_ms": 3200, "error_category": "rate_limited"},
             {"timestamp": now - 9 * 86400, "status": "success", "requested_model": "old", "cost_usd": 9, "latency_ms": 1},
         ]
 
@@ -17,6 +18,7 @@ class AnalyticsServiceTests(unittest.TestCase):
             read_traces=lambda limit=2000: traces,
             local_usage_report=lambda start, end: {"total_usd": 0.3, "daily": [{"date": start.isoformat(), "amount_usd": 0.3}], "by_model": []},
             cost_summary_payload=lambda: {"last_24h_total_usd": 0.35},
+            failure_taxonomy=FailureTaxonomyService(),
             clock=lambda: now,
         )
 
@@ -29,6 +31,8 @@ class AnalyticsServiceTests(unittest.TestCase):
         self.assertEqual(payload["models"][0]["model"], "model-b")
         self.assertIn("model,model-b,1,1,0.2,3200", payload["export_csv"])
         self.assertEqual(sum(row["count"] for row in payload["latency_buckets"]), 2)
+        self.assertEqual(payload["failure_categories"], [{"category": "rate_limit", "title": "Rate limit", "count": 1, "suggested_fix": "Wait for the current window to reset or route through an approved fallback model."}])
+        self.assertEqual(payload["models"][0]["failure_categories"], {"rate_limit": 1})
 
 
 if __name__ == "__main__":

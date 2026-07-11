@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Matts Value Set unified web console."""
+"""Run the MDE LLM-PROXY unified web console."""
 import runpy
 from pathlib import Path
 

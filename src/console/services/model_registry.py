@@ -58,6 +58,9 @@ class ModelRegistryService:
     def route_enabled(self, model):
         if not model.get("enabled"):
             return False
+        deprecation = model.get("deprecation") if isinstance(model.get("deprecation"), dict) else {}
+        if str(deprecation.get("status") or "").lower() in {"deprecated", "removed", "forbidden", "unauthorized", "superseded", "high_cost"}:
+            return False
         if model.get("serverless") and model.get("type") == "text":
             return model.get("access_status") == "ok"
         return True
@@ -87,7 +90,9 @@ class ModelRegistryService:
         }
         if isinstance(item.get("dedicated"), dict):
             normalized["dedicated"] = item["dedicated"]
-        for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error"):
+        if isinstance(item.get("deprecation"), dict):
+            normalized["deprecation"] = item["deprecation"]
+        for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error", "replacement_model", "superseded_by"):
             if item.get(key):
                 normalized[key] = item[key]
         return normalized
@@ -300,8 +305,18 @@ class ModelRegistryService:
         if self.route_enabled(model):
             return "Available"
         access = (model or {}).get("access_status") or "not_checked"
+        deprecation = (model or {}).get("deprecation") if isinstance((model or {}).get("deprecation"), dict) else {}
+        dep_status = str(deprecation.get("status") or "").lower()
+        if dep_status == "superseded":
+            return "Superseded"
+        if dep_status == "high_cost":
+            return "High cost"
+        if dep_status in {"deprecated", "removed"}:
+            return "Deprecated"
         if access == "forbidden":
             return "Unavailable for this key"
+        if access == "removed":
+            return "Removed by provider"
         if access == "rate_limited":
             return "Temporarily rate limited"
         if access == "probe_failed":
@@ -315,12 +330,19 @@ class ModelRegistryService:
         disabled = not self.route_enabled(model)
         dedicated = (model or {}).get("dedicated") if isinstance((model or {}).get("dedicated"), dict) else {}
         access = (model or {}).get("access_status") or "not_checked"
+        deprecation = (model or {}).get("deprecation") if isinstance((model or {}).get("deprecation"), dict) else {}
         policy_decision = {}
         if disabled and dedicated.get("managed"):
             policy_decision = {
                 "decision": "build_server_prompt",
                 "reason": "dedicated_not_online",
                 "state": dedicated.get("state") or (model or {}).get("state") or "not_configured",
+            }
+        elif disabled and deprecation.get("status"):
+            policy_decision = {
+                "decision": "model_deprecation_migration",
+                "reason": str(deprecation.get("status") or "deprecated"),
+                "replacement_model": deprecation.get("replacement_model") or (model or {}).get("replacement_model") or (model or {}).get("superseded_by") or "",
             }
         elif disabled and access in {"forbidden", "unauthorized"}:
             policy_decision = {
@@ -364,6 +386,7 @@ class ModelRegistryService:
             "new_until": new_until,
             "style": self.generated_style(model, profile),
             "pricing": dict((model or {}).get("pricing") or {}),
+            "deprecation": dict(deprecation),
             "dedicated": dict(dedicated),
             "dedicated_rebuildable": bool(disabled and dedicated.get("managed")),
             "policy_decision": policy_decision,

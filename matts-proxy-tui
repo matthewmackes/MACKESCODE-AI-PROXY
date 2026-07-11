@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Interactive proxy-focused TUI for MDE LLM-PROXY."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from typing import Callable
+
+from backend.v2.services.proxy_cli import ProxyCliService
+
+
+def _print_result(result) -> None:
+    try:
+        from rich.console import Console
+        from rich.json import JSON
+        from rich.panel import Panel
+    except ImportError:
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+        return
+    console = Console()
+    color = "green" if result.ok else "yellow"
+    console.print(Panel.fit(result.message or result.status, title=result.command, border_style=color))
+    console.print(JSON.from_data(result.data))
+
+
+def _commands(service: ProxyCliService) -> dict[str, Callable[[], object]]:
+    return {
+        "status": service.status,
+        "models": service.list_models,
+        "costs": service.costs,
+        "budget": service.budget,
+        "logs": service.logs,
+        "doctor": service.doctor,
+        "restart": service.restart,
+        "test-models": service.test_models,
+    }
+
+
+def run_once(command: str) -> int:
+    service = ProxyCliService()
+    commands = _commands(service)
+    if command not in commands:
+        print("Unknown command: %s" % command, file=sys.stderr)
+        return 2
+    result = commands[command]()
+    _print_result(result)
+    return 1 if command in {"doctor", "restart", "test-models"} and not result.ok else 0
+
+
+def run_interactive() -> int:
+    service = ProxyCliService()
+    commands = _commands(service)
+    try:
+        from prompt_toolkit import prompt
+        from prompt_toolkit.completion import WordCompleter
+        from rich.console import Console
+    except ImportError:
+        print("MDE LLM-PROXY TUI. Type one of: %s. Type quit to exit." % ", ".join(sorted(commands)))
+        while True:
+            choice = input("proxy> ").strip()
+            if choice in {"q", "quit", "exit"}:
+                return 0
+            if choice in commands:
+                _print_result(commands[choice]())
+            else:
+                print("Unknown command.")
+    console = Console()
+    completer = WordCompleter(sorted(commands) + ["quit", "exit"], ignore_case=True)
+    console.print("[bold]MDE LLM-PROXY TUI[/bold] [dim]status models costs budget logs doctor restart test-models[/dim]")
+    while True:
+        choice = prompt("proxy> ", completer=completer).strip().lower()
+        if choice in {"q", "quit", "exit"}:
+            return 0
+        if choice in commands:
+            _print_result(commands[choice]())
+        elif choice:
+            console.print("[yellow]Unknown command.[/yellow]")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--interactive", action="store_true", help="Start the interactive TUI loop.")
+    parser.add_argument("--once", choices=["status", "models", "costs", "budget", "logs", "doctor", "restart", "test-models"], help="Run one TUI command and exit.")
+    args = parser.parse_args()
+    if args.once:
+        return run_once(args.once)
+    return run_interactive()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

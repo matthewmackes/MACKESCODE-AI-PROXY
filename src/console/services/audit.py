@@ -1,6 +1,7 @@
 """Security audit logging for console actions."""
-import json
 import time
+
+from src.console.store import AuditRepository
 
 
 SENSITIVE_KEYS = {"token", "access_token", "authorization", "api_key", "password", "secret"}
@@ -9,9 +10,11 @@ SENSITIVE_KEYS = {"token", "access_token", "authorization", "api_key", "password
 class AuditService:
     """Append compact JSONL audit records for sensitive operator actions."""
 
-    def __init__(self, audit_file, clock=None):
+    def __init__(self, audit_file, clock=None, event_bus=None, repository=None):
         self.audit_file = audit_file
         self.clock = clock or time.time
+        self.event_bus = event_bus
+        self.repository = repository or AuditRepository(audit_file, clock=self.clock)
 
     def redact(self, value):
         if isinstance(value, dict):
@@ -39,8 +42,20 @@ class AuditService:
             },
             "request": self.redact(request or {}),
         }
-        path = self.audit_file()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        self.repository.append(record)
+        if self.event_bus is not None:
+            try:
+                self.event_bus.publish(
+                    "audit.recorded",
+                    severity="warning" if record.get("outcome") == "denied" else "info",
+                    actor=record.get("actor"),
+                    subject={"type": "audit", "id": record.get("action")},
+                    correlation={"trace_id": record.get("request", {}).get("trace_id", "") if isinstance(record.get("request"), dict) else ""},
+                    payload=record,
+                )
+            except Exception:
+                pass
         return record
+
+    def metadata(self):
+        return self.repository.metadata()
