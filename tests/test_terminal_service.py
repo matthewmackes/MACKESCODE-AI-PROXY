@@ -73,6 +73,33 @@ class TerminalSessionTests(unittest.TestCase):
         self.assertEqual(closed, [7])
         self.assertEqual(len(fcntl_calls), 2)
 
+    def test_terminal_session_forces_color_environment_for_child(self):
+        exec_calls = []
+
+        def execvpe_func(command, args, env):
+            exec_calls.append((command, args, env))
+            raise RuntimeError("stop child branch")
+
+        with self.assertRaises(RuntimeError):
+            TerminalSession(
+                "model-a",
+                "/project",
+                [],
+                script_dir=lambda: Path("/app"),
+                fork=lambda: (0, 7),
+                chdir_func=lambda path: None,
+                execvpe_func=execvpe_func,
+                environ={"NO_COLOR": "1", "TERM": ""},
+                session_id="terminal-color",
+            )
+
+        env = exec_calls[0][2]
+        self.assertEqual(env["TERM"], "xterm-256color")
+        self.assertEqual(env["COLORTERM"], "truecolor")
+        self.assertEqual(env["FORCE_COLOR"], "3")
+        self.assertEqual(env["CLICOLOR_FORCE"], "1")
+        self.assertNotIn("NO_COLOR", env)
+
     def test_terminal_session_writes_when_open_and_marks_waitpid_exit(self):
         writes = []
         session = TerminalSession(

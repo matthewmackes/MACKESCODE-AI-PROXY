@@ -1,0 +1,23 @@
+export const terminalTheme = {
+  background: '#0b0d10',
+  foreground: '#f4f4f4',
+  cursor: '#ffffff',
+  cursorAccent: '#0b0d10',
+  selectionBackground: '#244f78',
+  black: '#161616',
+  red: '#ff6b6b',
+  green: '#42be65',
+  yellow: '#f1c21b',
+  blue: '#78a9ff',
+  magenta: '#be95ff',
+  cyan: '#33b1ff',
+  white: '#f4f4f4',
+  brightBlack: '#6f6f6f',
+  brightRed: '#ff8389',
+  brightGreen: '#7ee787',
+  brightYellow: '#fddc69',
+  brightBlue: '#a6c8ff',
+  brightMagenta: '#d4bbff',
+  brightCyan: '#82cfff',
+  brightWhite: '#ffffff'
+};

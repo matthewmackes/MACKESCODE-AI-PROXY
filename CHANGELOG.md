@@ -68,6 +68,9 @@ Security and reliability fixes from the comprehensive architecture/UX review
 - V2 TMux attach now has a native `/ws/tmux` FastAPI bridge, so browser
   attachments no longer fall through the React static mount and immediately
   detach.
+- Browser TMux/TUI terminals now use an explicit ANSI color palette and attach
+  tmux clients with 256-color/RGB features, preserving Claude Code color output
+  for sessions such as `MDEBUILD`.
 - Proxy `/v1/images/generations` now enforces the budget guard and the model
   allowlist, matching the chat path; over-budget or unconfigured-model image
   requests are rejected instead of silently spending or forwarding arbitrary

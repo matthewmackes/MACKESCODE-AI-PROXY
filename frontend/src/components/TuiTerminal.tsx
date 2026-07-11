@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { apiWebSocketUrl } from '../api/auth';
+import { terminalTheme } from './terminalTheme';
 
 type Props = {
   clientId: string;
@@ -25,7 +26,7 @@ export default function TuiTerminal({ clientId, controller }: Props) {
       disableStdin: !controller,
       fontFamily: 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       fontSize: 13,
-      theme: { background: '#0b0d10', foreground: '#e5edf5' }
+      theme: terminalTheme
     });
     terminal.open(hostRef.current);
     terminal.writeln('Connecting to MDE LLM-PROXY TUI...');

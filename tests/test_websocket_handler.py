@@ -145,6 +145,28 @@ class TmuxWebSocketHandlerTests(unittest.TestCase):
         self.assertEqual(records["closed"], [7])
         self.assertIn("reason=client_closed", records["prints"][-1][0][0])
 
+    def test_child_attach_advertises_color_features(self):
+        exec_calls = []
+
+        def execvp_func(command, args):
+            exec_calls.append((command, args))
+            raise RuntimeError("stop child branch")
+
+        handler, request, _ = self.handler(
+            fork_func=lambda: (0, 7),
+            execvp_func=execvp_func,
+            environ={"NO_COLOR": "1", "TERM": ""},
+        )
+
+        with self.assertRaises(RuntimeError):
+            handler.handle(request)
+
+        self.assertEqual(exec_calls, [("tmux", ["tmux", "-u", "-T", "256,RGB", "attach-session", "-t", "target-work"])])
+        self.assertEqual(handler.environ["TERM"], "xterm-256color")
+        self.assertEqual(handler.environ["COLORTERM"], "truecolor")
+        self.assertEqual(handler.environ["FORCE_COLOR"], "3")
+        self.assertNotIn("NO_COLOR", handler.environ)
+
     def test_bad_query_and_resize_dimensions_are_clamped_or_fallback(self):
         request = FakeRequest(path="/ws/tmux?name=work&cols=bad&rows=999")
         frames = ['{"resize":{"rows":-1,"cols":900}}', None]

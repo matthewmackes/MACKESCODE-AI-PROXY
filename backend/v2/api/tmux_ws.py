@@ -64,11 +64,15 @@ def spawn_tmux_attach(name: str, rows: int, cols: int) -> tuple[subprocess.Popen
     master_fd, slave_fd = pty.openpty()
     set_pty_size(master_fd, rows, cols)
     env = dict(os.environ)
-    env.setdefault("TERM", "xterm-256color")
-    env.setdefault("COLORTERM", "truecolor")
+    env["TERM"] = env.get("TERM") or "xterm-256color"
+    env["COLORTERM"] = "truecolor"
+    env["FORCE_COLOR"] = env.get("FORCE_COLOR") or "3"
+    env["CLICOLOR"] = env.get("CLICOLOR") or "1"
+    env["CLICOLOR_FORCE"] = env.get("CLICOLOR_FORCE") or "1"
+    env.pop("NO_COLOR", None)
     try:
         process = subprocess.Popen(
-            ["tmux", "attach-session", "-t", name],
+            ["tmux", "-u", "-T", "256,RGB", "attach-session", "-t", name],
             stdin=slave_fd,
             stdout=slave_fd,
             stderr=slave_fd,

@@ -135,6 +135,11 @@ class TmuxControlServiceTests(unittest.TestCase):
         self.assertFalse(payload["attached"])
         self.assertEqual(payload["name"], "matts-work-2")
         self.assertTrue(any(cmd[:1] == ["new-session"] for cmd in commands))
+        new_session = next(cmd for cmd in commands if cmd[:1] == ["new-session"])
+        self.assertIn("COLORTERM=truecolor", new_session)
+        self.assertIn("FORCE_COLOR=3", new_session)
+        self.assertIn("CLICOLOR_FORCE=1", new_session)
+        self.assertIn("unset NO_COLOR; export COLORTERM=truecolor FORCE_COLOR=3 CLICOLOR=1 CLICOLOR_FORCE=1;", new_session[-1])
         self.assertEqual(records["upserts"][0][0][0], "matts-work-2")
 
     def test_start_rejects_bad_launcher_project_and_tmux_failure(self):

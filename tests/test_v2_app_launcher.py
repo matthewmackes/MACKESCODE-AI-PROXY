@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from backend.v2 import app as app_module
+from backend.v2.api import tmux_ws as tmux_ws_module
 
 try:
     from fastapi.testclient import TestClient
@@ -162,6 +163,31 @@ class V2AppLauncherTests(unittest.TestCase):
 
         self.assertEqual(payload["type"], "denied")
         self.assertEqual(payload["decision"]["required_permission"], "tmux_control")
+
+    def test_ws_tmux_attach_advertises_color_features(self):
+        popen_calls = []
+
+        class FakeProcess:
+            pid = 123
+
+        def fake_popen(args, **kwargs):
+            popen_calls.append((args, kwargs))
+            return FakeProcess()
+
+        with patch.object(tmux_ws_module.pty, "openpty", return_value=(10, 11)), \
+             patch.object(tmux_ws_module.os, "close"), \
+             patch.object(tmux_ws_module.subprocess, "Popen", side_effect=fake_popen), \
+             patch.dict(tmux_ws_module.os.environ, {"NO_COLOR": "1", "TERM": ""}, clear=True):
+            process, fd = tmux_ws_module.spawn_tmux_attach("work", 40, 120)
+
+        self.assertEqual(process.pid, 123)
+        self.assertEqual(fd, 10)
+        args, kwargs = popen_calls[0]
+        self.assertEqual(args, ["tmux", "-u", "-T", "256,RGB", "attach-session", "-t", "work"])
+        self.assertEqual(kwargs["env"]["TERM"], "xterm-256color")
+        self.assertEqual(kwargs["env"]["COLORTERM"], "truecolor")
+        self.assertEqual(kwargs["env"]["FORCE_COLOR"], "3")
+        self.assertNotIn("NO_COLOR", kwargs["env"])
 
     def test_cors_origins_default_to_remote_browser_friendly_wildcard(self):
         old_env = os.environ.get("MATTS_V2_CORS_ORIGINS")

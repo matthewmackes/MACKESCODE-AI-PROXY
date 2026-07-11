@@ -189,6 +189,9 @@ class TmuxControlService:
         args += shlex.split(str(data.get("extra_args") or ""))
         return args
 
+    def color_env_exports(self):
+        return "unset NO_COLOR; export COLORTERM=truecolor FORCE_COLOR=3 CLICOLOR=1 CLICOLOR_FORCE=1; "
+
     def start(self, data):
         health = self.launcher_health()
         if not health.get("ok"):
@@ -218,17 +221,26 @@ class TmuxControlService:
         command = [str(self.script_dir() / "claude-DO.sh"), "--model", model] + self.claude_launch_args(data)
         shell_command = (
             "printf 'Starting Claude Code session: %s\\n'; "
+            "%s"
             "%s; "
             "code=$?; "
             "printf '\\n[Claude Code exited with status %%s]\\n' \"$code\"; "
             "printf 'Session remains open for inspection. Press Ctrl-D or kill the session from the console.\\n'; "
             "exec ${SHELL:-/bin/bash}"
-        ) % (shlex.quote(name), shlex.join(command))
+        ) % (shlex.quote(name), self.color_env_exports(), shlex.join(command))
         code, _, err = self.tmux_cmd([
             "new-session",
             "-d",
             "-s",
             name,
+            "-e",
+            "COLORTERM=truecolor",
+            "-e",
+            "FORCE_COLOR=3",
+            "-e",
+            "CLICOLOR=1",
+            "-e",
+            "CLICOLOR_FORCE=1",
             "-x",
             str(int(data.get("cols") or 120)),
             "-y",

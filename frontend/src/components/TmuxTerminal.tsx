@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { apiWebSocketUrl } from '../api/auth';
 import type { TmuxWorkspacePayload } from '../api/generated/v2Client';
+import { terminalTheme } from './terminalTheme';
 
 type Props = {
   active: boolean;
@@ -58,7 +59,7 @@ export default function TmuxTerminal({ active, canControl, sessionName, workspac
       convertEol: true,
       fontFamily: 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       fontSize: 13,
-      theme: { background: '#0b0d10', foreground: '#f4f4f4' }
+      theme: terminalTheme
     });
     terminal.open(hostRef.current);
     terminal.writeln(`Attaching to tmux session: ${sessionName}`);

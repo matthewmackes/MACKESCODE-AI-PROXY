@@ -54,7 +54,12 @@ class TerminalSession:
         if extra_args:
             cmd += list(extra_args)
         env = dict(environ if environ is not None else os.environ)
-        env["TERM"] = env.get("TERM", "xterm-256color")
+        env["TERM"] = env.get("TERM") or "xterm-256color"
+        env["COLORTERM"] = "truecolor"
+        env["FORCE_COLOR"] = env.get("FORCE_COLOR") or "3"
+        env["CLICOLOR"] = env.get("CLICOLOR") or "1"
+        env["CLICOLOR_FORCE"] = env.get("CLICOLOR_FORCE") or "1"
+        env.pop("NO_COLOR", None)
         self.pid, self.fd = fork()
         if self.pid == 0:
             chdir_func(project_dir or str(root))

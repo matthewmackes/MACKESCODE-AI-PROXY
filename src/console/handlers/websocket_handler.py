@@ -106,9 +106,13 @@ class TmuxWebSocketHandler:
             self.audit(action, actor=actor, outcome="allowed", permission=permission, request={"path": parsed.path, "session": name, "rows": rows, "cols": cols}, status=101)
         pid, fd = self.fork_func()
         if pid == 0:
-            self.environ.setdefault("TERM", "xterm-256color")
-            self.environ.setdefault("COLORTERM", "truecolor")
-            self.execvp_func("tmux", ["tmux", "attach-session", "-t", name])
+            self.environ["TERM"] = self.environ.get("TERM") or "xterm-256color"
+            self.environ["COLORTERM"] = "truecolor"
+            self.environ["FORCE_COLOR"] = self.environ.get("FORCE_COLOR") or "3"
+            self.environ["CLICOLOR"] = self.environ.get("CLICOLOR") or "1"
+            self.environ["CLICOLOR_FORCE"] = self.environ.get("CLICOLOR_FORCE") or "1"
+            self.environ.pop("NO_COLOR", None)
+            self.execvp_func("tmux", ["tmux", "-u", "-T", "256,RGB", "attach-session", "-t", name])
         self.set_pty_size(fd, rows, cols)
         conn = request.connection
         conn.setblocking(True)
