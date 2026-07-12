@@ -1,10 +1,10 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, HomeSummary, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
+import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
-import { getModels, getWhatsNew } from './api/v2';
-import { getOperate, OperatePayload } from './api/generated/v2Client';
+import { getWhatsNew } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
+import { getPlatformBranding } from './branding';
 
 type NavItem = {
   key: string;
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { key: 'advanced', label: 'Advanced', icon: 'actions/document-properties-symbolic.svg', description: 'Owner/admin tools' }
 ];
 
+const platformBranding = getPlatformBranding();
 const QUICK_SWITCHER_RECENTS_KEY = 'matts-v2-quick-switcher-recents';
 const QUICK_SWITCHER_RECENT_LIMIT = 5;
 
@@ -140,27 +141,6 @@ function parseSavedWorkspaceSnapshot(text: string): SavedWorkspaceSnapshot | nul
   }
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function records(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? value.filter((row) => row && typeof row === 'object') as Array<Record<string, unknown>> : [];
-}
-
-function metric(value: unknown): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function plural(count: number, singular: string, pluralLabel = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : pluralLabel}`;
-}
-
-function text(value: unknown, fallback = ''): string {
-  return value === undefined || value === null || value === '' ? fallback : String(value);
-}
-
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     try {
@@ -201,93 +181,11 @@ function shouldTriggerFatalDiagnostic(): boolean {
   }
 }
 
-function looksLikeAuthError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error || '');
-  return /403|missing_permission|anonymous|token/i.test(message);
-}
-
-function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: OperatePayload; loading: boolean; error: unknown; onOpen: () => void }) {
-  const releaseCandidate = record(payload?.release_candidate);
-  const summary = record(releaseCandidate.summary);
-  const operatorHandoff = record(releaseCandidate.operator_handoff);
-  const operatorHandoffItems = records(operatorHandoff.items);
-  const topOperatorItem = operatorHandoffItems[0] || {};
-  const failedChecks = records(releaseCandidate.checks).filter((check) => check.status !== 'passed');
-  const failedReasonRows = failedChecks.slice(0, 3).map((check) => {
-    const evidence = record(check.evidence);
-    const checkId = text(check.id);
-    const title = text(check.title || check.id, 'Readiness check');
-    let detail = text(check.severity, 'advisory');
-    if (checkId === 'config_drift') {
-      const blockingDrift = metric(evidence.blocking_drift_count);
-      const advisoryDrift = metric(evidence.advisory_drift_count);
-      detail = blockingDrift > 0 ? `${plural(blockingDrift, 'blocking drift item')}` : `${plural(advisoryDrift, 'low-risk drift item')}`;
-    } else if (checkId === 'needs_operator') {
-      detail = `${plural(metric(evidence.open_items), 'operator item')} open`;
-    } else if (checkId === 'worklist') {
-      detail = `${plural(metric(evidence.pending_p1_estimate), 'priority item')} open`;
-    }
-    return { id: checkId || title, title, detail };
-  });
-  const topOperatorTitle = text(topOperatorItem.item);
-  const topOperatorOwner = text(topOperatorItem.owner, 'Operator');
-  const topOperatorRank = text(topOperatorItem.priority_rank, '1');
-  const ready = releaseCandidate.ready === true;
-  const checks = metric(summary.checks);
-  const blocking = metric(summary.blocking_failed);
-  const advisory = metric(summary.advisory_failed);
-  const operatorItems = metric(operatorHandoff.open_count);
-  const showTopOperatorAction = blocking === 0 && operatorItems > 0 && Boolean(topOperatorTitle);
-  const topOperatorReason = showTopOperatorAction
-    ? [{
-        id: 'operator-top-action',
-        title: `#${topOperatorRank} Operator Action`,
-        detail: `${topOperatorTitle} · ${topOperatorOwner}`
-      }]
-    : [];
-  const reasonRows = topOperatorReason.length
-    ? [...topOperatorReason, ...failedReasonRows.filter((row) => row.id !== 'needs_operator').slice(0, 2)]
-    : failedReasonRows.slice(0, 3);
-  const status = error ? 'error' : loading ? 'syncing' : blocking > 0 ? 'blocking' : advisory > 0 ? 'advisory' : ready ? 'ready' : 'review';
-  const label = error ? 'Readiness Unavailable' : loading ? 'Syncing Readiness' : blocking > 0 ? 'Blocked' : operatorItems > 0 ? 'Ready With Handoff' : advisory > 0 ? 'Ready With Advisories' : ready ? 'Release Ready' : 'Review Needed';
-  const detail = error
-    ? 'Open Operate for diagnostics'
-    : loading
-      ? 'Checking release posture'
-      : showTopOperatorAction
-        ? `Next #${topOperatorRank}: ${topOperatorTitle}`
-        : operatorItems > 0
-          ? `${plural(operatorItems, 'operator item')} open`
-          : advisory > 0 && reasonRows.length
-          ? `${reasonRows[0].title}: ${reasonRows[0].detail}`
-          : checks > 0
-            ? `${plural(checks, 'check')} evaluated`
-            : 'Awaiting release checks';
+function BrandMark({ testId }: { testId: string }) {
   return (
-    <button className={`readinessPulse ${status}`} type="button" data-testid="shell-readiness-pulse" onClick={onOpen} aria-label={`${label}. ${detail}. Open Operate`}>
-      <span className="readinessPulseMark">
-        <CarbonIcon path="apps/ai-governance--tracked.svg" label="Readiness" />
-      </span>
-      <span className="readinessPulseBody">
-        <strong>{label}</strong>
-        <small>{detail}</small>
-      </span>
-      <span className="readinessPulseMetrics" aria-label={`${blocking} blocking, ${advisory} advisory, ${checks} checks`}>
-        <span><b>{blocking}</b> block</span>
-        <span><b>{advisory}</b> adv</span>
-        <span><b>{checks}</b> checks</span>
-      </span>
-      {!loading && !error && reasonRows.length ? (
-        <span className="readinessPulseReasons" data-testid="shell-readiness-reasons">
-          {reasonRows.map((row) => (
-            <span className="readinessPulseReason" data-testid="shell-readiness-reason" key={row.id}>
-              <b>{row.title}</b>
-              <small>{row.detail}</small>
-            </span>
-          ))}
-        </span>
-      ) : null}
-    </button>
+    <span className="brandMark" data-testid={testId} aria-hidden="true">
+      <img src={platformBranding.appIconUrl} alt="" />
+    </span>
   );
 }
 
@@ -352,6 +250,7 @@ export default function App() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickQuery, setQuickQuery] = useState('');
   const [quickHighlightedIndex, setQuickHighlightedIndex] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [recentWorkspaceKeys, setRecentWorkspaceKeys] = useState(loadRecentWorkspaceKeys);
   const [workspaceResetVersion, setWorkspaceResetVersion] = useState(0);
   const [savedStateVersion, setSavedStateVersion] = useState(0);
@@ -365,12 +264,12 @@ export default function App() {
       return true;
     }
   });
-  const modelPayload = useQuery({ queryKey: ['models-shell'], queryFn: getModels, retry: false });
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew, retry: false });
-  const operatePayload = useQuery({ queryKey: ['operate-shell-readiness'], queryFn: getOperate, refetchInterval: 30000, retry: false });
-  const activeItem = useMemo(() => navItems.find((item) => item.key === active) || navItems[0], [active]);
   const quickInputRef = useRef<HTMLInputElement | null>(null);
   const stateImportRef = useRef<HTMLInputElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const drawerNavRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const quickItems = useMemo(() => {
     const query = quickQuery.trim().toLowerCase();
     if (!query) return navItems;
@@ -378,16 +277,10 @@ export default function App() {
   }, [quickQuery]);
   const recentItems = useMemo(() => recentWorkspaceKeys.map((key) => navItemForKey(key)).filter((item): item is NavItem => Boolean(item)).filter((item) => item.key !== active).slice(0, QUICK_SWITCHER_RECENT_LIMIT), [active, recentWorkspaceKeys]);
   const highlightedQuickItem = quickItems[quickHighlightedIndex] || quickItems[0];
+  const activeItem = useMemo(() => navItemForKey(active) || navItems[0], [active]);
   const savedStateCount = useMemo(savedWorkspaceStateCount, [quickOpen, savedStateVersion]);
   const [savedStateStatus, setSavedStateStatus] = useState(savedStateCount ? 'State ready' : 'No saved state');
   const [workspaceLinkStatus, setWorkspaceLinkStatus] = useState('Link ready');
-  useEffect(() => {
-    if (signedIn || authPromptOpen) return;
-    if ([modelPayload.error, operatePayload.error].some(looksLikeAuthError)) {
-      setAuthPrompt(DEFAULT_AUTH_PROMPT);
-      setAuthPromptOpen(true);
-    }
-  }, [authPromptOpen, modelPayload.error, operatePayload.error, signedIn]);
   useEffect(() => {
     const onAuthRequired = (event: Event) => {
       const detail = (event as CustomEvent<Partial<AuthPromptState>>).detail || {};
@@ -413,6 +306,7 @@ export default function App() {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        setDrawerOpen(false);
         setQuickOpen(true);
       }
     };
@@ -442,23 +336,19 @@ export default function App() {
     const nextHash = `#${key}`;
     if (window.location.hash !== nextHash) window.history.pushState(null, '', nextHash);
   };
-  const openOperateWorkspace = () => {
-    try {
-      window.sessionStorage.setItem(V2_WORKSPACE_SESSION_KEYS.advancedTab, 'operate');
-    } catch {
-      // Advanced can still be opened even if the browser blocks session storage.
-    }
-    activate('advanced');
-    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'operate' } }));
+  const activateFromDrawer = (key: string) => {
+    activate(key);
+    setDrawerOpen(false);
   };
   const openSettingsWorkspace = () => {
     try {
-      window.sessionStorage.setItem(V2_WORKSPACE_SESSION_KEYS.advancedTab, 'console');
+      window.sessionStorage.removeItem(V2_WORKSPACE_SESSION_KEYS.advancedTab);
     } catch {
       // Advanced can still open if browser storage is restricted.
     }
+    setDrawerOpen(false);
     activate('advanced');
-    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'console' } }));
+    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'overview' } }));
   };
   const submitConsoleToken = (token: string) => {
     rememberConsoleToken(token);
@@ -476,6 +366,18 @@ export default function App() {
   const openAuthPrompt = () => {
     setAuthPrompt(DEFAULT_AUTH_PROMPT);
     setAuthPromptOpen(true);
+  };
+  const openQuickSwitcherFromDrawer = () => {
+    setDrawerOpen(false);
+    setQuickOpen(true);
+  };
+  const triggerAuthFromDrawer = () => {
+    setDrawerOpen(false);
+    if (signedIn) {
+      signOut();
+    } else {
+      openAuthPrompt();
+    }
   };
   const closeQuickSwitcher = () => {
     setQuickOpen(false);
@@ -524,6 +426,39 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [quickOpen]);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    window.setTimeout(() => {
+      const activeButton = drawerNavRefs.current[active];
+      const firstFocusable = drawerRef.current?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      (activeButton || firstFocusable)?.focus();
+    }, 0);
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDrawerOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') || [])
+        .filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      menuButtonRef.current?.focus();
+    };
+  }, [active, drawerOpen]);
   const dismissStartupWhatsNew = () => {
     try {
       window.sessionStorage.setItem(WHATS_NEW_DISMISSED_KEY, '1');
@@ -684,39 +619,81 @@ export default function App() {
           </div>
         </div>
       ) : null}
-      <aside className="sideRail">
-        <div className="brandBlock">
-          <span className="brandMark">M</span>
+      <div className="shellFloatingChrome" data-testid="shell-floating-menu">
+        <button
+          ref={menuButtonRef}
+          className="shellMenuButton"
+          type="button"
+          aria-label={drawerOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+          aria-expanded={drawerOpen}
+          aria-controls="shell-navigation-drawer"
+          onClick={() => setDrawerOpen((open) => !open)}
+          data-testid="shell-menu-toggle"
+        >
+          <CarbonIcon path="actions/open-menu-symbolic.svg" label="Menu" />
+        </button>
+        <div className="shellFloatingBrand">
+          <BrandMark testId="shell-brand-icon" />
           <div>
-            <strong>MDE</strong>
-            <span>LLM-PROXY Console v2</span>
+            <strong>{platformBranding.product}</strong>
+            <span>{platformBranding.platform} Console v2</span>
           </div>
-          <div className="brandActions">
-            <button className="railIconButton" type="button" aria-label="Open Switch Workspace" title="Switch Workspace" onClick={() => setQuickOpen(true)}>
+        </div>
+        <div className="shellCurrentWorkspace" aria-live="polite">
+          <span>Workspace</span>
+          <strong>{activeItem.label}</strong>
+        </div>
+      </div>
+      <div className={`shellDrawerLayer ${drawerOpen ? 'open' : ''}`} aria-hidden={!drawerOpen}>
+        <button className="shellDrawerBackdrop" type="button" aria-label="Close Navigation Menu" tabIndex={-1} onClick={() => setDrawerOpen(false)} />
+        <aside id="shell-navigation-drawer" ref={drawerRef} className="shellDrawer" role="dialog" aria-modal="true" aria-labelledby="shell-menu-title" data-testid="shell-navigation-drawer">
+          <div className="shellDrawerHeader">
+            <BrandMark testId="drawer-brand-icon" />
+            <div>
+              <span>Navigation</span>
+              <h2 id="shell-menu-title">{platformBranding.product}</h2>
+              <small>{platformBranding.platform} Console v2</small>
+            </div>
+            <button className="shellDrawerClose" type="button" aria-label="Close Navigation Menu" tabIndex={drawerOpen ? 0 : -1} onClick={() => setDrawerOpen(false)}>
+              <CarbonIcon path="apps/close.svg" label="Close" />
+            </button>
+          </div>
+          <nav className="drawerNav" aria-label="Primary">
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                ref={(node) => { drawerNavRefs.current[item.key] = node; }}
+                className={active === item.key ? 'active' : ''}
+                type="button"
+                onClick={() => activateFromDrawer(item.key)}
+                aria-current={active === item.key ? 'page' : undefined}
+                tabIndex={drawerOpen ? 0 : -1}
+                data-testid={`shell-nav-${item.key}`}
+              >
+                <CarbonIcon path={item.icon} label={item.label} />
+                <span>
+                  <strong>{item.label}</strong>
+                  {active === item.key ? <small>{item.description}</small> : null}
+                </span>
+              </button>
+            ))}
+          </nav>
+          <div className="shellDrawerUtilities" aria-label="Utilities">
+            <button type="button" onClick={openQuickSwitcherFromDrawer} tabIndex={drawerOpen ? 0 : -1} data-testid="shell-drawer-switcher">
               <CarbonIcon path="actions/edit-find-symbolic.svg" label="Switch" />
+              <span>Switch Workspace</span>
             </button>
-            <button className="railIconButton" type="button" aria-label="Open Settings" title="Settings" onClick={openSettingsWorkspace}>
+            <button type="button" onClick={openSettingsWorkspace} tabIndex={drawerOpen ? 0 : -1} data-testid="shell-drawer-settings">
               <CarbonIcon path="apps/settings.svg" label="Settings" />
+              <span>Settings</span>
             </button>
-            <button className="railIconButton" type="button" aria-label={signedIn ? 'Sign Out' : 'Sign In'} title={signedIn ? 'Sign Out' : 'Sign In'} onClick={signedIn ? signOut : openAuthPrompt}>
+            <button type="button" onClick={triggerAuthFromDrawer} tabIndex={drawerOpen ? 0 : -1} data-testid="shell-drawer-auth">
               <CarbonIcon path="apps/user--settings.svg" label={signedIn ? 'Sign Out' : 'Sign In'} />
+              <span>{signedIn ? 'Sign Out' : 'Sign In'}</span>
             </button>
           </div>
-        </div>
-        <nav className="heroNav" aria-label="Primary">
-          {navItems.map((item) => (
-            <button key={item.key} className={active === item.key ? 'active' : ''} type="button" onClick={() => activate(item.key)} aria-current={active === item.key ? 'page' : undefined}>
-              <CarbonIcon path={item.icon} label={item.label} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="railSummary">
-          <span>{activeItem.description}</span>
-          <ReleaseReadinessPulse payload={operatePayload.data} loading={operatePayload.isLoading} error={operatePayload.error} onOpen={openOperateWorkspace} />
-          <HomeSummary models={modelPayload.data?.models || []} />
-        </div>
-      </aside>
+        </aside>
+      </div>
       <main className="mainSurface">
         {active === 'chat' ? <ChatPage key={`chat-${workspaceResetVersion}`} /> : null}
         {active === 'code' ? <CodePage key={`code-${workspaceResetVersion}`} /> : null}

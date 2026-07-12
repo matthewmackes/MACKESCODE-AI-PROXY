@@ -1,5 +1,5 @@
 import { consoleAuthHeaders, withConsoleToken } from './auth';
-import { responseJsonOrThrow } from './errors';
+import { errorMessageFromPayload, readResponsePayload, responseJsonOrThrow } from './errors';
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(withConsoleToken(path), {
@@ -11,6 +11,22 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     }
   });
   return responseJsonOrThrow<T>(response);
+}
+
+async function requestBlob(path: string, init?: RequestInit): Promise<Blob> {
+  const response = await fetch(withConsoleToken(path), {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      ...consoleAuthHeaders(),
+      ...(init?.headers || {})
+    }
+  });
+  if (!response.ok) {
+    const payload = await readResponsePayload(response);
+    throw new Error(errorMessageFromPayload(payload, response.status, 'v2 speech request failed'));
+  }
+  return response.blob();
 }
 
 export type ModelCard = {
@@ -72,11 +88,35 @@ export type WhatsNewPayload = {
   };
 };
 
+export type SpeechStatusPayload = {
+  enabled: boolean;
+  configured: boolean;
+  available: boolean;
+  mode: string;
+  engine: string;
+  fallback_mode: string;
+  model: string;
+  language: string;
+  languages: string[];
+  instruct: string;
+  max_chars: number;
+  mime_type: string;
+  sample_rate: number;
+  reason?: string;
+  input?: Record<string, unknown>;
+};
+
 export type ChatVoiceProfile = {
   mode: string;
+  fallback_mode?: string;
   style: string;
+  server_engine?: SpeechStatusPayload;
+  input_mode?: string;
   enabled_by_default: boolean;
   max_chars: number;
+  language?: string;
+  languages?: string[];
+  instruct?: string;
   preview: string;
 };
 
@@ -319,6 +359,20 @@ export function getChatPayload(): Promise<ChatPayload> {
 
 export function runChat(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
   return requestJson<Record<string, unknown>>('/v2/chat', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export type SpeechSynthesizePayload = {
+  text: string;
+  language?: string;
+  instruct?: string;
+};
+
+export function getSpeechStatus(): Promise<SpeechStatusPayload> {
+  return requestJson<SpeechStatusPayload>('/v2/speech');
+}
+
+export function synthesizeSpeech(payload: SpeechSynthesizePayload): Promise<Blob> {
+  return requestBlob('/v2/speech/synthesize', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function getCodePayload(): Promise<CodePayload> {

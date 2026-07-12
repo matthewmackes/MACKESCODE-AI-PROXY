@@ -7,6 +7,7 @@ from backend.v2.api.auth import capability_service, identity_from_request
 from backend.v2.services.chat_response import normalize_chat_result
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.model_showcase import ModelShowcaseService
+from backend.v2.services.speech import speech_service
 
 try:
     from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -45,14 +46,22 @@ if router:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "console.view")
         models = [model for model in showcase_service.payload()["models"] if model.get("type") == "text" and model.get("route_enabled")]
+        speech_status = speech_service.status()
+        server_available = bool(speech_status.get("available"))
         return {
             "models": models,
             "default_model": models[0]["id"] if models else "",
             "voice": {
-                "mode": "browser_speech_synthesis",
-                "style": "calm mission-computer",
+                "mode": speech_status.get("mode") or "browser_speech_synthesis",
+                "fallback_mode": speech_status.get("fallback_mode") or "browser_speech_synthesis",
+                "style": "Qwen3 VoiceDesign" if server_available else "calm mission-computer",
+                "server_engine": speech_status,
+                "input_mode": "browser_speech_recognition",
                 "enabled_by_default": True,
-                "max_chars": 1200,
+                "max_chars": int(speech_status.get("max_chars") or 1200),
+                "language": speech_status.get("language") or "Auto",
+                "languages": speech_status.get("languages") or [],
+                "instruct": speech_status.get("instruct") or "",
                 "preview": "MDE LLM-PROXY voice online. I will read concise model responses when voice is enabled.",
             },
         }

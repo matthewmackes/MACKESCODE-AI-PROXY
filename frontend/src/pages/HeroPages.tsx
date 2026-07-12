@@ -20,6 +20,7 @@ import {
   getResearchReport,
   getModels,
   getResearchPayload,
+  getSpeechStatus,
   getWhatsNew,
   ModelCard,
   ResearchClaim,
@@ -37,13 +38,15 @@ import {
   runChat,
   runCreateImages,
   runResearchSearch,
+  SpeechStatusPayload,
+  synthesizeSpeech,
   sendCodeSession,
   startCodeSession,
   updateResearchPins,
   uploadCodeAttachment
 } from '../api/v2';
-import { getMeCapabilities, getTmuxWorkspace } from '../api/generated/v2Client';
-import type { TmuxWorkspacePayload } from '../api/generated/v2Client';
+import { getMeCapabilities, getOperate, getTmuxWorkspace } from '../api/generated/v2Client';
+import type { OperatePayload, TmuxWorkspacePayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
@@ -166,6 +169,27 @@ function authLikeError(error: unknown): boolean {
 function numeric(value: unknown): number {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function recordValues(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter((row) => row && typeof row === 'object') as Array<Record<string, unknown>> : [];
+}
+
+function nonNegativeMetric(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function pluralize(count: number, singular: string, pluralLabel = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralLabel}`;
+}
+
+function compactText(value: unknown, fallback = ''): string {
+  return value === undefined || value === null || value === '' ? fallback : String(value);
 }
 
 function useTextModels(models: ModelCard[] | undefined) {
@@ -677,6 +701,18 @@ type ChatMessage = {
   diagnostic?: boolean;
   diagnosticDetail?: string;
 };
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: unknown) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type ChatUiState = {
   selectedModel: string;
   favorites: string[];
@@ -685,6 +721,8 @@ type ChatUiState = {
 const CHAT_TRANSCRIPT_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatTranscript;
 const CHAT_UI_STATE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatUiState;
 const CHAT_TRANSCRIPT_LIMIT = 50;
+const DEFAULT_VOICE_INSTRUCT = 'calm, clear mission-control voice with concise pacing';
+const DEFAULT_SPEECH_LANGUAGES = ['Auto', 'English', 'Chinese', 'French', 'German', 'Italian', 'Japanese', 'Korean', 'Portuguese', 'Russian', 'Spanish'];
 
 function chatMessageId(role: string): string {
   return `${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -865,6 +903,41 @@ async function copyText(text: string): Promise<void> {
 
 function readableStatus(value: string | undefined): string {
   return String(value || 'unknown').replace(/_/g, ' ');
+}
+
+function speechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') return null;
+  const scope = window as unknown as {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  };
+  return scope.SpeechRecognition || scope.webkitSpeechRecognition || null;
+}
+
+function speechLocale(language: string): string {
+  const normalized = language.toLowerCase();
+  if (normalized.includes('chinese')) return 'zh-CN';
+  if (normalized.includes('french')) return 'fr-FR';
+  if (normalized.includes('german')) return 'de-DE';
+  if (normalized.includes('italian')) return 'it-IT';
+  if (normalized.includes('japanese')) return 'ja-JP';
+  if (normalized.includes('korean')) return 'ko-KR';
+  if (normalized.includes('portuguese')) return 'pt-BR';
+  if (normalized.includes('russian')) return 'ru-RU';
+  if (normalized.includes('spanish')) return 'es-ES';
+  return 'en-US';
+}
+
+function recognitionTranscript(event: unknown): string {
+  const results = Array.from(((event as Record<string, unknown>)?.results || []) as ArrayLike<unknown>);
+  return results
+    .map((result) => {
+      const row = result as { isFinal?: boolean; [key: number]: { transcript?: string } | undefined };
+      if (row.isFinal === false) return '';
+      return row[0]?.transcript || '';
+    })
+    .join(' ')
+    .trim();
 }
 
 function weatherCodeLabel(code: number): string {
@@ -2602,6 +2675,7 @@ function starterApprovalItems(taskId: string, bundle: string): CodeApprovalItem[
 
 export function ChatPage() {
   const chat = useQuery({ queryKey: ['chat-payload'], queryFn: getChatPayload });
+  const speech = useQuery({ queryKey: ['speech-status'], queryFn: getSpeechStatus, retry: false, refetchInterval: 30000 });
   const chatCapabilities = useQuery({ queryKey: ['chat-capabilities'], queryFn: getMeCapabilities, retry: false });
   const models = useTextModels(chat.data?.models);
   const restoredUi = useMemo(loadChatUiState, []);
@@ -2615,6 +2689,11 @@ export function ChatPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceDefaultLoaded, setVoiceDefaultLoaded] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState('Ready');
+  const [voiceLanguage, setVoiceLanguage] = useState('');
+  const [voiceInstruct, setVoiceInstruct] = useState('');
+  const [speechInputStatus, setSpeechInputStatus] = useState('Speech input idle');
+  const [listening, setListening] = useState(false);
+  const [lastSpeechUrl, setLastSpeechUrl] = useState('');
   const [transcriptStatus, setTranscriptStatus] = useState('Ready');
   const selectedModel = models.some((item) => item.id === model)
     ? model
@@ -2628,11 +2707,21 @@ export function ChatPage() {
   const canUseChat = chatCapabilities.data?.capabilities['chat.use']?.allowed === true;
   const chatUseDenied = Boolean(chatCapabilities.data && !canUseChat);
   const chatAuthPrompted = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const lastSpeechUrlRef = useRef('');
   const voiceProfile = chat.data?.voice;
-  const voiceStyle = voiceProfile?.style || 'calm mission-computer';
-  const voiceMode = readableStatus(voiceProfile?.mode || 'browser_speech_synthesis');
+  const embeddedSpeechStatus = voiceProfile?.server_engine;
+  const speechStatus: SpeechStatusPayload | undefined = speech.data || embeddedSpeechStatus;
+  const serverSpeechAvailable = Boolean(speechStatus?.available && speechStatus.mode === 'server_qwen3_tts');
+  const voiceStyle = serverSpeechAvailable ? 'Qwen3 VoiceDesign' : voiceProfile?.style || 'calm mission-computer';
+  const voiceMode = serverSpeechAvailable ? 'Qwen3 TTS VoiceDesign' : readableStatus(voiceProfile?.fallback_mode || voiceProfile?.mode || 'browser_speech_synthesis');
   const voicePreview = voiceProfile?.preview || 'MDE LLM-PROXY voice online.';
-  const voiceMaxChars = Math.max(200, numeric(voiceProfile?.max_chars) || 1200);
+  const voiceMaxChars = Math.max(200, numeric(speechStatus?.max_chars || voiceProfile?.max_chars) || 1200);
+  const voiceLanguages = speechStatus?.languages?.length ? speechStatus.languages : voiceProfile?.languages?.length ? voiceProfile.languages : DEFAULT_SPEECH_LANGUAGES;
+  const speechInputSupported = Boolean(speechRecognitionConstructor());
+  const speechInputLabel = speechInputSupported ? speechInputStatus : 'Speech input unavailable';
+  const voiceDetail = [voiceMode, voiceStatus, `${voiceMaxChars.toLocaleString()} chars`, !serverSpeechAvailable && speechStatus?.reason ? speechStatus.reason : ''].filter(Boolean).join(' · ');
   const transcript = serializeTranscript(messages);
   const chatBrief = chatBriefMarkdown(messages, selectedModel, selectedModelCard);
   const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
@@ -2691,13 +2780,27 @@ export function ChatPage() {
     setVoiceDefaultLoaded(true);
   }, [voiceDefaultLoaded, voiceProfile]);
   useEffect(() => {
-    if (!voiceProfile) return;
-    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    const defaultLanguage = asText(speechStatus?.language || voiceProfile?.language || 'Auto');
+    const defaultInstruct = asText(speechStatus?.instruct || voiceProfile?.instruct || DEFAULT_VOICE_INSTRUCT);
+    if (!voiceLanguage && defaultLanguage) setVoiceLanguage(defaultLanguage);
+    if (!voiceInstruct && defaultInstruct) setVoiceInstruct(defaultInstruct);
+  }, [speechStatus, voiceInstruct, voiceLanguage, voiceProfile]);
+  useEffect(() => {
+    if (!voiceProfile && !speechStatus) return;
+    if (serverSpeechAvailable) {
+      setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
+    } else if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
       setVoiceStatus('Unavailable');
     } else {
       setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
     }
-  }, [voiceEnabled, voiceProfile]);
+  }, [serverSpeechAvailable, speechStatus, voiceEnabled, voiceProfile]);
+  useEffect(() => () => {
+    if (lastSpeechUrlRef.current) URL.revokeObjectURL(lastSpeechUrlRef.current);
+    audioRef.current?.pause();
+    recognitionRef.current?.abort();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
   useEffect(() => {
     saveChatTranscript(messages);
   }, [messages]);
@@ -2722,10 +2825,14 @@ export function ChatPage() {
     requestChatModelUse();
   }, [chatUseDenied]);
   const stopVoice = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
   };
-  const speak = (text: string) => {
+  const browserSpeak = (text: string) => {
     if (!voiceEnabled) return;
     if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
       setVoiceStatus('Unavailable');
@@ -2739,6 +2846,92 @@ export function ChatPage() {
     utterance.onerror = () => setVoiceStatus('Interrupted');
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
+  };
+  const speak = async (text: string) => {
+    if (!voiceEnabled) return;
+    const speechText = text.slice(0, voiceMaxChars).trim();
+    if (!speechText) return;
+    if (!serverSpeechAvailable) {
+      browserSpeak(speechText);
+      return;
+    }
+    stopVoice();
+    setVoiceStatus('Synthesizing');
+    try {
+      const audio = await synthesizeSpeech({
+        text: speechText,
+        language: voiceLanguage || speechStatus?.language || 'Auto',
+        instruct: voiceInstruct || speechStatus?.instruct || DEFAULT_VOICE_INSTRUCT,
+      });
+      const url = URL.createObjectURL(audio);
+      if (lastSpeechUrlRef.current) URL.revokeObjectURL(lastSpeechUrlRef.current);
+      lastSpeechUrlRef.current = url;
+      setLastSpeechUrl(url);
+      const player = new Audio(url);
+      audioRef.current = player;
+      player.onplaying = () => setVoiceStatus('Speaking');
+      player.onended = () => setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
+      player.onerror = () => {
+        setVoiceStatus('Browser fallback');
+        browserSpeak(speechText);
+      };
+      await player.play();
+    } catch {
+      setVoiceStatus('Browser fallback');
+      browserSpeak(speechText);
+    }
+  };
+  const downloadLastSpeech = () => {
+    if (!lastSpeechUrl) return;
+    const link = document.createElement('a');
+    link.href = lastSpeechUrl;
+    link.download = `mde-llm-proxy-speech-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.wav`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setVoiceStatus('Downloaded');
+  };
+  const toggleListening = () => {
+    const Recognition = speechRecognitionConstructor();
+    if (!Recognition) {
+      setSpeechInputStatus('Speech input unavailable');
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      setSpeechInputStatus('Speech input idle');
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = speechLocale(voiceLanguage || 'English');
+    recognition.onresult = (event: unknown) => {
+      const transcriptText = recognitionTranscript(event);
+      if (!transcriptText) return;
+      setPrompt((current) => current.trim() ? `${current.trim()} ${transcriptText}` : transcriptText);
+      setSpeechInputStatus('Captured speech');
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      setSpeechInputStatus('Speech input error');
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setListening(false);
+      setSpeechInputStatus((current) => current === 'Listening' ? 'Speech input idle' : current);
+    };
+    recognitionRef.current = recognition;
+    setListening(true);
+    setSpeechInputStatus('Listening');
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setListening(false);
+      setSpeechInputStatus('Speech input error');
+    }
   };
   const toggleVoice = () => {
     const next = !voiceEnabled;
@@ -2790,7 +2983,7 @@ export function ChatPage() {
         }
       ].slice(-CHAT_TRANSCRIPT_LIMIT));
       setPrompt('');
-      if (!diagnostic) speak(answer);
+      if (!diagnostic) void speak(answer);
     },
     onError: (error, request) => {
       setMessages((current) => current.map((message) => message.id === request.userMessageId ? { ...message, delivery: 'failed' } : message));
@@ -2922,13 +3115,28 @@ export function ChatPage() {
               <div>
                 <span>{voiceEnabled ? 'Voice enabled' : 'Voice muted'}</span>
                 <strong>{voiceStyle}</strong>
-                <p>{voiceMode} · {voiceStatus} · {voiceMaxChars.toLocaleString()} chars</p>
+                <p>{voiceDetail}</p>
               </div>
             </div>
             <div className="voiceControls">
               <button className="secondaryButton" type="button" onClick={toggleVoice}>{voiceEnabled ? 'Mute' : 'Enable'}</button>
-              <button className="secondaryButton" type="button" onClick={() => speak(voicePreview)} disabled={!voiceEnabled}>Preview</button>
+              <button className="secondaryButton" type="button" onClick={() => void speak(voicePreview)} disabled={!voiceEnabled}>Preview</button>
               <button className="secondaryButton" type="button" onClick={stopVoice}>Stop</button>
+              <button className="secondaryButton" type="button" onClick={toggleListening} disabled={!speechInputSupported}>{listening ? 'Stop Listen' : 'Listen'}</button>
+              <button className="secondaryButton" type="button" onClick={downloadLastSpeech} disabled={!lastSpeechUrl}>Download Speech</button>
+            </div>
+            <div className="voiceSettings">
+              <label className="voiceField">
+                <span>Language</span>
+                <select aria-label="Speech language" value={voiceLanguage || 'Auto'} onChange={(event) => setVoiceLanguage(event.target.value)}>
+                  {voiceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}
+                </select>
+              </label>
+              <label className="voiceField voiceFieldWide">
+                <span>Voice design</span>
+                <input aria-label="Voice design instruction" value={voiceInstruct} onChange={(event) => setVoiceInstruct(event.target.value)} placeholder={DEFAULT_VOICE_INSTRUCT} />
+              </label>
+              <span className="voiceInputStatus" role="status">{speechInputLabel}</span>
             </div>
           </div>
           <div className="transcriptToolbar icqTranscriptStrip" aria-label="Chat transcript controls">
@@ -4093,19 +4301,19 @@ function clientId(): string {
 }
 
 const ADVANCED_TAB_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.advancedTab;
-// The TMux/TUI console moved to the Code hero; a stale saved 'tui' tab falls back to 'console'.
-const ADVANCED_TABS = ['console', 'run', 'observe', 'operate'];
+// The TMux/TUI console moved to the Code hero; stale saved tabs fall back to the overview dashboard.
+const ADVANCED_TABS = ['overview', 'console', 'run', 'observe', 'operate'];
 
 function normalizeAdvancedTab(value: unknown): string {
-  return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : 'console';
+  return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : 'overview';
 }
 
 function loadAdvancedTab(): string {
-  if (typeof window === 'undefined') return 'console';
+  if (typeof window === 'undefined') return 'overview';
   try {
     return normalizeAdvancedTab(window.sessionStorage.getItem(ADVANCED_TAB_SESSION_KEY));
   } catch {
-    return 'console';
+    return 'overview';
   }
 }
 
@@ -4113,7 +4321,7 @@ function saveAdvancedTab(tab: string): void {
   if (typeof window === 'undefined') return;
   try {
     const normalized = normalizeAdvancedTab(tab);
-    if (normalized === 'console') {
+    if (normalized === 'overview') {
       window.sessionStorage.removeItem(ADVANCED_TAB_SESSION_KEY);
       return;
     }
@@ -4121,6 +4329,131 @@ function saveAdvancedTab(tab: string): void {
   } catch {
     // Advanced remains usable even when browser storage is unavailable.
   }
+}
+
+function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: OperatePayload; loading: boolean; error: unknown; onOpen: () => void }) {
+  const releaseCandidate = recordValue(payload?.release_candidate);
+  const summary = recordValue(releaseCandidate.summary);
+  const operatorHandoff = recordValue(releaseCandidate.operator_handoff);
+  const operatorHandoffItems = recordValues(operatorHandoff.items);
+  const topOperatorItem = operatorHandoffItems[0] || {};
+  const failedChecks = recordValues(releaseCandidate.checks).filter((check) => check.status !== 'passed');
+  const failedReasonRows = failedChecks.slice(0, 3).map((check) => {
+    const evidence = recordValue(check.evidence);
+    const checkId = compactText(check.id);
+    const title = compactText(check.title || check.id, 'Readiness check');
+    let detail = compactText(check.severity, 'advisory');
+    if (checkId === 'config_drift') {
+      const blockingDrift = nonNegativeMetric(evidence.blocking_drift_count);
+      const advisoryDrift = nonNegativeMetric(evidence.advisory_drift_count);
+      detail = blockingDrift > 0 ? `${pluralize(blockingDrift, 'blocking drift item')}` : `${pluralize(advisoryDrift, 'low-risk drift item')}`;
+    } else if (checkId === 'needs_operator') {
+      detail = `${pluralize(nonNegativeMetric(evidence.open_items), 'operator item')} open`;
+    } else if (checkId === 'worklist') {
+      detail = `${pluralize(nonNegativeMetric(evidence.pending_p1_estimate), 'priority item')} open`;
+    }
+    return { id: checkId || title, title, detail };
+  });
+  const topOperatorTitle = compactText(topOperatorItem.item);
+  const topOperatorOwner = compactText(topOperatorItem.owner, 'Operator');
+  const topOperatorRank = compactText(topOperatorItem.priority_rank, '1');
+  const ready = releaseCandidate.ready === true;
+  const checks = nonNegativeMetric(summary.checks);
+  const blocking = nonNegativeMetric(summary.blocking_failed);
+  const advisory = nonNegativeMetric(summary.advisory_failed);
+  const operatorItems = nonNegativeMetric(operatorHandoff.open_count);
+  const showTopOperatorAction = blocking === 0 && operatorItems > 0 && Boolean(topOperatorTitle);
+  const topOperatorReason = showTopOperatorAction
+    ? [{
+        id: 'operator-top-action',
+        title: `#${topOperatorRank} Operator Action`,
+        detail: `${topOperatorTitle} · ${topOperatorOwner}`
+      }]
+    : [];
+  const reasonRows = topOperatorReason.length
+    ? [...topOperatorReason, ...failedReasonRows.filter((row) => row.id !== 'needs_operator').slice(0, 2)]
+    : failedReasonRows.slice(0, 3);
+  const status = error ? 'error' : loading ? 'syncing' : blocking > 0 ? 'blocking' : advisory > 0 ? 'advisory' : ready ? 'ready' : 'review';
+  const label = error ? 'Readiness Unavailable' : loading ? 'Syncing Readiness' : blocking > 0 ? 'Blocked' : operatorItems > 0 ? 'Ready With Handoff' : advisory > 0 ? 'Ready With Advisories' : ready ? 'Release Ready' : 'Review Needed';
+  const detail = error
+    ? 'Open Operate for diagnostics'
+    : loading
+      ? 'Checking release posture'
+      : showTopOperatorAction
+        ? `Next #${topOperatorRank}: ${topOperatorTitle}`
+        : operatorItems > 0
+          ? `${pluralize(operatorItems, 'operator item')} open`
+          : advisory > 0 && reasonRows.length
+          ? `${reasonRows[0].title}: ${reasonRows[0].detail}`
+          : checks > 0
+            ? `${pluralize(checks, 'check')} evaluated`
+            : 'Awaiting release checks';
+  return (
+    <button className={`readinessPulse ${status}`} type="button" data-testid="advanced-readiness-pulse" onClick={onOpen} aria-label={`${label}. ${detail}. Open Operate`}>
+      <span className="readinessPulseMark">
+        <CarbonIcon path="apps/ai-governance--tracked.svg" label="Readiness" />
+      </span>
+      <span className="readinessPulseBody">
+        <strong>{label}</strong>
+        <small>{detail}</small>
+      </span>
+      <span className="readinessPulseMetrics" aria-label={`${blocking} blocking, ${advisory} advisory, ${checks} checks`}>
+        <span><b>{blocking}</b> block</span>
+        <span><b>{advisory}</b> adv</span>
+        <span><b>{checks}</b> checks</span>
+      </span>
+      {!loading && !error && reasonRows.length ? (
+        <span className="readinessPulseReasons" data-testid="advanced-readiness-reasons">
+          {reasonRows.map((row) => (
+            <span className="readinessPulseReason" data-testid="advanced-readiness-reason" key={row.id}>
+              <b>{row.title}</b>
+              <small>{row.detail}</small>
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function AdvancedOverview({ onOpenOperate }: { onOpenOperate: () => void }) {
+  const models = useQuery({ queryKey: ['models'], queryFn: getModels, retry: false });
+  const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000, retry: false });
+  const authPrompted = useRef(false);
+  useEffect(() => {
+    if (authPrompted.current) return;
+    if (![models.error, operate.error].some(authLikeError)) return;
+    authPrompted.current = true;
+    window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
+      detail: {
+        title: 'Console Access Required',
+        detail: 'Sign in with a console token to load Advanced overview intelligence.',
+      },
+    }));
+  }, [models.error, operate.error]);
+  return (
+    <div className="advancedOverview" data-testid="advanced-overview">
+      <article className="advancedOverviewCard advancedWorkspaceCard" data-testid="advanced-active-workspace">
+        <div className="advancedOverviewIdentity">
+          <span className="advancedOverviewIcon">
+            <CarbonIcon path="actions/document-properties-symbolic.svg" label="Advanced" />
+          </span>
+          <div>
+            <span>Active Workspace</span>
+            <strong>Advanced</strong>
+            <p>Owner/admin tools</p>
+          </div>
+        </div>
+        <div className="advancedOverviewFacts" aria-label="Advanced workspace summary">
+          <span><b>6</b> primary workspaces</span>
+          <span><b>5</b> advanced tabs</span>
+        </div>
+      </article>
+      <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={onOpenOperate} />
+      <HomeSummary models={models.data?.models || []} />
+      {models.error ? <StatusPanel tone="error" title="Model intelligence unavailable" detail={errorText(models.error)} /> : null}
+    </div>
+  );
 }
 
 export function AdvancedPage() {
@@ -4136,6 +4469,7 @@ export function AdvancedPage() {
     window.addEventListener(V2_ADVANCED_TAB_EVENT, onTabChange);
     return () => window.removeEventListener(V2_ADVANCED_TAB_EVENT, onTabChange);
   }, []);
+  const openOperateTab = () => setTab('operate');
   return (
     <section className="heroWorkspace advancedHero">
       <div className="heroHeader">
@@ -4148,6 +4482,7 @@ export function AdvancedPage() {
       <div className="advancedTabs">
         {ADVANCED_TABS.map((item) => <button className={tab === item ? 'active' : ''} key={item} type="button" onClick={() => setTab(item)}>{item}</button>)}
       </div>
+      {tab === 'overview' ? <AdvancedOverview onOpenOperate={openOperateTab} /> : null}
       <Suspense fallback={<AdvancedLoading label={tab} />}>
         {tab === 'console' ? <ConsolePage /> : null}
         {tab === 'run' ? <RunPage /> : null}

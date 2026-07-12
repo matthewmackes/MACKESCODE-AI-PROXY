@@ -18,6 +18,11 @@ CAPABILITY_DEFINITIONS = {
         "permission": "model_use",
         "category": "chat",
     },
+    "speech.synthesize": {
+        "label": "Generate speech",
+        "permission": "model_use",
+        "category": "chat",
+    },
     "code.view": {
         "label": "View Code workspace",
         "permission": "view_console",

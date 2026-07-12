@@ -36,7 +36,9 @@ def console_auth_env():
 class V2ChatApiTests(unittest.TestCase):
     def test_chat_payload_exposes_voice_profile(self):
         old_auth = os.environ.get("MATTS_CONSOLE_AUTH_ENABLED")
+        old_speech_engine = os.environ.get("MATTS_SPEECH_ENGINE")
         os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = "0"
+        os.environ["MATTS_SPEECH_ENGINE"] = "browser"
         try:
             client = TestClient(create_app())
             response = client.get("/v2/chat")
@@ -45,13 +47,22 @@ class V2ChatApiTests(unittest.TestCase):
                 os.environ.pop("MATTS_CONSOLE_AUTH_ENABLED", None)
             else:
                 os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = old_auth
+            if old_speech_engine is None:
+                os.environ.pop("MATTS_SPEECH_ENGINE", None)
+            else:
+                os.environ["MATTS_SPEECH_ENGINE"] = old_speech_engine
 
         self.assertEqual(response.status_code, 200)
         voice = response.json()["voice"]
         self.assertEqual(voice["mode"], "browser_speech_synthesis")
+        self.assertEqual(voice["fallback_mode"], "browser_speech_synthesis")
         self.assertEqual(voice["style"], "calm mission-computer")
+        self.assertEqual(voice["server_engine"]["engine"], "browser_speech_synthesis")
+        self.assertEqual(voice["input_mode"], "browser_speech_recognition")
         self.assertTrue(voice["enabled_by_default"])
         self.assertGreaterEqual(voice["max_chars"], 1000)
+        self.assertIn("language", voice)
+        self.assertIn("instruct", voice)
         self.assertIn("voice online", voice["preview"])
 
     def test_public_chat_route_strips_internal_trace_hints(self):

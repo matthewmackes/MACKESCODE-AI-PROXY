@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MDE LLM-PROXY Console v2</title>
+    <meta name="application-name" content="MDE LLM-PROXY" />
+    <meta name="theme-color" content="#0f62fe" />
+    <link rel="icon" type="image/png" href="/brand/mde-app-icon.png" />
+    <link rel="apple-touch-icon" href="/brand/mde-app-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <style>
       :root {
         color-scheme: light;
@@ -43,6 +48,12 @@
         background: #0f62fe;
         color: #ffffff;
         font-weight: 700;
+        overflow: hidden;
+      }
+      .bootMark img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .bootPanel span {
         color: #78a9ff;
@@ -92,7 +103,9 @@
     <div id="root">
       <section class="bootShell" data-testid="v2-boot-fallback" aria-label="MDE LLM-PROXY Console v2 is starting">
         <div class="bootPanel">
-          <div class="bootMark" aria-hidden="true">M</div>
+          <div class="bootMark" aria-hidden="true">
+            <img src="/brand/mde-app-icon.png" alt="" data-testid="boot-brand-icon" />
+          </div>
           <div>
             <span>LLM-PROXY Console v2</span>
             <h1>MDE LLM-PROXY is starting</h1>

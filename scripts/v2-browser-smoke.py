@@ -93,6 +93,22 @@ def run_health_validate(base_url: str) -> None:
     )
 
 
+def assert_static_brand_assets(base_url: str) -> None:
+    with urlopen(base_url.rstrip("/") + "/brand/mde-app-icon.png", timeout=5) as response:
+        icon = response.read()
+        assert response.status == 200, "MDE app icon did not return 200"
+        assert response.headers.get("content-type", "").startswith("image/png"), "MDE app icon was not served as image/png"
+        assert icon.startswith(b"\x89PNG\r\n\x1a\n"), "MDE app icon did not contain PNG bytes"
+        assert len(icon) > 1000, "MDE app icon response was unexpectedly small"
+    with urlopen(base_url.rstrip("/") + "/manifest.webmanifest", timeout=5) as response:
+        manifest = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200, "web manifest did not return 200"
+        assert manifest.get("name") == "MDE LLM-PROXY", "web manifest did not expose the canonical brand name"
+        assert manifest.get("short_name") == "MDE", "web manifest did not expose the product short name"
+        icons = manifest.get("icons") if isinstance(manifest.get("icons"), list) else []
+        assert any(icon.get("src") == "/brand/mde-app-icon.png" for icon in icons if isinstance(icon, dict)), "web manifest did not reference the MDE app icon"
+
+
 def start_server(port: int, run_db: Path) -> subprocess.Popen[bytes]:
     env = os.environ.copy()
     runtime_dir = run_db.parent
@@ -198,6 +214,18 @@ def assert_no_broken_model_artwork(page, label: str) -> None:
             break
         page.wait_for_timeout(100)
     assert broken_sources == [], "%s rendered broken model artwork: %s" % (label, broken_sources)
+
+
+def assert_loaded_image(locator, label: str) -> None:
+    from playwright.sync_api import expect
+
+    expect(locator).to_be_visible()
+    loaded = locator.evaluate(
+        """
+        (img) => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+        """
+    )
+    assert loaded, "%s did not load image pixels" % label
 
 
 def install_model_artwork_guard(page) -> dict[str, list[str]]:
@@ -324,6 +352,23 @@ def dismiss_whats_new_if_present(page, timeout: int = 5000) -> None:
     expect(modal).to_have_count(0)
 
 
+def open_shell_drawer(page):
+    from playwright.sync_api import expect
+
+    page.get_by_test_id("shell-menu-toggle").click()
+    drawer = page.get_by_test_id("shell-navigation-drawer")
+    expect(drawer).to_be_visible()
+    expect(page.get_by_test_id("shell-menu-toggle")).to_have_attribute("aria-expanded", "true")
+    return drawer
+
+
+def navigate_shell(page, key: str) -> None:
+    from playwright.sync_api import expect
+
+    open_shell_drawer(page).get_by_test_id(f"shell-nav-{key}").click()
+    expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
+
+
 def run_mobile_create_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
@@ -349,9 +394,12 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         page.goto(base_url + "#advanced", wait_until="domcontentloaded", timeout=60000)
         dismiss_whats_new_if_present(page)
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.get_by_test_id("shell-readiness-pulse")).to_be_visible()
-        for label in ("console", "run", "observe", "operate"):
+        expect(page.get_by_test_id("advanced-overview")).to_be_visible()
+        expect(page.get_by_test_id("advanced-readiness-pulse")).to_be_visible()
+        for label in ("overview", "console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
+        page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
         expect(page.locator(".consoleHeader")).to_be_visible(timeout=45000)
         expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
         expect(page.get_by_test_id("tmux-session-table")).to_be_visible()
@@ -364,7 +412,7 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         expect(page.get_by_test_id("code-session-launcher")).to_be_visible()
         expect(page.get_by_test_id("console-operational-state")).to_be_visible()
         assert_no_document_horizontal_overflow(page, "mobile Advanced console")
-        page.get_by_role("navigation", name="Primary").get_by_role("button", name="Code", exact=True).click()
+        navigate_shell(page, "code")
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
         expect(page.get_by_test_id("code-tui-section")).to_be_visible()
         page.get_by_test_id("code-tui-toggle").click()
@@ -381,6 +429,7 @@ def run_advanced_loading_skeleton_smoke(browser, base_url: str) -> None:
     page.add_init_script(
         """
         window.sessionStorage.setItem('matts-v2-whats-new-dismissed', '1');
+        window.sessionStorage.setItem('matts-v2-advanced-tab', 'console');
         window.sessionStorage.setItem('matts-v2-advanced-lazy-delay-ms', '900');
         """
     )
@@ -436,6 +485,7 @@ def run_boot_fallback_no_js_smoke(browser, base_url: str) -> None:
         fallback = page.get_by_test_id("v2-boot-fallback")
         expect(fallback).to_be_visible()
         expect(page.get_by_role("heading", name="MDE LLM-PROXY is starting")).to_be_visible()
+        assert_loaded_image(page.get_by_test_id("boot-brand-icon"), "boot fallback MDE app icon")
         expect(page.get_by_role("link", name="V2 Health")).to_have_attribute("href", "/v2/health")
         box = fallback.bounding_box()
         assert box, "boot fallback did not expose a visible bounding box"
@@ -539,16 +589,15 @@ def run_readiness_advisory_label_smoke(browser, base_url: str) -> None:
                 }),
             ),
         )
-        page.goto(base_url, wait_until="networkidle")
+        page.goto(base_url + "#advanced", wait_until="networkidle")
         dismiss_whats_new_if_present(page)
-        pulse = page.get_by_test_id("shell-readiness-pulse")
+        pulse = page.get_by_test_id("advanced-readiness-pulse")
         expect(pulse).to_be_visible()
         expect(pulse).to_contain_text("Ready With Advisories")
         expect(pulse).to_contain_text("Config drift")
         expect(pulse).to_contain_text("1 low-risk drift item")
         expect(pulse).not_to_contain_text("Ready With Handoff")
         pulse.click()
-        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("1 active config drift item")
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("Highest risk: low")
@@ -647,15 +696,15 @@ def run_readiness_handoff_top_action_smoke(browser, base_url: str) -> None:
                 }),
             ),
         )
-        page.goto(base_url, wait_until="networkidle")
+        page.goto(base_url + "#advanced", wait_until="networkidle")
         dismiss_whats_new_if_present(page)
-        pulse = page.get_by_test_id("shell-readiness-pulse")
+        pulse = page.get_by_test_id("advanced-readiness-pulse")
         expect(pulse).to_be_visible()
         expect(pulse).to_contain_text("Ready With Handoff")
         expect(pulse).to_contain_text("Next #1")
         expect(pulse).to_contain_text("Dedicated Inference live capacity verification")
-        expect(page.get_by_test_id("shell-readiness-reason").first).to_contain_text("#1 Operator Action")
-        expect(page.get_by_test_id("shell-readiness-reason").first).to_contain_text("Cloud operator")
+        expect(page.get_by_test_id("advanced-readiness-reason").first).to_contain_text("#1 Operator Action")
+        expect(page.get_by_test_id("advanced-readiness-reason").first).to_contain_text("Cloud operator")
         expect(pulse).not_to_contain_text("Operator-needed items")
     finally:
         page.close()
@@ -736,9 +785,9 @@ def run_high_risk_config_drift_guard_smoke(browser, base_url: str) -> None:
                 }),
             ),
         )
-        page.goto(base_url, wait_until="networkidle")
+        page.goto(base_url + "#advanced", wait_until="networkidle")
         dismiss_whats_new_if_present(page)
-        page.get_by_test_id("shell-readiness-pulse").click()
+        page.get_by_test_id("advanced-readiness-pulse").click()
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("Highest risk: high")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("manual compare")
         expect(page.get_by_test_id("operate-config-drift-high-risk-warning")).to_contain_text("console_config")
@@ -808,6 +857,7 @@ def run_hash_token_research_auth_smoke(browser, base_url: str) -> None:
 def run_browser_smoke(base_url: str) -> None:
     from playwright.sync_api import expect, sync_playwright
 
+    assert_static_brand_assets(base_url)
     with sync_playwright() as p:
         browser = p.chromium.launch()
         run_boot_fallback_no_js_smoke(browser, base_url)
@@ -993,11 +1043,45 @@ def run_browser_smoke(base_url: str) -> None:
             ) if route.request.method == "POST" else route.continue_(),
         )
         page.goto(base_url, wait_until="networkidle")
-        expect(page.get_by_text("MDE")).to_be_visible()
-        expect(page.get_by_text("LLM-PROXY Console v2")).to_be_visible()
-        hero_nav = page.locator(".heroNav")
-        for label in ("Chat", "Code", "Research", "Create", "Models", "Advanced"):
-            expect(hero_nav.get_by_role("button", name=label, exact=True)).to_be_visible()
+        expect(page.get_by_test_id("shell-floating-menu")).to_be_visible()
+        assert_loaded_image(page.get_by_test_id("shell-brand-icon").locator("img"), "shell MDE app icon")
+        expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("MDE")
+        expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("LLM-PROXY Console v2")
+        expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Workspace")
+        expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Chat")
+        expect(page.get_by_test_id("shell-menu-toggle")).to_have_attribute("aria-expanded", "false")
+        expect(page.locator(".sideRail")).to_have_count(0)
+        expect(page.locator(".heroNav")).to_have_count(0)
+
+        expect(page.get_by_role("heading", name="Whats New")).to_be_visible()
+        expect(page.locator(".whatsNewSections")).to_be_visible()
+        expect(page.locator(".whatsNewSectionHeader").filter(has_text="DigitalOcean LLM links").first).to_be_visible()
+        expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
+        assert_no_broken_model_artwork(page, "startup Whats New")
+        page.get_by_role("button", name="Close Whats New").click()
+        expect(page.locator(".whatsNewModal")).to_have_count(0)
+        expect(page.get_by_role("heading", name="Chat")).to_be_visible()
+        drawer = open_shell_drawer(page)
+        assert_loaded_image(drawer.get_by_test_id("drawer-brand-icon").locator("img"), "drawer MDE app icon")
+        for key in ("chat", "code", "research", "create", "models", "advanced"):
+            expect(drawer.get_by_test_id(f"shell-nav-{key}")).to_be_visible()
+        expect(drawer.get_by_test_id("shell-nav-chat")).to_contain_text("Autonomous command center")
+        assert page.evaluate("document.activeElement && document.activeElement.dataset && document.activeElement.dataset.testid") == "shell-nav-chat"
+        page.keyboard.press("Escape")
+        expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
+        expect(page.get_by_test_id("shell-menu-toggle")).to_be_focused()
+        drawer = open_shell_drawer(page)
+        drawer.get_by_test_id("shell-drawer-switcher").click()
+        expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
+        expect(page.locator(".quickSwitcher")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator(".quickSwitcher")).to_have_count(0)
+        drawer = open_shell_drawer(page)
+        drawer.get_by_test_id("shell-drawer-settings").click()
+        expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
+        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
+        expect(page.get_by_test_id("advanced-overview")).to_be_visible()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
         model_intelligence = page.get_by_test_id("home-model-intelligence")
         expect(model_intelligence).to_be_visible()
         expect(model_intelligence).to_contain_text("Model Intelligence")
@@ -1008,26 +1092,17 @@ def run_browser_smoke(base_url: str) -> None:
         expect(model_intelligence.locator(".homeNationMix span").first).to_be_visible()
         expect(model_intelligence.locator(".modelMiniCard").first).to_be_visible()
         expect(model_intelligence.locator(".modelLogo").first).to_be_visible()
-
-        expect(page.get_by_role("heading", name="Whats New")).to_be_visible()
-        expect(page.locator(".whatsNewSections")).to_be_visible()
-        expect(page.locator(".whatsNewSectionHeader").filter(has_text="DigitalOcean LLM links").first).to_be_visible()
-        expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
-        assert_no_broken_model_artwork(page, "startup Whats New")
-        page.get_by_role("button", name="Close Whats New").click()
-        expect(page.locator(".whatsNewModal")).to_have_count(0)
-        expect(page.get_by_role("heading", name="Chat")).to_be_visible()
-        readiness_pulse = page.get_by_test_id("shell-readiness-pulse")
+        readiness_pulse = page.get_by_test_id("advanced-readiness-pulse")
         expect(readiness_pulse).to_be_visible()
+        expect(readiness_pulse).not_to_contain_text("Syncing Readiness", timeout=20000)
         expect(readiness_pulse).to_contain_text("block")
         expect(readiness_pulse).to_contain_text("adv")
         expect(readiness_pulse).to_contain_text("checks")
-        expect(page.get_by_test_id("shell-readiness-reasons")).to_be_visible()
-        expect(page.get_by_test_id("shell-readiness-reason").first).to_be_visible()
-        expect(page.get_by_test_id("shell-readiness-reason").first).to_contain_text("Config drift")
-        expect(page.get_by_test_id("shell-readiness-reason").first).not_to_contain_text("#1 Operator Action")
+        expect(page.get_by_test_id("advanced-readiness-reasons")).to_be_visible()
+        expect(page.get_by_test_id("advanced-readiness-reason").first).to_be_visible()
+        expect(page.get_by_test_id("advanced-readiness-reason").first).to_contain_text("Config drift")
+        expect(page.get_by_test_id("advanced-readiness-reason").first).not_to_contain_text("#1 Operator Action")
         readiness_pulse.click()
-        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_test_id("operate-release")).to_be_visible()
         handoff_brief = page.get_by_test_id("operate-release-handoff-brief")
@@ -1070,7 +1145,7 @@ def run_browser_smoke(base_url: str) -> None:
             assert handoff_download.value.suggested_filename.endswith(".md")
         else:
             expect(handoff_brief).to_contain_text("No handoff")
-        hero_nav.get_by_role("button", name="Chat", exact=True).click()
+        navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         page.keyboard.press("Control+K")
         expect(page.get_by_role("heading", name="Switch Workspace")).to_be_visible()
@@ -1081,7 +1156,8 @@ def run_browser_smoke(base_url: str) -> None:
         assert copied_workspace_link.endswith("#chat")
         page.keyboard.press("Escape")
         expect(page.locator(".quickSwitcher")).to_have_count(0)
-        page.get_by_role("button", name="Open Switch Workspace").click()
+        open_shell_drawer(page).get_by_test_id("shell-drawer-switcher").click()
+        expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
         expect(page.locator(".quickSwitcher")).to_be_visible()
         page.locator(".quickSwitcherSearch input").fill("advanced")
         expect(page.locator(".quickSwitcherList").get_by_role("option", name=re.compile("Advanced"))).to_be_visible()
@@ -1095,20 +1171,23 @@ def run_browser_smoke(base_url: str) -> None:
         assert copied_workspace_link.startswith(base_url)
         assert copied_workspace_link.endswith("#advanced")
         page.keyboard.press("Escape")
-        hero_nav.get_by_role("button", name="Chat", exact=True).click()
+        navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
 
         page.goto(base_url + "#models", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         assert page.evaluate("window.location.hash") == "#models"
-        expect(hero_nav.get_by_role("button", name="Models", exact=True)).to_have_attribute("aria-current", "page")
+        drawer = open_shell_drawer(page)
+        expect(drawer.get_by_test_id("shell-nav-models")).to_have_attribute("aria-current", "page")
+        page.keyboard.press("Escape")
+        expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
         assert_no_broken_model_artwork(page, "models hash route")
         page.goto(base_url + "#not-a-real-tab", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
-        hero_nav.get_by_role("button", name="Research", exact=True).click()
+        navigate_shell(page, "research")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         assert page.evaluate("window.location.hash") == "#research"
-        hero_nav.get_by_role("button", name="Chat", exact=True).click()
+        navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         assert page.evaluate("window.location.hash") == "#chat"
         expect(page.get_by_text("Autonomous System Manager")).to_be_visible()
@@ -1156,6 +1235,11 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".voiceConsole")).to_be_visible()
         expect(page.locator(".voiceConsole")).to_contain_text("Voice enabled")
         expect(page.locator(".voiceConsole")).to_contain_text("calm mission-computer")
+        expect(page.locator(".voiceConsole")).to_contain_text("browser speech synthesis")
+        expect(page.get_by_label("Speech language")).to_be_visible()
+        expect(page.get_by_label("Voice design instruction")).to_be_visible()
+        expect(page.locator(".voiceConsole").get_by_role("button", name=re.compile("Listen|Stop Listen"))).to_be_visible()
+        expect(page.locator(".voiceConsole").get_by_role("button", name="Download Speech", exact=True)).to_be_disabled()
         expect(page.get_by_role("button", name="Preview", exact=True)).to_be_enabled()
         page.wait_for_function(
             """
@@ -1163,13 +1247,16 @@ def run_browser_smoke(base_url: str) -> None:
               const panel = document.querySelector('.voiceConsole');
               const lead = document.querySelector('.voiceConsoleLead');
               const controls = document.querySelector('.voiceControls');
-              if (!panel || !lead || !controls) return false;
+              const settings = document.querySelector('.voiceSettings');
+              if (!panel || !lead || !controls || !settings) return false;
               const panelRect = panel.getBoundingClientRect();
               const leadRect = lead.getBoundingClientRect();
               const controlsRect = controls.getBoundingClientRect();
+              const settingsRect = settings.getBoundingClientRect();
               const separated = controlsRect.top >= leadRect.bottom - 1 || controlsRect.left >= leadRect.right - 1;
-              const contained = controlsRect.right <= panelRect.right + 2 && leadRect.right <= panelRect.right + 2;
-              return separated && contained && panel.scrollWidth <= panel.clientWidth + 2;
+              const settingsSeparated = settingsRect.top >= Math.max(leadRect.bottom, controlsRect.bottom) - 1;
+              const contained = controlsRect.right <= panelRect.right + 2 && leadRect.right <= panelRect.right + 2 && settingsRect.right <= panelRect.right + 2;
+              return separated && settingsSeparated && contained && panel.scrollWidth <= panel.clientWidth + 2;
             }
             """,
             timeout=5000,
@@ -1212,9 +1299,9 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".messageRow.assistant")).to_contain_text("V2 smoke transcript response")
         stored_transcript = page.evaluate("window.sessionStorage.getItem('matts-v2-chat-transcript')")
         assert stored_transcript and "V2 smoke transcript response" in stored_transcript
-        hero_nav.get_by_role("button", name="Research", exact=True).click()
+        navigate_shell(page, "research")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
-        hero_nav.get_by_role("button", name="Chat", exact=True).click()
+        navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         expect(page.locator(".icqChatStats")).to_contain_text("2 messages")
         expect(page.locator(".messageRow.assistant")).to_contain_text("V2 smoke transcript response")
@@ -1253,7 +1340,7 @@ def run_browser_smoke(base_url: str) -> None:
             page.get_by_role("button", name="Send", exact=True).click()
         expect(page.locator(".errorBanner")).to_have_text("api endpoint not found. Use POST /v2/chat; this endpoint exists but not for GET.")
 
-        hero_nav.get_by_role("button", name="Code", exact=True).click()
+        navigate_shell(page, "code")
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
         expect(page.locator(".codeOutputConsole").get_by_role("button", name="Copy Brief")).to_be_disabled()
         expect(page.locator(".codeOutputConsole").get_by_role("button", name="Download Brief")).to_be_disabled()
@@ -1294,9 +1381,9 @@ def run_browser_smoke(base_url: str) -> None:
         page.locator(".codeHero .xlInput").fill("follow up after screenshot review")
         stored_code = page.evaluate("window.sessionStorage.getItem('matts-v2-code-workspace')")
         assert stored_code and "reviewed screenshot" in stored_code and "v2-smoke-image.png" in stored_code
-        hero_nav.get_by_role("button", name="Research", exact=True).click()
+        navigate_shell(page, "research")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
-        hero_nav.get_by_role("button", name="Code", exact=True).click()
+        navigate_shell(page, "code")
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
         expect(page.locator(".codeHero .xlInput")).to_have_value("follow up after screenshot review")
         expect(page.locator(".attachmentCard").get_by_text("v2-smoke-image.png")).to_be_visible()
@@ -1325,7 +1412,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_text("Session output and image review responses will appear here.")).to_be_visible()
         page.wait_for_function("JSON.parse(window.sessionStorage.getItem('matts-v2-code-workspace') || '{}').actions?.length === 0")
 
-        hero_nav.get_by_role("button", name="Research", exact=True).click()
+        navigate_shell(page, "research")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         expect(page.locator(".researchBriefDock")).to_contain_text("No packet")
         expect(page.locator(".researchBriefDock").get_by_role("button", name="Copy Packet")).to_be_disabled()
@@ -1453,9 +1540,9 @@ def run_browser_smoke(base_url: str) -> None:
         stored_research = page.evaluate("window.sessionStorage.getItem('matts-v2-research-workspace')")
         assert stored_research and "DigitalOcean LLM models" in stored_research and "engineSelectionMode" in stored_research and "selectedEngines" in stored_research
         assert '"dossier"' in stored_research and '"schema_version":2' in stored_research and '"activeTab":"results"' in stored_research
-        hero_nav.get_by_role("button", name="Create", exact=True).click()
+        navigate_shell(page, "create")
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
-        hero_nav.get_by_role("button", name="Research", exact=True).click()
+        navigate_shell(page, "research")
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         expect(page.locator(".researchTabs").get_by_role("tab", name="Results")).to_have_attribute("aria-selected", "true")
         expect(page.locator(".researchCommandBoard")).to_be_visible()
@@ -1468,7 +1555,7 @@ def run_browser_smoke(base_url: str) -> None:
         assert "active" in first_engine_class.split()
         expect(page.locator(".engineStrip").get_by_role("button", name=re.compile("Image Sources"))).to_have_class(re.compile("active"))
 
-        hero_nav.get_by_role("button", name="Create", exact=True).click()
+        navigate_shell(page, "create")
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         expect(page.locator("#v2-create-mood")).to_be_visible()
         expect(page.locator(".createAtmosphere span")).to_have_count(3)
@@ -1516,9 +1603,9 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".imageGalleryResult")).to_contain_text("Raw payload")
         stored_create = page.evaluate("window.sessionStorage.getItem('matts-v2-create-workspace')")
         assert stored_create and "smoke image prompt" in stored_create and "sdxl-smoke" in stored_create and "serverless inference news" not in stored_create
-        hero_nav.get_by_role("button", name="Models", exact=True).click()
+        navigate_shell(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
-        hero_nav.get_by_role("button", name="Create", exact=True).click()
+        navigate_shell(page, "create")
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         expect(page.locator(".modeSwitch")).to_have_count(0)
         expect(page.locator(".createPrompt textarea")).to_have_value("smoke image prompt")
@@ -1529,7 +1616,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
         expect(page.locator(".imageGalleryResult")).to_contain_text("sdxl-smoke")
 
-        hero_nav.get_by_role("button", name="Models", exact=True).click()
+        navigate_shell(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         expect(page.get_by_role("button", name="Whats New", exact=True)).to_be_enabled()
         page.get_by_role("button", name="Whats New", exact=True).click()
@@ -1579,9 +1666,9 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelInspector")).to_contain_text("DeepSeek")
         stored_models = page.evaluate("window.sessionStorage.getItem('matts-v2-models-showcase')")
         assert stored_models and "DeepSeek" in stored_models and "compareIds" in stored_models and "company" in stored_models
-        hero_nav.get_by_role("button", name="Advanced", exact=True).click()
+        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        hero_nav.get_by_role("button", name="Models", exact=True).click()
+        navigate_shell(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         expect(page.locator(".searchLine input")).to_have_value("DeepSeek")
         expect(page.locator(".modeSwitch").get_by_role("button", name="Routable")).to_have_class(re.compile("active"))
@@ -1604,17 +1691,17 @@ def run_browser_smoke(base_url: str) -> None:
         page.locator(".searchLine input").fill("zzzz-no-model-match")
         expect(page.get_by_text("No models match this filter")).to_be_visible()
 
-        hero_nav.get_by_role("button", name="Advanced", exact=True).click()
+        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        for label in ("console", "run", "observe", "operate"):
+        for label in ("overview", "console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="tui", exact=True)).to_have_count(0)
         page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True).click()
         expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate("window.sessionStorage.getItem('matts-v2-advanced-tab')") == "observe"
-        hero_nav.get_by_role("button", name="Chat", exact=True).click()
+        navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
-        hero_nav.get_by_role("button", name="Advanced", exact=True).click()
+        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
         page.keyboard.press("Control+K")
@@ -1645,7 +1732,7 @@ def run_browser_smoke(base_url: str) -> None:
         assert workspace_state_download.value.suggested_filename.endswith(".json")
         page.locator(".quickSwitcherFooter").get_by_role("button", name="Reset Saved State").click()
         expect(page.locator(".quickSwitcher")).to_have_count(0)
-        expect(page.locator(".advancedTabs").get_by_role("button", name="console", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate(
             """
             [
@@ -1678,11 +1765,11 @@ def run_browser_smoke(base_url: str) -> None:
         assert restored_create and "smoke image prompt" in restored_create and "researchResult" not in restored_create and "imageResult" in restored_create
         restored_recents = page.evaluate("window.sessionStorage.getItem('matts-v2-quick-switcher-recents')")
         assert restored_recents and "chat" in restored_recents
-        hero_nav.get_by_role("button", name="Create", exact=True).click()
+        navigate_shell(page, "create")
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         expect(page.locator(".createHistoryCard")).to_have_count(1)
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
-        hero_nav.get_by_role("button", name="Advanced", exact=True).click()
+        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         page.keyboard.press("Control+K")
         expect(page.locator(".quickSwitcherRecents")).to_be_visible()
@@ -1705,7 +1792,7 @@ def run_browser_smoke(base_url: str) -> None:
         page.keyboard.press("Escape")
         expect(page.locator(".quickSwitcher")).to_have_count(0)
 
-        hero_nav.get_by_role("button", name="Advanced", exact=True).click()
+        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
         expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
@@ -1732,18 +1819,22 @@ def run_browser_smoke(base_url: str) -> None:
         with page.expect_response(lambda response: "/v2/run/prompt-templates" in response.url and response.request.method == "POST" and response.status == 200):
             page.get_by_test_id("template-save").click()
         expect(page.get_by_text("Smoke Template")).to_be_visible()
+        smoke_template_row = page.get_by_role("row", name=re.compile(r"Smoke Template")).first
+        expect(smoke_template_row).to_be_visible()
         dialog_messages = []
         page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
         with page.expect_response(lambda response: "/v2/run/prompt-templates/" in response.url and "/versions" in response.url and response.status == 200):
-            page.get_by_test_id("template-rollback").click()
+            smoke_template_row.get_by_test_id("template-rollback").click()
         expect(page.get_by_test_id("template-rollback-status")).to_contain_text("No previous template version is available.")
         assert dialog_messages == []
-        page.get_by_test_id("template-edit").click()
+        smoke_template_row.get_by_test_id("template-edit").click()
         page.get_by_test_id("template-body").fill("Answer {{goal}} carefully")
         with page.expect_response(lambda response: "/v2/run/prompt-templates" in response.url and response.request.method == "POST" and response.status == 200):
             page.get_by_test_id("template-save").click()
+        smoke_template_row = page.get_by_role("row", name=re.compile(r"Smoke Template")).first
+        expect(smoke_template_row).to_be_visible()
         with page.expect_response(lambda response: "/v2/run/prompt-templates/" in response.url and "/rollback" in response.url and response.status == 200):
-            page.get_by_test_id("template-rollback").click()
+            smoke_template_row.get_by_test_id("template-rollback").click()
         expect(page.get_by_test_id("template-rollback-status")).to_contain_text("Prompt template rolled back to version")
         assert_no_model_artwork_guard_events(artwork_events, "desktop V2")
         page.close()

@@ -41,6 +41,48 @@ The interface refactoring work consolidates previously separate components into 
 
 ## Active Tasks
 
+### Task ID: INT-165
+**Title:** Convert V2 side rail into hamburger drawer navigation
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+**Estimated Duration:** 2 hours
+
+**Description:** Replace the V2 left side rail with an all-viewport hamburger navigation pattern. Keep a floating top-left control cluster with full MDE / LLM-PROXY branding and the active workspace name, open navigation in a modal left drawer, preserve existing hash routing and quick-switcher behavior, and keep Settings routed to Advanced > Overview.
+
+**Implementation Plan:**
+1. Replace the persistent `.sideRail` shell with a floating hamburger/brand/current-workspace cluster that is visible on all viewport sizes.
+2. Add a modal left drawer with existing Carbon icons and workspace labels; show the active workspace description only for the active drawer item.
+3. Move Switch Workspace, Settings, and Sign In/Out actions into the drawer; opening the quick switcher closes the drawer, and Settings closes the drawer then opens Advanced > Overview.
+4. Make drawer navigation close automatically after workspace selection, do not persist drawer open state, and preserve all existing `#chat`/`#advanced` hash route behavior and copied workspace links.
+5. Add drawer accessibility: `aria-expanded`/`aria-controls`, visible close button, backdrop click close, Escape close, focus on the active nav item when opened, focus trap while open, and focus return to the hamburger on close.
+6. Style the drawer as an overlay that covers content without reflow, with slide motion and shortened motion under `prefers-reduced-motion`; pad workspace content so the floating control does not overlap page headers.
+7. Update V2 browser smoke coverage for the hamburger shell, drawer actions, keyboard close/focus behavior, Settings-to-Overview behavior, quick-switcher interaction, mobile behavior, and absence of the old persistent rail.
+8. Rebuild frontend assets, run frontend build/type checks, run V2 browser smoke, and update this worklist with verification evidence.
+
+**Completion Criteria:**
+- [x] No persistent left side rail renders on desktop or mobile
+- [x] Floating hamburger cluster shows full brand text and active workspace name
+- [x] Drawer opens from the left, covers content, and contains all workspace nav plus utility actions
+- [x] Workspace selection, quick switcher, Settings, and Sign In/Out preserve their current functional behavior with the specified drawer close behavior
+- [x] Drawer is keyboard and screen-reader accessible, including focus trap and Escape/backdrop close
+- [x] Existing hash routes, Advanced tab persistence, startup Whats New modal, and quick switcher saved-state flows continue to work
+- [x] `frontend/dist` is regenerated
+- [x] Frontend build and V2 browser smoke pass
+
+**Progress Notes:**
+- 2026-07-12: Planned from 25 user decisions: all-size hamburger, left drawer overlay, floating top-left control, full brand plus active workspace visible, drawer-only utilities, active-item-only descriptions, Carbon icons, auto-close on navigation, no drawer-state persistence, backdrop/Escape/visible close, active-item focus, focus trap, slide motion with shortened reduced-motion behavior, content padding, unchanged hash routes, quick-switcher closes drawer, Settings opens Advanced > Overview, and regenerated `frontend/dist` assets.
+- 2026-07-12: Replaced the persistent side rail with the floating hamburger control cluster and modal drawer, moved shell utility actions into the drawer, kept hash route and quick-switcher flows intact, and scoped Settings to Advanced > Overview.
+- 2026-07-12: Updated V2 browser smoke coverage for drawer visibility, active-item focus, Escape/focus return, quick-switcher utility close behavior, Settings-to-Overview routing, old rail absence, and drawer-based workspace navigation.
+- 2026-07-12: Validation passed: `npm run build`, `git diff --check`, and `python3 scripts/v2-browser-smoke.py --required`.
+
+**Dependencies:** Existing V2 React shell and Advanced Overview work
+**Blocks:** Final V2 shell navigation ergonomics
+
+---
+
 ### Task ID: INT-164
 **Title:** Prepare and publish v2.1.0 RPM release
 **Status:** ✅ `COMPLETED`

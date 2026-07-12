@@ -1,0 +1,17 @@
+{
+  "name": "MDE LLM-PROXY",
+  "short_name": "MDE",
+  "description": "MDE LLM-PROXY operator console by Matthew Mackes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161616",
+  "theme_color": "#0f62fe",
+  "icons": [
+    {
+      "src": "/brand/mde-app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

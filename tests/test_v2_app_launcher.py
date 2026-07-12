@@ -72,6 +72,27 @@ class V2AppLauncherTests(unittest.TestCase):
 
         self.assertTrue(any(getattr(route, "name", "") == "react" for route in app.routes))
 
+    def test_create_app_serves_generated_images_before_react_mount(self):
+        if app_module.FastAPI is None or app_module.StaticFiles is None or TestClient is None:
+            self.skipTest("fastapi test client is not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dist = root / "dist"
+            images = root / "images"
+            dist.mkdir()
+            images.mkdir()
+            (dist / "index.html").write_text("<!doctype html><div id=\"root\">v2</div>", encoding="utf-8")
+            (images / "created.png").write_bytes(b"png-bytes")
+            with patch.object(app_module, "FRONTEND_DIST", dist), patch.object(app_module, "generated_images_dir", return_value=images):
+                client = TestClient(app_module.create_app())
+                response = client.get("/images/created.png")
+                missing = client.get("/images/missing.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"png-bytes")
+        self.assertIn("image/png", response.headers.get("content-type", ""))
+        self.assertEqual(missing.status_code, 404)
+
     def test_v2_api_404_returns_route_suggestions_without_breaking_root(self):
         if app_module.FastAPI is None or app_module.StaticFiles is None or TestClient is None:
             self.skipTest("fastapi test client is not installed")
