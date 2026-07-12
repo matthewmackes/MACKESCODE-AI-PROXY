@@ -1,7 +1,9 @@
+import base64
 import json
 import os
 import unittest
 from contextlib import contextmanager
+from unittest.mock import patch
 
 try:
     from fastapi.testclient import TestClient
@@ -10,6 +12,7 @@ except (ImportError, RuntimeError):  # pragma: no cover
 
 from backend.v2.app import create_app
 from backend.v2.api import speech as speech_api
+from backend.v2.services import speech as speech_service_module
 from backend.v2.services.speech import SpeechAudio
 
 
@@ -157,6 +160,87 @@ class V2SpeechApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.json()["detail"]["code"], "speech_text_too_long")
+
+    def test_status_reports_do_tts_missing_key(self):
+        with env_values({
+            "MATTS_CONSOLE_AUTH_ENABLED": "0",
+            "MATTS_SPEECH_ENGINE": "do_qwen3_tts",
+            "MODEL_ACCESS_KEY": None,
+            "DIGITALOCEAN_MODEL_ACCESS_KEY": None,
+            "MATTS_VALUE_SET_ACCESS_TOKEN": None,
+        }), patch.object(speech_service_module, "_model_access_key_candidates", return_value=[]):
+            payload = speech_service_module.speech_status_payload(speech_service_module.speech_settings())
+
+        self.assertTrue(payload["enabled"])
+        self.assertFalse(payload["configured"])
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["mode"], "browser_speech_synthesis")
+        self.assertEqual(payload["engine"], "digitalocean_qwen3_tts")
+        self.assertEqual(payload["model"], "qwen3-tts-voicedesign")
+        self.assertIn("DigitalOcean model access key", payload["reason"])
+        self.assertFalse(payload["input"]["digitalocean_speech_to_text"])
+
+    def test_status_reports_do_tts_available_with_env_key(self):
+        with env_values({
+            "MATTS_CONSOLE_AUTH_ENABLED": "0",
+            "MATTS_SPEECH_ENGINE": "do_qwen3_tts",
+            "MODEL_ACCESS_KEY": "test-model-access-key",
+            "DIGITALOCEAN_MODEL_ACCESS_KEY": None,
+            "MATTS_VALUE_SET_ACCESS_TOKEN": None,
+        }):
+            payload = speech_service_module.speech_status_payload(speech_service_module.speech_settings())
+
+        self.assertTrue(payload["configured"])
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["mode"], "server_do_qwen3_tts")
+        self.assertEqual(payload["engine"], "digitalocean_qwen3_tts")
+        self.assertEqual(payload["mime_type"], "audio/wav")
+
+    def test_do_tts_synthesizes_mock_json_audio(self):
+        captured = {}
+        wav = b"RIFF$\x00\x00\x00WAVEfmt "
+
+        class FakeResponse:
+            headers = {"content-type": "application/json"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return json.dumps({"data": [{"b64_json": base64.b64encode(wav).decode("ascii")}]}).encode("utf-8")
+
+        def fake_urlopen(request, timeout):
+            captured["url"] = request.full_url
+            captured["timeout"] = timeout
+            captured["headers"] = {str(key).lower(): value for key, value in request.headers.items()}
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse()
+
+        service = speech_service_module.QwenSpeechService(urlopen_func=fake_urlopen)
+        with env_values({
+            "MATTS_SPEECH_ENGINE": "do_qwen3_tts",
+            "MODEL_ACCESS_KEY": "test-model-access-key",
+            "DIGITALOCEAN_MODEL_ACCESS_KEY": None,
+            "MATTS_VALUE_SET_ACCESS_TOKEN": None,
+            "MATTS_DO_TTS_TIMEOUT": "7",
+            "MATTS_DO_TTS_FORMAT": "wav",
+        }):
+            audio = service.synthesize("hello speech", language="Chinese", instruct="Warm female voice.")
+
+        self.assertEqual(captured["url"], "https://inference.do-ai.run/v1/audio/speech")
+        self.assertEqual(captured["timeout"], 7)
+        self.assertEqual(captured["headers"]["authorization"], "Bearer test-model-access-key")
+        self.assertEqual(captured["payload"]["model"], "qwen3-tts-voicedesign")
+        self.assertEqual(captured["payload"]["input"], "hello speech")
+        self.assertEqual(captured["payload"]["voice"], "alloy")
+        self.assertEqual(captured["payload"]["response_format"], "wav")
+        self.assertIn("Chinese", captured["payload"]["instructions"])
+        self.assertEqual(audio.data, wav)
+        self.assertEqual(audio.mime_type, "audio/wav")
+        self.assertEqual(audio.engine, "digitalocean_qwen3_tts")
 
 
 if __name__ == "__main__":

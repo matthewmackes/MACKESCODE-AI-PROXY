@@ -48,13 +48,20 @@ if router:
         models = [model for model in showcase_service.payload()["models"] if model.get("type") == "text" and model.get("route_enabled")]
         speech_status = speech_service.status()
         server_available = bool(speech_status.get("available"))
+        speech_engine = str(speech_status.get("engine") or "")
+        if server_available and speech_engine == "digitalocean_qwen3_tts":
+            voice_style = "DigitalOcean Qwen3 VoiceDesign"
+        elif server_available:
+            voice_style = "Qwen3 VoiceDesign"
+        else:
+            voice_style = "calm mission-computer"
         return {
             "models": models,
             "default_model": models[0]["id"] if models else "",
             "voice": {
                 "mode": speech_status.get("mode") or "browser_speech_synthesis",
                 "fallback_mode": speech_status.get("fallback_mode") or "browser_speech_synthesis",
-                "style": "Qwen3 VoiceDesign" if server_available else "calm mission-computer",
+                "style": voice_style,
                 "server_engine": speech_status,
                 "input_mode": "browser_speech_recognition",
                 "enabled_by_default": True,

@@ -2729,17 +2729,21 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
   const voiceProfile = chat.data?.voice;
   const embeddedSpeechStatus = voiceProfile?.server_engine;
   const speechStatus: SpeechStatusPayload | undefined = speech.data || embeddedSpeechStatus;
-  const serverSpeechAvailable = Boolean(speechStatus?.available && speechStatus.mode === 'server_qwen3_tts');
+  const serverSpeechMode = speechStatus?.mode || voiceProfile?.mode || '';
+  const serverSpeechAvailable = Boolean(speechStatus?.available && ['server_qwen3_tts', 'server_do_qwen3_tts'].includes(serverSpeechMode));
+  const digitalOceanSpeech = speechStatus?.engine === 'digitalocean_qwen3_tts' || serverSpeechMode === 'server_do_qwen3_tts';
   const selectedVoicePreset = voicePresetForModel(activeVoicePreferences, selectedModelCard);
   const voiceInstruct = voiceInstructionForPreset(selectedVoicePreset, selectedModelCard) || DEFAULT_VOICE_INSTRUCT;
   const voiceLanguage = activeVoicePreferences.language || DEFAULT_VOICE_LANGUAGE;
   const voiceStyle = selectedVoicePreset.label;
-  const voiceMode = serverSpeechAvailable ? 'Qwen3 TTS VoiceDesign' : readableStatus(voiceProfile?.fallback_mode || voiceProfile?.mode || 'browser_speech_synthesis');
+  const voiceMode = serverSpeechAvailable ? (digitalOceanSpeech ? 'DigitalOcean Qwen3 TTS' : 'Qwen3 TTS VoiceDesign') : readableStatus(voiceProfile?.fallback_mode || voiceProfile?.mode || 'browser_speech_synthesis');
   const voiceEngineLabel = serverSpeechAvailable ? voiceMode : 'Browser fallback';
   const voicePreview = selectedVoicePreset.sample || voiceProfile?.preview || "Hello, I'm your MDE assistant.";
   const voiceMaxChars = Math.max(200, numeric(speechStatus?.max_chars || voiceProfile?.max_chars) || 1200);
   const speechInputSupported = Boolean(speechRecognitionConstructor());
-  const speechInputLabel = speechInputSupported ? speechInputStatus : 'Speech input unavailable';
+  const serverSpeechInputUnavailable = speechStatus?.input?.server_speech_to_text === false || speechStatus?.input?.digitalocean_speech_to_text === false;
+  const speechInputLabel = speechInputSupported ? speechInputStatus : (serverSpeechInputUnavailable ? 'Browser-native input unavailable' : 'Speech input unavailable');
+  const serverVoiceStatusLabel = serverSpeechAvailable ? (digitalOceanSpeech ? 'DigitalOcean Qwen3 voice' : 'Qwen3 server voice') : (digitalOceanSpeech ? 'DigitalOcean voice unavailable' : 'Browser fallback');
   const voiceDetail = [voiceEngineLabel, voiceStatus, `${voiceMaxChars.toLocaleString()} chars`].filter(Boolean).join(' · ');
   const transcript = serializeTranscript(messages);
   const chatBrief = chatBriefMarkdown(messages, selectedModel, selectedModelCard);
@@ -3177,7 +3181,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
             </div>
             <div className="voiceSettings">
               <span className="voiceToolbarHint">{voiceLanguage} · global preset</span>
-              <span className="voiceToolbarHint">{serverSpeechAvailable ? 'Qwen server voice' : 'Qwen server offline'}</span>
+              <span className="voiceToolbarHint">{serverVoiceStatusLabel}</span>
               <span className="voiceInputStatus" role="status">{speechInputLabel}</span>
             </div>
           </div>
