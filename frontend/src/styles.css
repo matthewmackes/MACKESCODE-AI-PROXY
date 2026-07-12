@@ -67,8 +67,9 @@ button {
   top: 14px;
   left: 14px;
   z-index: 8;
-  width: min(560px, calc(100vw - 28px));
+  width: min(980px, calc(100vw - 28px));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px;
@@ -137,6 +138,70 @@ button {
   min-height: 42px;
   padding: 0 12px;
   border-left: 1px solid var(--cds-border-subtle);
+}
+
+.shellVoiceTools {
+  flex: 1 1 360px;
+  min-width: min(100%, 320px);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding-left: 8px;
+  border-left: 1px solid var(--cds-border-subtle);
+}
+
+.shellVoiceToggle {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--cds-border-subtle);
+  background: #ffffff;
+  color: var(--cds-text);
+  white-space: nowrap;
+}
+
+.shellVoiceTools.enabled .shellVoiceToggle {
+  border-color: var(--cds-green);
+}
+
+.shellVoiceField {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.shellVoiceField span,
+.shellVoiceStatus {
+  color: var(--cds-text-secondary);
+  font-size: 11px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.shellVoiceField select {
+  width: 190px;
+  max-width: 26vw;
+  height: 28px;
+  min-width: 0;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-field, #ffffff);
+  color: var(--cds-text);
+  font-size: 12px;
+}
+
+.shellVoiceField.compact select {
+  width: 118px;
+}
+
+.shellVoiceStatus {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shellFloatingBrand strong,
@@ -1187,10 +1252,16 @@ button {
 .voiceSettings {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(130px, 180px) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
   gap: 8px;
   align-items: end;
   min-width: 0;
+}
+
+.voiceToolbarHint {
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .voiceField {
@@ -5880,6 +5951,23 @@ button {
   .shellCurrentWorkspace {
     flex-basis: 108px;
     padding: 0 8px;
+  }
+
+  .shellVoiceTools {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding: 7px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--cds-border-subtle);
+  }
+
+  .shellVoiceField select {
+    width: 150px;
+    max-width: 42vw;
+  }
+
+  .shellVoiceField.compact select {
+    width: 112px;
   }
 
   .heroHeader h1,

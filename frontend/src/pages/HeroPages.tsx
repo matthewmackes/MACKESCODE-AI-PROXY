@@ -48,6 +48,15 @@ import {
 import { getMeCapabilities, getOperate, getTmuxWorkspace } from '../api/generated/v2Client';
 import type { OperatePayload, TmuxWorkspacePayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
+import {
+  DEFAULT_VOICE_LANGUAGE,
+  loadVoicePreferences,
+  saveVoicePreferences,
+  setModelVoicePreset,
+  VoicePreferences,
+  voiceInstructionForPreset,
+  voicePresetForModel
+} from '../voicePreferences';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
 export const WHATS_NEW_DISMISSED_KEY = 'matts-v2-whats-new-dismissed';
@@ -722,7 +731,6 @@ const CHAT_TRANSCRIPT_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatTranscript;
 const CHAT_UI_STATE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatUiState;
 const CHAT_TRANSCRIPT_LIMIT = 50;
 const DEFAULT_VOICE_INSTRUCT = 'calm, clear mission-control voice with concise pacing';
-const DEFAULT_SPEECH_LANGUAGES = ['Auto', 'English', 'Chinese', 'French', 'German', 'Italian', 'Japanese', 'Korean', 'Portuguese', 'Russian', 'Spanish'];
 
 function chatMessageId(role: string): string {
   return `${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -2673,10 +2681,19 @@ function starterApprovalItems(taskId: string, bundle: string): CodeApprovalItem[
   ];
 }
 
-export function ChatPage() {
+export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voicePreferences?: VoicePreferences; onVoicePreferencesChange?: (updater: VoicePreferences | ((current: VoicePreferences) => VoicePreferences)) => void } = {}) {
   const chat = useQuery({ queryKey: ['chat-payload'], queryFn: getChatPayload });
   const speech = useQuery({ queryKey: ['speech-status'], queryFn: getSpeechStatus, retry: false, refetchInterval: 30000 });
   const chatCapabilities = useQuery({ queryKey: ['chat-capabilities'], queryFn: getMeCapabilities, retry: false });
+  const [localVoicePreferences, setLocalVoicePreferences] = useState(loadVoicePreferences);
+  const activeVoicePreferences = voicePreferences || localVoicePreferences;
+  const commitVoicePreferences = (updater: VoicePreferences | ((current: VoicePreferences) => VoicePreferences)) => {
+    if (onVoicePreferencesChange) {
+      onVoicePreferencesChange(updater);
+      return;
+    }
+    setLocalVoicePreferences((current) => saveVoicePreferences(typeof updater === 'function' ? updater(current) : updater));
+  };
   const models = useTextModels(chat.data?.models);
   const restoredUi = useMemo(loadChatUiState, []);
   const [model, setModel] = useState(restoredUi.selectedModel);
@@ -2686,11 +2703,9 @@ export function ChatPage() {
   const [contactsOpen, setContactsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(loadChatTranscript);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(activeVoicePreferences.enabled);
   const [voiceDefaultLoaded, setVoiceDefaultLoaded] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState('Ready');
-  const [voiceLanguage, setVoiceLanguage] = useState('');
-  const [voiceInstruct, setVoiceInstruct] = useState('');
   const [speechInputStatus, setSpeechInputStatus] = useState('Speech input idle');
   const [listening, setListening] = useState(false);
   const [lastSpeechUrl, setLastSpeechUrl] = useState('');
@@ -2710,15 +2725,18 @@ export function ChatPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const lastSpeechUrlRef = useRef('');
+  const previousGlobalVoicePreset = useRef(activeVoicePreferences.globalPresetId);
   const voiceProfile = chat.data?.voice;
   const embeddedSpeechStatus = voiceProfile?.server_engine;
   const speechStatus: SpeechStatusPayload | undefined = speech.data || embeddedSpeechStatus;
   const serverSpeechAvailable = Boolean(speechStatus?.available && speechStatus.mode === 'server_qwen3_tts');
-  const voiceStyle = serverSpeechAvailable ? 'Qwen3 VoiceDesign' : voiceProfile?.style || 'calm mission-computer';
+  const selectedVoicePreset = voicePresetForModel(activeVoicePreferences, selectedModelCard);
+  const voiceInstruct = voiceInstructionForPreset(selectedVoicePreset, selectedModelCard) || DEFAULT_VOICE_INSTRUCT;
+  const voiceLanguage = activeVoicePreferences.language || DEFAULT_VOICE_LANGUAGE;
+  const voiceStyle = selectedVoicePreset.label;
   const voiceMode = serverSpeechAvailable ? 'Qwen3 TTS VoiceDesign' : readableStatus(voiceProfile?.fallback_mode || voiceProfile?.mode || 'browser_speech_synthesis');
-  const voicePreview = voiceProfile?.preview || 'MDE LLM-PROXY voice online.';
+  const voicePreview = selectedVoicePreset.sample || voiceProfile?.preview || "Hello, I'm your MDE assistant.";
   const voiceMaxChars = Math.max(200, numeric(speechStatus?.max_chars || voiceProfile?.max_chars) || 1200);
-  const voiceLanguages = speechStatus?.languages?.length ? speechStatus.languages : voiceProfile?.languages?.length ? voiceProfile.languages : DEFAULT_SPEECH_LANGUAGES;
   const speechInputSupported = Boolean(speechRecognitionConstructor());
   const speechInputLabel = speechInputSupported ? speechInputStatus : 'Speech input unavailable';
   const voiceDetail = [voiceMode, voiceStatus, `${voiceMaxChars.toLocaleString()} chars`, !serverSpeechAvailable && speechStatus?.reason ? speechStatus.reason : ''].filter(Boolean).join(' · ');
@@ -2776,15 +2794,23 @@ export function ChatPage() {
   };
   useEffect(() => {
     if (!voiceProfile || voiceDefaultLoaded) return;
-    setVoiceEnabled(voiceProfile.enabled_by_default !== false);
+    if (!voicePreferences) {
+      setVoiceEnabled(voiceProfile.enabled_by_default !== false);
+    }
     setVoiceDefaultLoaded(true);
-  }, [voiceDefaultLoaded, voiceProfile]);
+  }, [voiceDefaultLoaded, voicePreferences, voiceProfile]);
   useEffect(() => {
-    const defaultLanguage = asText(speechStatus?.language || voiceProfile?.language || 'Auto');
-    const defaultInstruct = asText(speechStatus?.instruct || voiceProfile?.instruct || DEFAULT_VOICE_INSTRUCT);
-    if (!voiceLanguage && defaultLanguage) setVoiceLanguage(defaultLanguage);
-    if (!voiceInstruct && defaultInstruct) setVoiceInstruct(defaultInstruct);
-  }, [speechStatus, voiceInstruct, voiceLanguage, voiceProfile]);
+    if (voiceEnabled === activeVoicePreferences.enabled) return;
+    if (!activeVoicePreferences.enabled) stopVoice(true);
+    setVoiceEnabled(activeVoicePreferences.enabled);
+  }, [activeVoicePreferences.enabled, voiceEnabled]);
+  useEffect(() => {
+    const previous = previousGlobalVoicePreset.current;
+    if (previous === activeVoicePreferences.globalPresetId) return;
+    previousGlobalVoicePreset.current = activeVoicePreferences.globalPresetId;
+    if (!selectedModel) return;
+    commitVoicePreferences((current) => setModelVoicePreset(current, selectedModel, activeVoicePreferences.globalPresetId));
+  }, [activeVoicePreferences.globalPresetId, selectedModel]);
   useEffect(() => {
     if (!voiceProfile && !speechStatus) return;
     if (serverSpeechAvailable) {
@@ -2824,12 +2850,35 @@ export function ChatPage() {
     chatAuthPrompted.current = true;
     requestChatModelUse();
   }, [chatUseDenied]);
-  const stopVoice = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+  const stopVoice = (fade = false) => {
+    const player = audioRef.current;
+    if (player) {
+      if (fade && !player.paused) {
+        const startVolume = player.volume || 1;
+        const startedAt = window.performance.now();
+        const fadeAudio = () => {
+          const elapsed = window.performance.now() - startedAt;
+          const progress = Math.min(1, elapsed / 1000);
+          player.volume = Math.max(0, startVolume * (1 - progress));
+          if (progress < 1) {
+            window.requestAnimationFrame(fadeAudio);
+            return;
+          }
+          player.pause();
+          player.currentTime = 0;
+          player.volume = startVolume;
+        };
+        window.requestAnimationFrame(fadeAudio);
+      } else {
+        player.pause();
+        player.currentTime = 0;
+        player.volume = 1;
+      }
     }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if ('speechSynthesis' in window) {
+      if (fade) window.setTimeout(() => window.speechSynthesis.cancel(), 1000);
+      else window.speechSynthesis.cancel();
+    }
     setVoiceStatus(voiceEnabled ? 'Ready' : 'Muted');
   };
   const browserSpeak = (text: string) => {
@@ -2935,8 +2984,9 @@ export function ChatPage() {
   };
   const toggleVoice = () => {
     const next = !voiceEnabled;
-    if (!next) stopVoice();
+    if (!next) stopVoice(true);
     setVoiceEnabled(next);
+    commitVoicePreferences((current) => ({ ...current, enabled: next }));
   };
   const clearTranscript = () => {
     setMessages([]);
@@ -3121,21 +3171,12 @@ export function ChatPage() {
             <div className="voiceControls">
               <button className="secondaryButton" type="button" onClick={toggleVoice}>{voiceEnabled ? 'Mute' : 'Enable'}</button>
               <button className="secondaryButton" type="button" onClick={() => void speak(voicePreview)} disabled={!voiceEnabled}>Preview</button>
-              <button className="secondaryButton" type="button" onClick={stopVoice}>Stop</button>
               <button className="secondaryButton" type="button" onClick={toggleListening} disabled={!speechInputSupported}>{listening ? 'Stop Listen' : 'Listen'}</button>
               <button className="secondaryButton" type="button" onClick={downloadLastSpeech} disabled={!lastSpeechUrl}>Download Speech</button>
             </div>
             <div className="voiceSettings">
-              <label className="voiceField">
-                <span>Language</span>
-                <select aria-label="Speech language" value={voiceLanguage || 'Auto'} onChange={(event) => setVoiceLanguage(event.target.value)}>
-                  {voiceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}
-                </select>
-              </label>
-              <label className="voiceField voiceFieldWide">
-                <span>Voice design</span>
-                <input aria-label="Voice design instruction" value={voiceInstruct} onChange={(event) => setVoiceInstruct(event.target.value)} placeholder={DEFAULT_VOICE_INSTRUCT} />
-              </label>
+              <span className="voiceToolbarHint">Preset and language are controlled from the global toolbar.</span>
+              <span className="voiceToolbarHint">{voiceLanguage} · built-in preset locked</span>
               <span className="voiceInputStatus" role="status">{speechInputLabel}</span>
             </div>
           </div>

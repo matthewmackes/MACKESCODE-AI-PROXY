@@ -2,9 +2,10 @@ import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
-import { getWhatsNew } from './api/v2';
+import { getSpeechStatus, getWhatsNew } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
+import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS, voicePresetById } from './voicePreferences';
 
 type NavItem = {
   key: string;
@@ -257,6 +258,7 @@ export default function App() {
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(DEFAULT_AUTH_PROMPT);
   const [signedIn, setSignedIn] = useState(() => hasConsoleToken());
+  const [voicePreferences, setVoicePreferences] = useState(loadVoicePreferences);
   const [showStartupWhatsNew, setShowStartupWhatsNew] = useState(() => {
     try {
       return window.sessionStorage.getItem(WHATS_NEW_DISMISSED_KEY) !== '1';
@@ -265,9 +267,11 @@ export default function App() {
     }
   });
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew, retry: false });
+  const speechStatus = useQuery({ queryKey: ['shell-speech-status'], queryFn: getSpeechStatus, retry: false, refetchInterval: 30000 });
   const quickInputRef = useRef<HTMLInputElement | null>(null);
   const stateImportRef = useRef<HTMLInputElement | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const voicePresetRef = useRef<HTMLSelectElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const drawerNavRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const quickItems = useMemo(() => {
@@ -278,6 +282,8 @@ export default function App() {
   const recentItems = useMemo(() => recentWorkspaceKeys.map((key) => navItemForKey(key)).filter((item): item is NavItem => Boolean(item)).filter((item) => item.key !== active).slice(0, QUICK_SWITCHER_RECENT_LIMIT), [active, recentWorkspaceKeys]);
   const highlightedQuickItem = quickItems[quickHighlightedIndex] || quickItems[0];
   const activeItem = useMemo(() => navItemForKey(active) || navItems[0], [active]);
+  const activeVoicePreset = voicePresetById(voicePreferences.globalPresetId);
+  const voiceLanguages = speechStatus.data?.languages?.length ? speechStatus.data.languages : DEFAULT_SPEECH_LANGUAGES;
   const savedStateCount = useMemo(savedWorkspaceStateCount, [quickOpen, savedStateVersion]);
   const [savedStateStatus, setSavedStateStatus] = useState(savedStateCount ? 'State ready' : 'No saved state');
   const [workspaceLinkStatus, setWorkspaceLinkStatus] = useState('Link ready');
@@ -328,6 +334,23 @@ export default function App() {
       window.sessionStorage.setItem(QUICK_SWITCHER_RECENTS_KEY, JSON.stringify(next));
     } catch {
       // Recents are an enhancement; switching must still work in restricted browsers.
+    }
+  };
+  const commitVoicePreferences = (updater: VoicePreferences | ((current: VoicePreferences) => VoicePreferences)) => {
+    setVoicePreferences((current) => {
+      const next = saveVoicePreferences(typeof updater === 'function' ? updater(current) : updater);
+      return next;
+    });
+  };
+  const toggleGlobalVoice = () => {
+    const turningOn = !voicePreferences.enabled;
+    commitVoicePreferences((current) => ({
+      ...current,
+      enabled: turningOn,
+      presetPickerSeen: current.presetPickerSeen || turningOn,
+    }));
+    if (turningOn && !voicePreferences.presetPickerSeen) {
+      window.setTimeout(() => voicePresetRef.current?.focus(), 0);
     }
   };
   const activate = (key: string) => {
@@ -643,6 +666,43 @@ export default function App() {
           <span>Workspace</span>
           <strong>{activeItem.label}</strong>
         </div>
+        <div className={`shellVoiceTools ${voicePreferences.enabled ? 'enabled' : 'muted'}`} aria-label="Global voice controls">
+          <button
+            className="shellVoiceToggle"
+            type="button"
+            aria-pressed={voicePreferences.enabled}
+            onClick={toggleGlobalVoice}
+          >
+            <CarbonIcon path={voicePreferences.enabled ? 'actions/media-playback-start-symbolic.svg' : 'actions/media-playback-stop-symbolic.svg'} label="Voice" />
+            <span>{voicePreferences.enabled ? 'Voice On' : 'Voice Off'}</span>
+          </button>
+          {voicePreferences.enabled ? (
+            <>
+              <label className="shellVoiceField">
+                <span>Preset</span>
+                <select
+                  ref={voicePresetRef}
+                  aria-label="Global voice preset"
+                  value={voicePreferences.globalPresetId}
+                  onChange={(event) => commitVoicePreferences((current) => ({ ...current, globalPresetId: event.target.value as VoicePreferences['globalPresetId'], presetPickerSeen: true }))}
+                >
+                  {VOICE_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                </select>
+              </label>
+              <label className="shellVoiceField compact">
+                <span>Language</span>
+                <select
+                  aria-label="Global speech language"
+                  value={voicePreferences.language || DEFAULT_VOICE_LANGUAGE}
+                  onChange={(event) => commitVoicePreferences((current) => ({ ...current, language: event.target.value || DEFAULT_VOICE_LANGUAGE }))}
+                >
+                  {voiceLanguages.map((language) => <option key={language} value={language}>{language}</option>)}
+                </select>
+              </label>
+              <span className="shellVoiceStatus">{activeVoicePreset.shortLabel}</span>
+            </>
+          ) : null}
+        </div>
       </div>
       <div className={`shellDrawerLayer ${drawerOpen ? 'open' : ''}`} aria-hidden={!drawerOpen}>
         <button className="shellDrawerBackdrop" type="button" aria-label="Close Navigation Menu" tabIndex={-1} onClick={() => setDrawerOpen(false)} />
@@ -695,7 +755,7 @@ export default function App() {
         </aside>
       </div>
       <main className="mainSurface">
-        {active === 'chat' ? <ChatPage key={`chat-${workspaceResetVersion}`} /> : null}
+        {active === 'chat' ? <ChatPage key={`chat-${workspaceResetVersion}`} voicePreferences={voicePreferences} onVoicePreferencesChange={commitVoicePreferences} /> : null}
         {active === 'code' ? <CodePage key={`code-${workspaceResetVersion}`} /> : null}
         {active === 'research' ? <ResearchPage key={`research-${workspaceResetVersion}`} /> : null}
         {active === 'create' ? <CreatePage key={`create-${workspaceResetVersion}`} /> : null}
