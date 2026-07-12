@@ -2735,11 +2735,12 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
   const voiceLanguage = activeVoicePreferences.language || DEFAULT_VOICE_LANGUAGE;
   const voiceStyle = selectedVoicePreset.label;
   const voiceMode = serverSpeechAvailable ? 'Qwen3 TTS VoiceDesign' : readableStatus(voiceProfile?.fallback_mode || voiceProfile?.mode || 'browser_speech_synthesis');
+  const voiceEngineLabel = serverSpeechAvailable ? voiceMode : 'Browser fallback';
   const voicePreview = selectedVoicePreset.sample || voiceProfile?.preview || "Hello, I'm your MDE assistant.";
   const voiceMaxChars = Math.max(200, numeric(speechStatus?.max_chars || voiceProfile?.max_chars) || 1200);
   const speechInputSupported = Boolean(speechRecognitionConstructor());
   const speechInputLabel = speechInputSupported ? speechInputStatus : 'Speech input unavailable';
-  const voiceDetail = [voiceMode, voiceStatus, `${voiceMaxChars.toLocaleString()} chars`, !serverSpeechAvailable && speechStatus?.reason ? speechStatus.reason : ''].filter(Boolean).join(' · ');
+  const voiceDetail = [voiceEngineLabel, voiceStatus, `${voiceMaxChars.toLocaleString()} chars`].filter(Boolean).join(' · ');
   const transcript = serializeTranscript(messages);
   const chatBrief = chatBriefMarkdown(messages, selectedModel, selectedModelCard);
   const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
@@ -3175,8 +3176,8 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
               <button className="secondaryButton" type="button" onClick={downloadLastSpeech} disabled={!lastSpeechUrl}>Download Speech</button>
             </div>
             <div className="voiceSettings">
-              <span className="voiceToolbarHint">Preset and language are controlled from the global toolbar.</span>
-              <span className="voiceToolbarHint">{voiceLanguage} · built-in preset locked</span>
+              <span className="voiceToolbarHint">{voiceLanguage} · global preset</span>
+              <span className="voiceToolbarHint">{serverSpeechAvailable ? 'Qwen server voice' : 'Qwen server offline'}</span>
               <span className="voiceInputStatus" role="status">{speechInputLabel}</span>
             </div>
           </div>
