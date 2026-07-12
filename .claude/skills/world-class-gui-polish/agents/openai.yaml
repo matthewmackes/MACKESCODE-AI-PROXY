@@ -1,0 +1,4 @@
+interface:
+  display_name: "World-Class GUI Polish"
+  short_description: "Polish UIs into world-class experiences"
+  default_prompt: "Use $world-class-gui-polish to make this interface feel world class."
