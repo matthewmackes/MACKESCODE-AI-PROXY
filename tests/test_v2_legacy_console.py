@@ -81,6 +81,15 @@ class V2LegacyConsoleAdapterTests(unittest.TestCase):
             chat_completion=lambda payload: (HTTPStatus.OK, {"text": "answer", "model": payload.get("model")}),
             console_status=lambda: {"status": "ok"},
             cost_summary_payload=lambda: {"last_24h_total_usd": 1.25},
+            cost_control_status=lambda: {
+                "status": "ready",
+                "costs": {"monthly_total_usd": 12.0},
+                "threshold": {"monthly_threshold_usd": 100.0},
+                "payment_review": {"items": [{"id": "payment_method", "status": "complete"}]},
+            },
+            update_cost_control=lambda payload: {"status": "ready", "updated": payload},
+            override_cost_control=lambda payload: {"status": "hard", "override": payload},
+            cost_control_guard=lambda payload: (True, {"guard": payload}),
             analytics_payload=lambda days=7: {"summary": {"requests": 3}, "days": days},
             provider_health_payload=lambda: {"findings": []},
             console_metrics_text=lambda: 'matts_model_requests_total{model="model-a",route="serverless",status="success"} 1\nmatts_budget_used_usd{window="24h"} 0.5\n',
@@ -188,6 +197,12 @@ class V2LegacyConsoleAdapterTests(unittest.TestCase):
         self.assertEqual(operate["summary"]["release_checks"], 1)
         self.assertEqual(operate["summary"]["rollback_targets"], 1)
         self.assertEqual(operate["summary"]["config_drift_items"], 1)
+        self.assertEqual(operate["summary"]["cost_control_status"], "ready")
+        self.assertEqual(operate["cost_control"]["costs"]["monthly_total_usd"], 12.0)
+        self.assertEqual(adapter.cost_control_status()["status"], "ready")
+        self.assertEqual(adapter.update_cost_control({"monthly_threshold_usd": 200})["updated"]["monthly_threshold_usd"], 200)
+        self.assertEqual(adapter.override_cost_control({"duration_minutes": 30})["override"]["duration_minutes"], 30)
+        self.assertTrue(adapter.cost_control_guard("chat.completion")[0])
         self.assertEqual(len(operate["config_drift"]["items"]), 2)
         self.assertEqual(operate["config_drift"]["drift"][0]["name"], "console_config")
         self.assertEqual(operate["config_drift"]["drift"][0]["current"]["sha256_short"], "current1234567890")

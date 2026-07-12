@@ -338,7 +338,30 @@ export type OperatePayload = {
   ci_triage: Record<string, unknown>;
   offline_mode: Record<string, unknown>;
   model_deprecations: Record<string, unknown>;
+  cost_control: CostControlPayload;
   summary: Record<string, unknown>;
+};
+
+export type CostControlPayload = {
+  schema_version: number;
+  checked_at: number;
+  status: string;
+  costs: {
+    minute_total_usd?: number;
+    daily_total_usd?: number;
+    monthly_total_usd?: number;
+    categories?: Record<string, Record<string, unknown>>;
+    sources?: Record<string, string>;
+  };
+  threshold: Record<string, unknown>;
+  pause: Record<string, unknown>;
+  thresholds: Record<string, Record<string, unknown>>;
+  payment_review: {
+    updated_at?: number;
+    updated_by?: string;
+    items?: Array<Record<string, unknown>>;
+  };
+  provider?: Record<string, unknown>;
 };
 
 export type DecisionExplanation = {
@@ -656,6 +679,24 @@ export function explainObserveDecision(payload: { trace_id?: string; type?: stri
 
 export function getOperate(): Promise<OperatePayload> {
   return requestJson('/v2/operate');
+}
+
+export function getCostControl(): Promise<CostControlPayload> {
+  return requestJson('/v2/cost-control');
+}
+
+export function updateCostControlThresholds(payload: Record<string, unknown>): Promise<CostControlPayload> {
+  return requestJson('/v2/cost-control/thresholds', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function overrideCostControl(payload: Record<string, unknown>): Promise<CostControlPayload> {
+  return requestJson('/v2/cost-control/override', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export function previewOperateCiTriage(payload: { reference?: string } & Record<string, unknown>): Promise<Record<string, unknown>> {

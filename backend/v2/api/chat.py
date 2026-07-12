@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.chat_response import normalize_chat_result
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.model_showcase import ModelShowcaseService
@@ -83,6 +84,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "chat.use")
+        enforce_cost_pause("chat.completion", "llm_service", identity)
         payload = dict(payload or {})
         payload.pop("trace_status_on_error", None)
         payload.pop("trace_origin", None)

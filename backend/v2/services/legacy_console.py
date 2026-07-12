@@ -129,6 +129,7 @@ class LegacyConsoleAdapter:
         release_candidate = self._safe_call("release_candidate_payload", {"checks": [], "summary": {}})
         rollback = self._safe_call("rollback_targets_payload", {"targets": [], "summary": {}})
         config_drift = self._safe_call("config_drift_payload", {"items": [], "summary": {}})
+        cost_control = self._safe_call("cost_control_status", {"status": "unavailable", "costs": {}, "threshold": {}, "payment_review": {"items": []}})
         automation = self._safe_call("automation_payload", {"rules": [], "executions": [], "summary": {}})
         quotas = self._safe_call("quota_planner_payload", {"budgets": [], "summary": {}})
         synthetic_load = self._safe_call("synthetic_load_payload", {"runs": [], "summary": {}})
@@ -152,6 +153,7 @@ class LegacyConsoleAdapter:
             "release_candidate": release_candidate,
             "rollback": rollback,
             "config_drift": config_drift,
+            "cost_control": cost_control,
             "automation": automation,
             "quotas": quotas,
             "synthetic_load": synthetic_load,
@@ -163,11 +165,36 @@ class LegacyConsoleAdapter:
                 "release_checks": len(rows(release_candidate, "checks")),
                 "rollback_targets": len(rows(rollback, "targets", "archives")),
                 "config_drift_items": len(rows(config_drift, "drift", "drifts")),
+                "cost_control_status": str(cost_control.get("status") or "unknown") if isinstance(cost_control, dict) else "unknown",
                 "automation_rules": len(rows(automation, "rules")) or len(rows(automation.get("config") if isinstance(automation, dict) else {}, "rules")),
                 "ci_findings": len(rows(ci_triage, "findings", "checks")),
                 "model_deprecations": len(rows(model_deprecations, "items", "models", "deprecations")),
             },
         }
+
+    def cost_control_status(self) -> dict[str, Any]:
+        result = self._safe_call("cost_control_status", {"status": "unavailable", "costs": {}, "threshold": {}, "payment_review": {"items": []}})
+        return result if isinstance(result, dict) else {"status": "unavailable", "result": result}
+
+    def update_cost_control(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = self._safe_call("update_cost_control", {}, payload or {})
+        return result if isinstance(result, dict) else {"result": result}
+
+    def override_cost_control(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = self._safe_call("override_cost_control", {}, payload or {})
+        return result if isinstance(result, dict) else {"result": result}
+
+    def cost_control_guard(self, action: str, category: str = "llm_service", actor: dict[str, Any] | None = None) -> tuple[bool, dict[str, Any]]:
+        module = self.module()
+        if not hasattr(module, "cost_control_guard"):
+            return True, {"status": "unavailable", "action": action, "category": category}
+        result = module.cost_control_guard({"action": action, "category": category, "actor": actor or {}})
+        if isinstance(result, tuple) and len(result) == 2:
+            allowed, payload = result
+            return bool(allowed), self.json_safe(payload if isinstance(payload, dict) else {"result": payload})
+        if isinstance(result, dict):
+            return not bool(result.get("blocked")), self.json_safe(result)
+        return True, {"result": result}
 
     def onboarding_payload(self) -> dict[str, Any]:
         result = self._safe_call("onboarding_payload", {"checks": [], "summary": {}, "actions": {}})

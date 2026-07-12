@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - dependency is installed by the v2 setu
     StaticFiles = None  # type: ignore[assignment]
     StarletteHTTPException = Exception  # type: ignore[assignment]
 
-from backend.v2.api import auth, chat, code, console, create, models, observe, onboarding, operate, research, run, speech, tmux_ws, tui
+from backend.v2.api import auth, chat, code, console, cost_control, create, models, observe, onboarding, operate, research, run, speech, tmux_ws, tui
 from src.console.services.app_config import ConsoleConfigService
 from src.console.services.runtime_config import RuntimeConfigService
 from src.console.utils.errors import error_payload, route_not_found_details
@@ -121,6 +121,8 @@ def create_app():
         app.include_router(run.router)
     if console.router is not None:
         app.include_router(console.router)
+    if cost_control.router is not None:
+        app.include_router(cost_control.router)
     if observe.router is not None:
         app.include_router(observe.router)
     if onboarding.router is not None:

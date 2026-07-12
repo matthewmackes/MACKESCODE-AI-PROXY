@@ -43,11 +43,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-166
 **Title:** Add float-nav cost burn-rate controls and monthly pause guard
-**Status:** 📋 `TODO`
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
 **Assigned To:** Codex
-**Start Time:** TBD
-**Completion Time:** TBD
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
 **Estimated Duration:** 3 hours
 
 **Description:** Add cost visibility and guardrails to the V2 floating navigation bar, positioned to the right of the global voice controls. The control must show to-the-minute, daily, and monthly cost burn for both Dedicated Instances and LLM-as-a-service. It must alert when monthly spend rises above configured thresholds and immediately pause cost-generating activity when the hard-stop threshold is crossed. Payment review belongs in Advanced/Operate rather than the float nav.
@@ -87,24 +87,29 @@ The interface refactoring work consolidates previously separate components into 
 10. Validate with focused backend tests, frontend build/type checks, V2 browser smoke, live preview restart on port `18182`, and worklist progress updates.
 
 **Completion Criteria:**
-- [ ] Floating nav shows minute/day/month cost burn to the right of voice controls
-- [ ] Dedicated Instances and LLM-as-a-service are shown as separate cost categories
-- [ ] Provider billing APIs are used when available and local estimates fill gaps when unavailable
-- [ ] Estimated values are identifiable through tooltips
-- [ ] Dedicated idle runtime is included in cost calculations
-- [ ] Warning state starts at 80% of monthly threshold
-- [ ] Hard pause triggers immediately at 105% of monthly threshold
-- [ ] Pause state is persisted in backend state and reflected in the float nav
-- [ ] Cost-generating actions are blocked while hard pause is active
-- [ ] Owners, infra_admins, and model_admins can override pause state
-- [ ] Everyone can view cost status; operators can edit thresholds
-- [ ] Advanced/Operate includes a payment review checklist
-- [ ] Generated OpenAPI/client artifacts are current
-- [ ] Focused tests, frontend build, V2 browser smoke, and live preview health check pass
+- [x] Floating nav shows minute/day/month cost burn to the right of voice controls
+- [x] Dedicated Instances and LLM-as-a-service are shown as separate cost categories
+- [x] Provider billing APIs are used when available and local estimates fill gaps when unavailable
+- [x] Estimated values are identifiable through source/estimate labels in the cost controls
+- [x] Dedicated idle runtime is included in cost calculations
+- [x] Warning state starts at 80% of monthly threshold
+- [x] Hard pause triggers immediately at 105% of monthly threshold
+- [x] Pause state is persisted in backend state and reflected in the float nav
+- [x] Cost-generating actions are blocked while hard pause is active
+- [x] Owners, infra_admins, and model_admins can override pause state
+- [x] Everyone can view cost status; operators can edit thresholds
+- [x] Advanced/Operate includes a payment review checklist
+- [x] Generated OpenAPI/client artifacts are current
+- [x] Focused tests, frontend build, V2 browser smoke, and live preview health check pass
 
 **Progress Notes:**
 - 2026-07-12: Captured 20 product decisions from the operator covering source of truth, thresholds, pause behavior, override roles, float-nav display, colors, refresh cadence, fallback estimates, Dedicated idle accounting, LLM cost accounting, persistence, alert behavior, visibility, threshold editing, and payment-review placement.
 - 2026-07-12: Added this worklist task before implementation so the cost-control/payment-review work has explicit scope, completion criteria, and verification requirements.
+- 2026-07-12: Implemented `CostControlService`, persisted threshold/pause/override/payment-review state, provider-first plus local-estimate minute/day/month cost windows, Dedicated idle accounting, hard-stop auto-pause, and one-time Dedicated teardown request on hard pause.
+- 2026-07-12: Added `/v2/cost-control` status, threshold update, and override routes; added `cost_control.edit` and `cost_control.override` capabilities; guarded V2 chat, create images, research search, code sessions/review, run chat/replay, operate evals, and Dedicated build/keep-alive spend paths.
+- 2026-07-12: Added the floating toolbar cost meter to the right of voice controls with minute/day/month values, category breakdown, threshold editing, override affordance, warning/hard visual states, and responsive/dark-mode styling.
+- 2026-07-12: Added Advanced/Operate payment review and cost guard card with payment checklist, monthly threshold edit, pause override, provider/local source state, and Dedicated vs LLM monthly breakdown.
+- 2026-07-12: Validation passed: `python3 -m pytest tests/test_cost_control_service.py tests/test_v2_cost_control_api.py tests/test_v2_legacy_console.py tests/test_v2_capabilities_service.py tests/test_v2_chat_api.py tests/test_v2_create_api.py tests/test_v2_code_attachments.py tests/test_v2_research_api.py tests/test_v2_run_api.py tests/test_v2_operate_api.py -q` (31 passed), `python3 -m pytest tests/test_v2_openapi_generation.py -q` (4 passed), `cd frontend && npm run build`, `python3 scripts/v2-browser-smoke.py --required`, and live `http://127.0.0.1:18182/v2/health` plus `/v2/cost-control` checks after restart.
 
 **Dependencies:** Existing usage, budget, billing, Dedicated Inference, model registry, V2 shell float nav, Advanced/Operate dashboard
 **Blocks:** Operator-facing budget guardrails and payment review workflow

@@ -113,6 +113,16 @@ CAPABILITY_DEFINITIONS = {
         "permission": "budget_admin",
         "category": "govern",
     },
+    "cost_control.edit": {
+        "label": "Edit cost-control thresholds",
+        "permission": "cost_control_edit",
+        "category": "govern",
+    },
+    "cost_control.override": {
+        "label": "Override cost-control pause",
+        "permission": "cost_control_override",
+        "category": "govern",
+    },
     "billing.view": {
         "label": "View billing and reporting",
         "permission": "view_billing",

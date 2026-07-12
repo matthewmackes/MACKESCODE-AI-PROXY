@@ -1,13 +1,10 @@
-"""v2 Create hero routes."""
+"""v2 cost-control status, threshold, and pause override routes."""
 from __future__ import annotations
 
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
-from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
-from backend.v2.services.model_showcase import ModelShowcaseService
-from backend.v2.services.research_search import ResearchSearchService
 
 try:
     from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -19,9 +16,8 @@ except ImportError:  # pragma: no cover
     Request = object  # type: ignore[assignment]
 
 
-router = APIRouter(prefix="/v2/create", tags=["create"]) if APIRouter else None
-legacy_adapter = LegacyConsoleAdapter()
-showcase_service = ModelShowcaseService()
+router = APIRouter(prefix="/v2/cost-control", tags=["cost-control"]) if APIRouter else None
+cost_adapter = LegacyConsoleAdapter()
 
 
 def _identity(request: Request, authorization: Optional[str], console_token: Optional[str], token: Optional[str]) -> dict[str, Any]:
@@ -34,30 +30,27 @@ def _require(identity: dict[str, Any], action: str) -> None:
         raise HTTPException(status_code=403, detail=decision.to_dict())
 
 
+def enforce_cost_pause(action: str, category: str, identity: dict[str, Any] | None = None) -> None:
+    allowed, payload = cost_adapter.cost_control_guard(action, category=category, actor=identity or {})
+    if allowed:
+        return
+    raise HTTPException(status_code=402, detail=payload)
+
+
 if router:
 
     @router.get("")
-    def create_payload(
+    def cost_control_status(
         request: Request,
         authorization: Optional[str] = Header(default=None),
         x_matts_console_token: Optional[str] = Header(default=None),
         token: Optional[str] = Query(default=None),
     ) -> dict[str, Any]:
-        identity = _identity(request, authorization, x_matts_console_token, token)
-        _require(identity, "create.use")
-        models = showcase_service.payload()["models"]
-        research_service = ResearchSearchService()
-        research_engines = research_service.engines()
-        return {
-            "image_models": [model for model in models if model.get("type") == "image" and model.get("enabled")],
-            "text_models": [model for model in models if model.get("type") == "text" and model.get("route_enabled")],
-            "wallpaper": legacy_adapter._safe_call("wallpaper_payload", {"source": "fallback"}, False),
-            "modes": ["Chat", "Research", "Image"],
-            "research_source_classes": research_service.source_classes(research_engines),
-        }
+        _identity(request, authorization, x_matts_console_token, token)
+        return cost_adapter.cost_control_status()
 
-    @router.post("/images")
-    def generate_images(
+    @router.post("/thresholds")
+    def update_thresholds(
         payload: dict[str, Any],
         request: Request,
         authorization: Optional[str] = Header(default=None),
@@ -65,12 +58,21 @@ if router:
         token: Optional[str] = Query(default=None),
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
-        _require(identity, "create.use")
-        enforce_cost_pause("create.images", "llm_service", identity)
-        result = legacy_adapter._safe_call("generate_images", {}, payload or {})
-        if isinstance(result, (tuple, list)) and len(result) == 2:
-            status, data = result
-            if int(status) >= 400:
-                raise HTTPException(status_code=int(status), detail=data)
-            return {"status": int(status), "response": data}
-        return result if isinstance(result, dict) else {"response": result}
+        _require(identity, "cost_control.edit")
+        payload = dict(payload or {})
+        payload["actor"] = identity
+        return cost_adapter.update_cost_control(payload)
+
+    @router.post("/override")
+    def override_pause(
+        payload: dict[str, Any],
+        request: Request,
+        authorization: Optional[str] = Header(default=None),
+        x_matts_console_token: Optional[str] = Header(default=None),
+        token: Optional[str] = Query(default=None),
+    ) -> dict[str, Any]:
+        identity = _identity(request, authorization, x_matts_console_token, token)
+        _require(identity, "cost_control.override")
+        payload = dict(payload or {})
+        payload["actor"] = identity
+        return cost_adapter.override_cost_control(payload)

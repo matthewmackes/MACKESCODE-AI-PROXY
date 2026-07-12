@@ -341,6 +341,28 @@ export type CreatePayload = {
   research_source_classes?: ResearchPayload['source_classes'];
 };
 
+export type CostControlPayload = {
+  schema_version: number;
+  checked_at: number;
+  status: string;
+  costs: {
+    minute_total_usd?: number;
+    daily_total_usd?: number;
+    monthly_total_usd?: number;
+    categories?: Record<string, Record<string, unknown>>;
+    sources?: Record<string, string>;
+  };
+  threshold: Record<string, unknown>;
+  pause: Record<string, unknown>;
+  thresholds: Record<string, Record<string, unknown>>;
+  payment_review: {
+    updated_at?: number;
+    updated_by?: string;
+    items?: Array<Record<string, unknown>>;
+  };
+  provider?: Record<string, unknown>;
+};
+
 export function getModels(): Promise<ModelsPayload> {
   return requestJson<ModelsPayload>('/v2/models');
 }
@@ -425,4 +447,16 @@ export function getCreatePayload(): Promise<CreatePayload> {
 
 export function runCreateImages(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
   return requestJson<Record<string, unknown>>('/v2/create/images', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function getCostControl(): Promise<CostControlPayload> {
+  return requestJson<CostControlPayload>('/v2/cost-control');
+}
+
+export function updateCostControlThresholds(payload: Record<string, unknown>): Promise<CostControlPayload> {
+  return requestJson<CostControlPayload>('/v2/cost-control/thresholds', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function overrideCostControl(payload: Record<string, unknown>): Promise<CostControlPayload> {
+  return requestJson<CostControlPayload>('/v2/cost-control/override', { method: 'POST', body: JSON.stringify(payload) });
 }

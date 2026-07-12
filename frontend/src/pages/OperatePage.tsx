@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Checkbox, Input, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { getMeCapabilities } from '../api/generated/v2Client';
-import { acknowledgeOperateConfigDrift, getOnboarding, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, seedOnboardingModelTemplates, testOperateAutomation, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
+import { acknowledgeOperateConfigDrift, getOnboarding, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, overrideCostControl, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, seedOnboardingModelTemplates, testOperateAutomation, updateCostControlThresholds, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
 import type { OnboardingPayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
 
@@ -30,6 +30,25 @@ function valueText(value: unknown, fallback = ''): string {
 
 function boolText(value: unknown): string {
   return value === true ? 'yes' : value === false ? 'no' : 'n/a';
+}
+
+function numberValue(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function money(value: unknown): string {
+  const amount = numberValue(value, 0);
+  const places = amount > 0 && amount < 0.01 ? 4 : 2;
+  return `$${amount.toFixed(places)}`;
+}
+
+function paymentStatusColor(value: unknown): string {
+  const status = valueText(value, 'open').toLowerCase();
+  if (status === 'complete' || status === 'ready' || status === 'done') return 'green';
+  if (status === 'blocked' || status === 'failed') return 'red';
+  if (status === 'reviewing' || status === 'pending') return 'orange';
+  return 'blue';
 }
 
 function driftSnapshotText(snapshot: Record<string, unknown>): string {
@@ -283,6 +302,8 @@ export default function OperatePage() {
   const [driftReason, setDriftReason] = useState('Reviewed from V2 Operate.');
   const [highRiskDriftConfirmed, setHighRiskDriftConfirmed] = useState(false);
   const [driftActionResult, setDriftActionResult] = useState<Record<string, unknown> | null>(null);
+  const [paymentReviewStatus, setPaymentReviewStatus] = useState('Payment review ready');
+  const [operateCostThresholdDraft, setOperateCostThresholdDraft] = useState('');
   const ciPreviewMutation = useMutation({
     mutationFn: () => previewOperateCiTriage({ reference: ciReference }),
     onSuccess: setCiPreview
@@ -380,6 +401,31 @@ export default function OperatePage() {
       onboarding.refetch();
     }
   });
+  const paymentReviewMutation = useMutation({
+    mutationFn: (items: Array<Record<string, unknown>>) => updateCostControlThresholds({ payment_review: { items } }),
+    onSuccess: () => {
+      setPaymentReviewStatus('Payment review saved');
+      operate.refetch();
+    }
+  });
+  const operateThresholdMutation = useMutation({
+    mutationFn: () => updateCostControlThresholds({
+      scope_type: 'workspace',
+      scope_id: 'default',
+      monthly_threshold_usd: numberValue(operateCostThresholdDraft, 0)
+    }),
+    onSuccess: () => {
+      setPaymentReviewStatus('Threshold saved');
+      operate.refetch();
+    }
+  });
+  const operateOverrideMutation = useMutation({
+    mutationFn: () => overrideCostControl({ action: 'override', duration_minutes: 60, reason: 'operate_payment_review' }),
+    onSuccess: () => {
+      setPaymentReviewStatus('Pause overridden');
+      operate.refetch();
+    }
+  });
   const canView = capabilities.data?.capabilities['console.view']?.allowed ?? false;
   const canSeedTemplates = capabilities.data?.capabilities['run.edit']?.allowed ?? false;
   const canImportRepository = capabilities.data?.capabilities['operate.repository.import']?.allowed ?? false;
@@ -389,6 +435,8 @@ export default function OperatePage() {
   const canManageAutomation = capabilities.data?.capabilities['operate.automation.admin']?.allowed ?? false;
   const canManageModels = capabilities.data?.capabilities['models.admin']?.allowed ?? false;
   const canManageConfigDrift = capabilities.data?.capabilities['operate.config_drift.admin']?.allowed ?? false;
+  const canEditCostControl = capabilities.data?.capabilities['cost_control.edit']?.allowed ?? false;
+  const canOverrideCostControl = capabilities.data?.capabilities['cost_control.override']?.allowed ?? false;
   const payload = operate.data;
   const summary = record(payload?.summary);
   const releaseChecks = rows(payload?.release_candidate, 'checks');
@@ -417,6 +465,19 @@ export default function OperatePage() {
   const modelDeprecations = rows(payload?.model_deprecations, 'deprecated_models', 'items', 'models', 'deprecations');
   const evalGate = record(payload?.eval_gates);
   const offlineMode = record(payload?.offline_mode);
+  const costControl = record(payload?.cost_control);
+  const costCosts = record(costControl.costs);
+  const costThreshold = record(costControl.threshold);
+  const costPause = record(costControl.pause);
+  const costProvider = record(costControl.provider);
+  const paymentReview = record(costControl.payment_review);
+  const paymentItems = list(paymentReview.items);
+  const costStatus = valueText(costControl.status, 'unknown');
+  const monthlyThreshold = numberValue(costThreshold.monthly_threshold_usd, 0);
+  const monthlyCost = numberValue(costCosts.monthly_total_usd, 0);
+  const monthlyPercent = numberValue(costThreshold.percent, 0);
+  const providerSource = valueText(costProvider.monthly_source || record(costCosts.sources).monthly, 'local_estimate');
+  const providerLabel = providerSource === 'provider_billing_api' ? 'Provider billing' : 'Local estimate';
   useEffect(() => {
     setHandoffBriefStatus(hasOperatorHandoff ? 'Brief Ready' : 'No handoff');
   }, [hasOperatorHandoff, operatorHandoffItems.length]);
@@ -426,6 +487,18 @@ export default function OperatePage() {
   useEffect(() => {
     setHighRiskDriftConfirmed(false);
   }, [activeHighRiskDriftNames.join('|')]);
+  useEffect(() => {
+    setOperateCostThresholdDraft(String(monthlyThreshold));
+  }, [monthlyThreshold]);
+  const togglePaymentItem = (itemId: string, checked: boolean) => {
+    const next = paymentItems.map((item) => (
+      valueText(item.id) === itemId
+        ? { ...item, status: checked ? 'complete' : 'open', completed_at: checked ? Date.now() / 1000 : 0 }
+        : item
+    ));
+    setPaymentReviewStatus('Saving payment review');
+    paymentReviewMutation.mutate(next);
+  };
   const copyHandoffBrief = async () => {
     if (!hasOperatorHandoff) return;
     try {
@@ -540,6 +613,97 @@ export default function OperatePage() {
           <Typography.Title level={4}>{valueText(summary.ci_findings, String(ciFindings.length))}</Typography.Title>
         </Card>
       </Space>
+      <Card
+        title="Payment Review and Cost Guard"
+        data-testid="operate-payment-review"
+        extra={<Tag color={paymentReviewMutation.isPending || operateThresholdMutation.isPending || operateOverrideMutation.isPending ? 'orange' : 'blue'}>{paymentReviewStatus}</Tag>}
+      >
+        <Space direction="vertical" size={12} className="pageStack">
+          <Space wrap>
+            <Tag color={costStatus === 'paused' || costStatus === 'hard' ? 'red' : costStatus === 'warning' ? 'orange' : 'green'}>{costStatus}</Tag>
+            <Tag color={providerSource === 'provider_billing_api' ? 'green' : 'orange'}>{providerLabel}</Tag>
+            <Tag>{money(monthlyCost)} month</Tag>
+            <Tag>{monthlyThreshold ? `${money(monthlyThreshold)} limit` : 'No monthly limit'}</Tag>
+            <Tag>{monthlyPercent.toFixed(monthlyPercent >= 10 ? 0 : 1)}%</Tag>
+            {costPause.active ? <Tag color="red">Paused</Tag> : null}
+          </Space>
+          {paymentReviewMutation.error ? <Alert type="error" showIcon message={errorText(paymentReviewMutation.error)} /> : null}
+          {operateThresholdMutation.error ? <Alert type="error" showIcon message={errorText(operateThresholdMutation.error)} /> : null}
+          {operateOverrideMutation.error ? <Alert type="error" showIcon message={errorText(operateOverrideMutation.error)} /> : null}
+          <div className="paymentReviewMetrics">
+            <div>
+              <span>Minute</span>
+              <strong>{money(costCosts.minute_total_usd)}</strong>
+            </div>
+            <div>
+              <span>Daily</span>
+              <strong>{money(costCosts.daily_total_usd)}</strong>
+            </div>
+            <div>
+              <span>Dedicated</span>
+              <strong>{money(record(record(costCosts.categories).dedicated_instances).monthly_usd)}</strong>
+            </div>
+            <div>
+              <span>LLM Service</span>
+              <strong>{money(record(record(costCosts.categories).llm_service).monthly_usd)}</strong>
+            </div>
+          </div>
+          <Space.Compact>
+            <Input
+              data-testid="operate-cost-threshold"
+              type="number"
+              min="0"
+              step="1"
+              value={operateCostThresholdDraft}
+              onChange={(event) => setOperateCostThresholdDraft(event.target.value)}
+              addonBefore="Monthly"
+            />
+            <Button
+              data-testid="operate-cost-threshold-save"
+              disabled={!canEditCostControl}
+              loading={operateThresholdMutation.isPending}
+              onClick={() => {
+                setPaymentReviewStatus('Saving threshold');
+                operateThresholdMutation.mutate();
+              }}
+            >
+              Save
+            </Button>
+            <Button
+              data-testid="operate-cost-override"
+              disabled={!canOverrideCostControl || !costPause.active}
+              loading={operateOverrideMutation.isPending}
+              onClick={() => {
+                setPaymentReviewStatus('Overriding pause');
+                operateOverrideMutation.mutate();
+              }}
+            >
+              Override Pause
+            </Button>
+          </Space.Compact>
+          <div className="paymentReviewList">
+            {paymentItems.map((item) => {
+              const itemId = valueText(item.id);
+              const status = valueText(item.status, 'open');
+              const checked = ['complete', 'ready', 'done'].includes(status.toLowerCase());
+              return (
+                <div className="paymentReviewItem" key={itemId || valueText(item.label)}>
+                  <Checkbox
+                    data-testid="operate-payment-review-item"
+                    checked={checked}
+                    disabled={!canEditCostControl || paymentReviewMutation.isPending}
+                    onChange={(event) => togglePaymentItem(itemId, event.target.checked)}
+                  >
+                    <strong>{valueText(item.label, itemId || 'Payment item')}</strong>
+                  </Checkbox>
+                  <span>{valueText(item.detail)}</span>
+                  <Tag color={paymentStatusColor(status)}>{status}</Tag>
+                </div>
+              );
+            })}
+          </div>
+        </Space>
+      </Card>
       <Card
         title="Release Candidate"
         data-testid="operate-release"

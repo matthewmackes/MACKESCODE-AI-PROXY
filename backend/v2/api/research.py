@@ -5,6 +5,7 @@ import time
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.research_dossier_store import ResearchDossierStore
 from backend.v2.services.research_search import ResearchSearchService
@@ -83,6 +84,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "research.use")
+        enforce_cost_pause("research.search", "llm_service", identity)
         try:
             dossier = _research_service().search(payload)
             return dossier_store.save_dossier(dossier)

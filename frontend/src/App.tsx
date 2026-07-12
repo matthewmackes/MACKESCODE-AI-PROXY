@@ -2,7 +2,7 @@ import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
-import { getSpeechStatus, getWhatsNew } from './api/v2';
+import { CostControlPayload, getCostControl, getSpeechStatus, getWhatsNew, overrideCostControl, updateCostControlThresholds } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
 import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS, voicePresetById } from './voicePreferences';
@@ -182,12 +182,43 @@ function shouldTriggerFatalDiagnostic(): boolean {
   }
 }
 
+function numberValue(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function money(value: unknown): string {
+  const amount = numberValue(value, 0);
+  const places = amount > 0 && amount < 0.01 ? 4 : 2;
+  return `$${amount.toFixed(places)}`;
+}
+
+function percentValue(value: unknown): string {
+  const percent = numberValue(value, 0);
+  return `${percent.toFixed(percent >= 10 ? 0 : 1)}%`;
+}
+
+function costStatusClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === 'paused' || normalized === 'hard') return 'hard';
+  if (normalized === 'warning') return 'warning';
+  return 'ready';
+}
+
+function categoryCost(payload: CostControlPayload | undefined, key: string, field: string): unknown {
+  return payload?.costs?.categories?.[key]?.[field];
+}
+
 function BrandMark({ testId }: { testId: string }) {
   return (
     <span className="brandMark" data-testid={testId} aria-hidden="true">
       <img src={platformBranding.appIconUrl} alt="" />
     </span>
   );
+}
+
+function TagLike({ status, children }: { status: string; children: string }) {
+  return <span className={`tagLike ${status}`}>{children}</span>;
 }
 
 function ConsoleSignInDialog({ prompt, onClose, onSubmit }: { prompt: AuthPromptState; onClose: () => void; onSubmit: (token: string) => void }) {
@@ -259,6 +290,8 @@ export default function App() {
   const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(DEFAULT_AUTH_PROMPT);
   const [signedIn, setSignedIn] = useState(() => hasConsoleToken());
   const [voicePreferences, setVoicePreferences] = useState(loadVoicePreferences);
+  const [costThresholdDraft, setCostThresholdDraft] = useState('');
+  const [costControlStatus, setCostControlStatus] = useState('Cost ready');
   const [showStartupWhatsNew, setShowStartupWhatsNew] = useState(() => {
     try {
       return window.sessionStorage.getItem(WHATS_NEW_DISMISSED_KEY) !== '1';
@@ -268,12 +301,18 @@ export default function App() {
   });
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew, retry: false });
   const speechStatus = useQuery({ queryKey: ['shell-speech-status'], queryFn: getSpeechStatus, retry: false, refetchInterval: 30000 });
+  const costControl = useQuery({ queryKey: ['cost-control'], queryFn: getCostControl, retry: false, refetchInterval: 60000 });
   const quickInputRef = useRef<HTMLInputElement | null>(null);
   const stateImportRef = useRef<HTMLInputElement | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const voicePresetRef = useRef<HTMLSelectElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const drawerNavRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => {
+    const threshold = costControl.data?.threshold?.monthly_threshold_usd;
+    if (threshold === undefined || threshold === null) return;
+    setCostThresholdDraft(String(numberValue(threshold, 0)));
+  }, [costControl.data?.threshold?.monthly_threshold_usd]);
   const quickItems = useMemo(() => {
     const query = quickQuery.trim().toLowerCase();
     if (!query) return navItems;
@@ -351,6 +390,30 @@ export default function App() {
     }));
     if (turningOn && !voicePreferences.presetPickerSeen) {
       window.setTimeout(() => voicePresetRef.current?.focus(), 0);
+    }
+  };
+  const saveCostThreshold = async () => {
+    try {
+      setCostControlStatus('Saving threshold');
+      await updateCostControlThresholds({
+        scope_type: 'workspace',
+        scope_id: 'default',
+        monthly_threshold_usd: numberValue(costThresholdDraft, 0),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['cost-control'] });
+      setCostControlStatus('Threshold saved');
+    } catch {
+      setCostControlStatus('Save failed');
+    }
+  };
+  const overrideCostPause = async () => {
+    try {
+      setCostControlStatus('Overriding pause');
+      await overrideCostControl({ action: 'override', duration_minutes: 60, reason: 'toolbar_override' });
+      await queryClient.invalidateQueries({ queryKey: ['cost-control'] });
+      setCostControlStatus('Pause overridden');
+    } catch {
+      setCostControlStatus('Override failed');
     }
   };
   const activate = (key: string) => {
@@ -559,6 +622,14 @@ export default function App() {
     setWorkspaceResetVersion((value) => value + 1);
     closeQuickSwitcher();
   };
+  const costPayload = costControl.data;
+  const costStatus = costPayload?.status || (costControl.error ? 'offline' : 'ready');
+  const costClass = costStatusClass(costStatus);
+  const costThreshold = numberValue(costPayload?.threshold?.monthly_threshold_usd, 0);
+  const costPercent = numberValue(costPayload?.threshold?.percent, 0);
+  const costPaused = Boolean(costPayload?.pause?.active);
+  const costSource = String(costPayload?.provider?.monthly_source || costPayload?.costs?.sources?.monthly || 'local_estimate');
+  const costSourceLabel = costSource === 'provider_billing_api' ? 'Provider billing' : 'Local estimate';
   return (
     <div className="carbonShell">
       {authPromptOpen ? <ConsoleSignInDialog prompt={authPrompt} onClose={() => setAuthPromptOpen(false)} onSubmit={submitConsoleToken} /> : null}
@@ -703,6 +774,62 @@ export default function App() {
             </>
           ) : null}
         </div>
+        <details className={`shellCostTools ${costClass}`} data-testid="shell-cost-control">
+          <summary aria-label="Cost controls">
+            <CarbonIcon path="actions/system-run-symbolic.svg" label="Cost" />
+            <span>
+              <small>MIN</small>
+              <strong data-testid="shell-cost-minute">{money(costPayload?.costs?.minute_total_usd)}</strong>
+            </span>
+            <span>
+              <small>DAY</small>
+              <strong data-testid="shell-cost-day">{money(costPayload?.costs?.daily_total_usd)}</strong>
+            </span>
+            <span>
+              <small>MONTH</small>
+              <strong data-testid="shell-cost-month">{money(costPayload?.costs?.monthly_total_usd)}</strong>
+            </span>
+          </summary>
+          <div className="shellCostPanel" role="group" aria-label="Cost threshold and pause controls">
+            <div className="shellCostPanelHeader">
+              <div>
+                <span>{costSourceLabel}</span>
+                <strong>{costStatus === 'offline' ? 'Cost unavailable' : `${costStatus.toUpperCase()} · ${percentValue(costPercent)}`}</strong>
+              </div>
+              <TagLike status={costClass}>{costThreshold ? `${money(costThreshold)} limit` : 'No limit'}</TagLike>
+            </div>
+            <div className="shellCostBreakdown">
+              <span>
+                <small>Dedicated</small>
+                <strong>{money(categoryCost(costPayload, 'dedicated_instances', 'monthly_usd'))}</strong>
+              </span>
+              <span>
+                <small>LLM Service</small>
+                <strong>{money(categoryCost(costPayload, 'llm_service', 'monthly_usd'))}</strong>
+              </span>
+              <span>
+                <small>Guard</small>
+                <strong>{costPaused ? 'Paused' : costPayload?.threshold?.warning ? 'Warning' : 'Ready'}</strong>
+              </span>
+            </div>
+            <div className="shellCostActions">
+              <label className="shellCostThreshold">
+                <span>Monthly</span>
+                <input
+                  data-testid="shell-cost-threshold"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={costThresholdDraft}
+                  onChange={(event) => setCostThresholdDraft(event.target.value)}
+                />
+              </label>
+              <button data-testid="shell-cost-save" type="button" onClick={() => void saveCostThreshold()}>Save</button>
+              <button data-testid="shell-cost-override" type="button" disabled={!costPaused} onClick={() => void overrideCostPause()}>Override</button>
+            </div>
+            <p className="shellCostStatus">{costControlStatus}</p>
+          </div>
+        </details>
       </div>
       <div className={`shellDrawerLayer ${drawerOpen ? 'open' : ''}`} aria-hidden={!drawerOpen}>
         <button className="shellDrawerBackdrop" type="button" aria-label="Close Navigation Menu" tabIndex={-1} onClick={() => setDrawerOpen(false)} />

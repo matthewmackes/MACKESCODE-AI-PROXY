@@ -48,6 +48,7 @@ from src.console.services.comparison_reports import ComparisonReportService
 from src.console.services.context_window import ContextWindowService
 from src.console.services.config_drift import ConfigDriftService
 from src.console.services.cost_anomalies import CostAnomalyService
+from src.console.services.cost_control import CostControlService
 from src.console.services.cost_forecast import CostForecastService
 from src.console.services.decision_explain import DecisionExplanationService
 from src.console.services.eval_gates import EvalGateBlocked, EvalGateService
@@ -349,6 +350,10 @@ def notification_state_file():
 
 def cost_anomaly_file():
     return configured_path("cost_anomaly_file", "cost-anomalies.json", "MATTS_COST_ANOMALY_FILE", app_dir())
+
+
+def cost_control_file():
+    return configured_path("cost_control_file", "cost-control.json", "MATTS_COST_CONTROL_FILE", app_dir())
 
 
 def workspace_bundles_dir():
@@ -1108,6 +1113,9 @@ def dedicated_create_token(cfg):
 
 
 def dedicated_build(data):
+    allowed, guard = cost_control_guard({"action": "dedicated.build", "category": "dedicated_instances", "actor": (data or {}).get("actor") if isinstance(data, dict) else None})
+    if not allowed:
+        return HTTPStatus.PAYMENT_REQUIRED, guard
     return dedicated_service().build(data)
 
 
@@ -1120,6 +1128,9 @@ def dedicated_policy(data):
 
 
 def dedicated_keep_alive(data):
+    allowed, guard = cost_control_guard({"action": "dedicated.keep_alive", "category": "dedicated_instances", "actor": (data or {}).get("actor") if isinstance(data, dict) else None})
+    if not allowed:
+        return HTTPStatus.PAYMENT_REQUIRED, guard
     return dedicated_service().keep_alive(data)
 
 
@@ -1370,6 +1381,41 @@ def cost_summary_payload():
 
 def digitalocean_report(data):
     return usage_service().digitalocean_report(data)
+
+
+def cost_control_service():
+    return CostControlService(
+        state_file=cost_control_file,
+        cost_summary_payload=cost_summary_payload,
+        local_usage_since=local_usage_since,
+        load_dedicated_config=load_dedicated_config,
+        dedicated_runtime_cost_summary=dedicated_runtime_cost_summary,
+        dedicated_teardown=lambda data: dedicated_service().teardown(data),
+        clock=time.time,
+    )
+
+
+def cost_control_status():
+    return cost_control_service().status(auto_enforce=True)
+
+
+def update_cost_control(data):
+    data = data or {}
+    return cost_control_service().update(data, actor=data.get("actor"))
+
+
+def override_cost_control(data):
+    data = data or {}
+    return cost_control_service().override(data, actor=data.get("actor"))
+
+
+def cost_control_guard(data=None):
+    data = data or {}
+    return cost_control_service().guard(
+        action=data.get("action") or "cost_generating_action",
+        category=data.get("category") or "llm_service",
+        actor=data.get("actor"),
+    )
 
 
 def models_payload(refresh_catalog=True):

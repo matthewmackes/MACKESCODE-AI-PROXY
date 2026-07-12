@@ -297,6 +297,42 @@ def assert_create_atmosphere_contained(page, label: str) -> None:
     assert escaped == [], "%s Create atmosphere escaped the viewport: %s" % (label, escaped)
 
 
+def cost_control_smoke_payload(status: str = "ready") -> dict[str, object]:
+    paused = status == "paused"
+    return {
+        "schema_version": 1,
+        "checked_at": 1,
+        "status": status,
+        "costs": {
+            "minute_total_usd": 0.01,
+            "daily_total_usd": 2.5,
+            "monthly_total_usd": 42.0,
+            "categories": {
+                "dedicated_instances": {"minute_usd": 0.0, "daily_usd": 1.0, "monthly_usd": 12.0},
+                "llm_service": {"minute_usd": 0.01, "daily_usd": 1.5, "monthly_usd": 30.0},
+            },
+            "sources": {"minute": "local_estimate", "daily": "local_estimate", "monthly": "local_estimate"},
+        },
+        "threshold": {
+            "monthly_threshold_usd": 100.0,
+            "warning_at_usd": 80.0,
+            "hard_at_usd": 105.0,
+            "percent": 42.0,
+            "warning": False,
+            "hard": paused,
+        },
+        "pause": {"active": paused, "reason": "smoke_pause" if paused else "", "override": {"active": False}},
+        "thresholds": {},
+        "provider": {"monthly_source": "local_estimate", "fallback_estimates_active": True},
+        "payment_review": {
+            "items": [
+                {"id": "provider_billing_api", "label": "Provider billing API", "status": "open", "detail": "Smoke provider billing check."},
+                {"id": "payment_method", "label": "Payment method", "status": "complete", "detail": "Smoke payment method check."},
+            ]
+        },
+    }
+
+
 def run_mobile_whats_new_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
@@ -586,6 +622,7 @@ def run_readiness_advisory_label_smoke(browser, base_url: str) -> None:
                     "ci_triage": {},
                     "offline_mode": {},
                     "model_deprecations": {},
+                    "cost_control": cost_control_smoke_payload(),
                 }),
             ),
         )
@@ -693,6 +730,7 @@ def run_readiness_handoff_top_action_smoke(browser, base_url: str) -> None:
                     "ci_triage": {},
                     "offline_mode": {},
                     "model_deprecations": {},
+                    "cost_control": cost_control_smoke_payload(),
                 }),
             ),
         )
@@ -782,6 +820,7 @@ def run_high_risk_config_drift_guard_smoke(browser, base_url: str) -> None:
                     "ci_triage": {},
                     "offline_mode": {},
                     "model_deprecations": {},
+                    "cost_control": cost_control_smoke_payload("paused"),
                 }),
             ),
         )
@@ -1050,6 +1089,10 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Workspace")
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Chat")
         expect(page.get_by_test_id("shell-menu-toggle")).to_have_attribute("aria-expanded", "false")
+        expect(page.get_by_test_id("shell-cost-control")).to_be_visible()
+        expect(page.get_by_test_id("shell-cost-minute")).to_contain_text("$")
+        expect(page.get_by_test_id("shell-cost-day")).to_contain_text("$")
+        expect(page.get_by_test_id("shell-cost-month")).to_contain_text("$")
         expect(page.locator(".sideRail")).to_have_count(0)
         expect(page.locator(".heroNav")).to_have_count(0)
 
@@ -1060,6 +1103,12 @@ def run_browser_smoke(base_url: str) -> None:
         assert_no_broken_model_artwork(page, "startup Whats New")
         page.get_by_role("button", name="Close Whats New").click()
         expect(page.locator(".whatsNewModal")).to_have_count(0)
+        page.get_by_test_id("shell-cost-control").locator("summary").click()
+        expect(page.locator(".shellCostPanel")).to_be_visible()
+        expect(page.get_by_test_id("shell-cost-threshold")).to_be_visible()
+        expect(page.get_by_test_id("shell-cost-save")).to_be_visible()
+        expect(page.get_by_test_id("shell-cost-override")).to_be_visible()
+        page.get_by_test_id("shell-cost-control").locator("summary").click()
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         drawer = open_shell_drawer(page)
         assert_loaded_image(drawer.get_by_test_id("drawer-brand-icon").locator("img"), "drawer MDE app icon")
@@ -1104,6 +1153,10 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_test_id("advanced-readiness-reason").first).not_to_contain_text("#1 Operator Action")
         readiness_pulse.click()
         expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
+        expect(page.get_by_test_id("operate-payment-review")).to_be_visible()
+        expect(page.get_by_test_id("operate-payment-review")).to_contain_text("Payment Review and Cost Guard")
+        expect(page.get_by_test_id("operate-cost-threshold")).to_be_visible()
+        expect(page.get_by_test_id("operate-payment-review-item").first).to_be_visible()
         expect(page.get_by_test_id("operate-release")).to_be_visible()
         handoff_brief = page.get_by_test_id("operate-release-handoff-brief")
         expect(handoff_brief).to_be_visible()

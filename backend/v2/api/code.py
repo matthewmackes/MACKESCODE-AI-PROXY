@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.code_attachments import CodeAttachmentStore
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.model_showcase import ModelShowcaseService
@@ -69,6 +70,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "tmux.control")
+        enforce_cost_pause("code.session.start", "llm_service", identity)
         status, data = legacy_adapter.start_code_session(payload)
         if status >= 400:
             raise HTTPException(status_code=status, detail=data)
@@ -84,6 +86,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "tmux.control")
+        enforce_cost_pause("code.session.send", "llm_service", identity)
         status, data = legacy_adapter.send_code_session(str(payload.get("name") or ""), str(payload.get("text") or ""), enter=bool(payload.get("enter", True)))
         if status >= 400:
             raise HTTPException(status_code=status, detail=data)
@@ -139,6 +142,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "chat.use")
+        enforce_cost_pause("code.review", "llm_service", identity)
         session_id = str(payload.get("session_id") or "default")
         prompt = str(payload.get("prompt") or "Review the attached image for the coding task.")
         attachment_ids = [str(item) for item in payload.get("attachment_ids", []) if item]

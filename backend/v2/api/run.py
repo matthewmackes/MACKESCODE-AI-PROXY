@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.chat_response import normalize_chat_result
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.run_store import RunStore
@@ -148,6 +149,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "run.edit")
+        enforce_cost_pause("run.replay", "llm_service", identity)
         try:
             return legacy_console.run_replay(payload)
         except ValueError as exc:
@@ -238,6 +240,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "chat.use")
+        enforce_cost_pause("run.chat", "llm_service", identity)
         try:
             status, result = legacy_console.chat_completion(payload)
         except ValueError as exc:

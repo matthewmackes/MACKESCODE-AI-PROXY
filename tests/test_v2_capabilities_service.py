@@ -24,6 +24,8 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertTrue(payload["capabilities"]["operate.rollback.admin"]["allowed"])
         self.assertTrue(payload["capabilities"]["operate.automation.admin"]["allowed"])
         self.assertTrue(payload["capabilities"]["operate.config_drift.admin"]["allowed"])
+        self.assertTrue(payload["capabilities"]["cost_control.edit"]["allowed"])
+        self.assertTrue(payload["capabilities"]["cost_control.override"]["allowed"])
         self.assertEqual(payload["actor"]["id"], "owner")
 
     def test_viewer_can_view_tui_but_cannot_control(self):
@@ -38,7 +40,19 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertFalse(payload["capabilities"]["operate.review.manage"]["allowed"])
         self.assertFalse(payload["capabilities"]["operate.automation.admin"]["allowed"])
         self.assertFalse(payload["capabilities"]["operate.config_drift.admin"]["allowed"])
+        self.assertFalse(payload["capabilities"]["cost_control.edit"]["allowed"])
+        self.assertFalse(payload["capabilities"]["cost_control.override"]["allowed"])
         self.assertEqual(payload["capabilities"]["tui.control"]["reason"], "missing_permission:tmux_control")
+
+    def test_cost_control_permissions_are_separate_for_edit_and_override(self):
+        service = V2CapabilityService()
+        edit = service.decide({"id": "billing", "permissions": ["cost_control_edit"]}, "cost_control.edit")
+        override = service.decide({"id": "billing", "permissions": ["cost_control_edit"]}, "cost_control.override")
+
+        self.assertTrue(edit.allowed)
+        self.assertEqual(edit.required_permission, "cost_control_edit")
+        self.assertFalse(override.allowed)
+        self.assertEqual(override.required_permission, "cost_control_override")
 
     def test_config_drift_admin_uses_dedicated_permission(self):
         service = V2CapabilityService()

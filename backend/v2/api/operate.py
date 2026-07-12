@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.api.cost_control import enforce_cost_pause
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 
 try:
@@ -302,6 +303,7 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "evals.run")
+        enforce_cost_pause("operate.evals.run", "llm_service", identity)
         return operate_adapter.run_eval(payload)
 
     @router.post("/automation/rules")
