@@ -2753,6 +2753,17 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     if (message.role !== 'assistant') return undefined;
     return models.find((item) => item.display_name === message.model || item.id === message.model) || selectedModelCard;
   };
+  useEffect(() => {
+    const root = document.documentElement;
+    if (chatTheme === 'dark') {
+      root.dataset.chatTheme = 'dark';
+    } else if (root.dataset.chatTheme === 'dark') {
+      delete root.dataset.chatTheme;
+    }
+    return () => {
+      if (root.dataset.chatTheme === 'dark') delete root.dataset.chatTheme;
+    };
+  }, [chatTheme]);
   const copyTranscript = async () => {
     if (!transcript) return;
     try {
