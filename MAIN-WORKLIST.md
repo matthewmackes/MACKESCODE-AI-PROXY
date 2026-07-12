@@ -43,10 +43,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-164
 **Title:** Prepare and publish v2.1.0 RPM release
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P0
 **Assigned To:** Codex
 **Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
 **Estimated Duration:** 90 minutes
 
 **Description:** User requested `push all, commit all`, then asked to prepare for release and publish an RPM release. The current source changes were committed and pushed to `origin/main` as `bcd85afe`; this task prepares the compatible feature/UI release as `v2.1.0`, builds the RPM, tags the exact source, and publishes a GitHub release with the RPM artifacts.
@@ -62,13 +63,13 @@ The interface refactoring work consolidates previously separate components into 
 8. Record exact commit, tag, artifact paths, release URL, and verification evidence.
 
 **Completion Criteria:**
-- [ ] `origin/main` contains the implementation commit and release-prep commit
+- [x] `origin/main` contains the implementation commit and release-prep commit
 - [x] `v2.1.0` version metadata is consistent across release-owned files
 - [x] `MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh` passes
 - [x] `scripts/build-rpm.sh` produces RPM and SRPM artifacts for `2.1.0`
-- [ ] Annotated tag `v2.1.0` is pushed
-- [ ] GitHub release `v2.1.0` exists and contains the RPM/SRPM artifacts
-- [ ] Final status reports release URL and validation evidence
+- [x] Annotated tag `v2.1.0` is pushed
+- [x] GitHub release `v2.1.0` exists and contains the RPM/SRPM artifacts
+- [x] Final status reports release URL and validation evidence
 
 **Progress Notes:**
 - 2026-07-12: Implementation/polish work was committed as `bcd85afe` (`Polish V2 console and research dossiers`) and pushed to `origin/main`.
@@ -77,6 +78,9 @@ The interface refactoring work consolidates previously separate components into 
 - 2026-07-12: Strict release gate passed with `MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh`; evidence included 577 passing Python unit/smoke tests, 55.04% line coverage, generated V2 OpenAPI/client freshness, React production build, frontend bundle boundary validation, production dependency audit with 0 vulnerabilities, V2 health reporting `2.1.0`, and required headless browser smoke success.
 - 2026-07-12: `scripts/build-rpm.sh` completed successfully; vendored runtime imports passed, no native `.so` extension was accepted into the noarch vendor tree, and `rpmbuild` wrote `build/rpmbuild/RPMS/noarch/matts-value-set-2.1.0-1.el9.noarch.rpm` plus `build/rpmbuild/SRPMS/matts-value-set-2.1.0-1.el9.src.rpm`.
 - 2026-07-12: Verified the binary RPM metadata with `rpm -qip`; it reports `matts-value-set` version `2.1.0`, release `1.el9`, architecture `noarch`, source RPM `matts-value-set-2.1.0-1.el9.src.rpm`, and the expected project URL/summary/description.
+- 2026-07-12: Release-prep source was committed as `23a6eba1` (`Prepare v2.1.0 RPM release`) and pushed to `origin/main`.
+- 2026-07-12: Annotated tag `v2.1.0` was created on release commit `23a6eba1` and pushed to `origin`.
+- 2026-07-12: Published GitHub release `v2.1.0` with attached RPM/SRPM artifacts at `https://github.com/matthewmackes/MACKESCODE-AI-PROXY/releases/tag/v2.1.0`.
 
 **Dependencies:** INT-163
 **Blocks:** Public RPM release availability for the latest V2 Research, onboarding template, diagnostic chat, model artwork, and UI polish work
