@@ -43,7 +43,7 @@ type AuthPromptState = {
 
 const DEFAULT_AUTH_PROMPT: AuthPromptState = {
   title: 'Sign In',
-  detail: 'Enter a console token to unlock the requested workspace action.',
+  detail: 'Enter a console token to unlock this action.',
 };
 
 function activeFromHash(): string {
@@ -394,24 +394,24 @@ export default function App() {
   };
   const saveCostThreshold = async () => {
     try {
-      setCostControlStatus('Saving threshold');
+      setCostControlStatus('Saving limit');
       await updateCostControlThresholds({
         scope_type: 'workspace',
         scope_id: 'default',
         monthly_threshold_usd: numberValue(costThresholdDraft, 0),
       });
       await queryClient.invalidateQueries({ queryKey: ['cost-control'] });
-      setCostControlStatus('Threshold saved');
+      setCostControlStatus('Limit saved');
     } catch {
       setCostControlStatus('Save failed');
     }
   };
   const overrideCostPause = async () => {
     try {
-      setCostControlStatus('Overriding pause');
+      setCostControlStatus('Overriding');
       await overrideCostControl({ action: 'override', duration_minutes: 60, reason: 'toolbar_override' });
       await queryClient.invalidateQueries({ queryKey: ['cost-control'] });
-      setCostControlStatus('Pause overridden');
+      setCostControlStatus('Override active');
     } catch {
       setCostControlStatus('Override failed');
     }
@@ -694,7 +694,7 @@ export default function App() {
                     <small>{item.description}</small>
                   </span>
                 </button>
-              )) : <div className="emptyState">No workspace matches this search.</div>}
+              )) : <div className="emptyState">No workspace matches.</div>}
             </div>
             <div className="quickSwitcherFooter">
               <div>
