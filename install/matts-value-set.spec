@@ -1,5 +1,5 @@
 Name:           matts-value-set
-Version:        2.1.0
+Version:        2.2.0
 Release:        1%{?dist}
 Summary:        MDE LLM-PROXY - Local Anthropic-compatible proxy for various LLM models
 License:        MIT
@@ -271,6 +271,12 @@ fi
 /var/log/matts-value-set/usage.jsonl
 
 %changelog
+* Sun Jul 12 2026 MDE LLM-PROXY <matts@example.com> 2.2.0-1
+- Release v2.2.0 with MDE branding, global voice controls, and Qwen3 speech support.
+- Replace the V2 side rail with hamburger navigation and move summary content into Advanced Overview.
+- Add V2 cost burn-rate controls, monthly pause guardrails, and Operate payment review.
+- Polish dark mode, typography, and world-class GUI skill assets.
+
 * Sun Jul 12 2026 MDE LLM-PROXY <matts@example.com> 2.1.0-1
 - Release v2.1.0 with Research dossiers, onboarding templates, and V2 interface polish.
 - Add richer Chat diagnostics and response presentation safeguards for low-quality upstream outputs.

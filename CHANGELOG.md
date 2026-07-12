@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.2.0 — Branding, voice, navigation, and cost guardrails (2026-07-12)
+
+- Added canonical MDE / LLM-PROXY branding, app icon assets, manifest metadata,
+  and shell branding across the V2 console.
+- Added platform speech support with Qwen3 TTS service plumbing, browser
+  fallback behavior, Firefox/Chromium/Safari voice-chat support, and global
+  voice controls in the floating toolbar.
+- Replaced the persistent V2 side rail with hamburger drawer navigation while
+  preserving workspace routing, quick switcher, settings, sign-in, and startup
+  What's New behavior.
+- Moved below-navigation summary content into Advanced > Overview and kept
+  Console, Run, Observe, and Operate as Advanced tabs.
+- Added V2 cost burn-rate controls with minute/day/month visibility, Dedicated
+  vs LLM-as-a-service breakdowns, monthly thresholds, hard-pause enforcement,
+  authorized overrides, and Operate payment-review checklist.
+- Improved Chat dark mode, typography, and GUI polish guidance, including the
+  project `world-class-gui-polish` skill.
+
 ## 2.1.0 — Research dossiers, onboarding templates, and UI polish (2026-07-12)
 
 - Added model-scoped onboarding prompt templates so new chat sessions can start

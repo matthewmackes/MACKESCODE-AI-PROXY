@@ -14,7 +14,7 @@ cd /path/to/project
 scripts/build-rpm.sh
 
 # Install the RPM
-sudo rpm -ivh build/rpmbuild/RPMS/noarch/matts-value-set-2.1.0-1.*.noarch.rpm
+sudo rpm -ivh build/rpmbuild/RPMS/noarch/matts-value-set-2.2.0-1.*.noarch.rpm
 ```
 
 The build script refreshes `frontend/dist`, vendors pure-Python runtime

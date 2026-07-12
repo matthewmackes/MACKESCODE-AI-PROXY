@@ -33,8 +33,8 @@ MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh
 ## Public Release Policy
 
 Public releases use semantic versions and annotated Git tags named `vX.Y.Z`.
-The July 12, 2026 public package release is `v2.1.0`; `v2.0.0` remains the
-July 11 baseline release.
+The July 12, 2026 public package releases are `v2.2.0` and `v2.1.0`;
+`v2.0.0` remains the July 11 baseline release.
 
 Before publishing a release:
 

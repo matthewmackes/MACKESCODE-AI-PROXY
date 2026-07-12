@@ -41,6 +41,45 @@ The interface refactoring work consolidates previously separate components into 
 
 ## Active Tasks
 
+### Task ID: INT-167
+**Title:** Prepare and publish v2.2.0 RPM release
+**Status:** 🔄 `IN_PROGRESS`
+**Priority:** P0
+**Assigned To:** Codex
+**Start Time:** 2026-07-12
+**Completion Time:** TBD
+**Estimated Duration:** 90 minutes
+
+**Description:** User requested `push all, commit all, and release` after the V2 voice, branding, GUI polish, hamburger navigation, Advanced Overview, and cost-control work landed on `agent/platform-speech`. Prepare the compatible feature/operational release as `v2.2.0`, land it on `main`, run the strict release gate, build RPM/SRPM artifacts, tag the exact source, push, and publish a GitHub release.
+
+**Implementation Plan:**
+1. Fast-forward `main` to the release-ready feature branch.
+2. Apply a `v2.2.0` release version bump across FastAPI metadata, frontend package metadata, RPM spec/build defaults, release docs, changelog, and generated OpenAPI artifacts.
+3. Run the strict release gate with required browser smoke.
+4. Build the RPM and SRPM artifacts.
+5. Commit and push release-prep changes to `origin/main`.
+6. Create and push annotated tag `v2.2.0`.
+7. Publish GitHub release `v2.2.0` with the RPM/SRPM artifacts.
+8. Record exact commit, tag, artifact paths, release URL, and verification evidence.
+
+**Completion Criteria:**
+- [ ] Feature branch changes are landed on `main`
+- [ ] `v2.2.0` version metadata is consistent across release-owned files
+- [ ] Strict release gate passes with browser smoke required
+- [ ] `scripts/build-rpm.sh` produces RPM and SRPM artifacts for `2.2.0`
+- [ ] Release-prep source is committed and pushed to `origin/main`
+- [ ] Annotated tag `v2.2.0` is pushed
+- [ ] GitHub release `v2.2.0` exists and contains the RPM/SRPM artifacts
+
+**Progress Notes:**
+- 2026-07-12: Existing latest public release is `v2.1.0`; `RELEASE.md` says compatible features and operational surface changes should use a minor version, so this release is being prepared as `v2.2.0`.
+- 2026-07-12: Fast-forwarded `main` from `3d100999` to `61e0d954`, landing the feature branch commits on the release branch.
+
+**Dependencies:** Completed INT-165 and INT-166 feature work, release gate, RPM build toolchain, GitHub release credentials
+**Blocks:** Public v2.2.0 release publication
+
+---
+
 ### Task ID: INT-166
 **Title:** Add float-nav cost burn-rate controls and monthly pause guard
 **Status:** ✅ `COMPLETED`
