@@ -41,6 +41,76 @@ The interface refactoring work consolidates previously separate components into 
 
 ## Active Tasks
 
+### Task ID: INT-166
+**Title:** Add float-nav cost burn-rate controls and monthly pause guard
+**Status:** 📋 `TODO`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** TBD
+**Completion Time:** TBD
+**Estimated Duration:** 3 hours
+
+**Description:** Add cost visibility and guardrails to the V2 floating navigation bar, positioned to the right of the global voice controls. The control must show to-the-minute, daily, and monthly cost burn for both Dedicated Instances and LLM-as-a-service. It must alert when monthly spend rises above configured thresholds and immediately pause cost-generating activity when the hard-stop threshold is crossed. Payment review belongs in Advanced/Operate rather than the float nav.
+
+**Captured Product Decisions:**
+- Cost source of truth: provider billing APIs first, local pricing tables/estimates as fallback.
+- Monthly thresholds: configurable per workspace/project/model/provider.
+- Pause scope: pause all cost-generating actions, including active Dedicated Instances.
+- Override roles: owner, infra_admin, and model_admin.
+- Float-nav display: Carbon-style color-coded burn-rate meter with amount and threshold.
+- Meter colors: Carbon neutral/blue/red.
+- Warning threshold: 80% of monthly threshold.
+- Hard pause threshold: 105% of monthly threshold.
+- Refresh cadence: once per minute.
+- Provider API unavailable behavior: fall back to local pricing estimates.
+- Estimated cost labeling: tooltip-only.
+- Dedicated Instance accounting: always include idle running time.
+- LLM-as-a-service accounting: provider API first, token estimate fallback.
+- Pause persistence: backend state.
+- Alert UI: floating nav turns red and pulses.
+- Grace period: none; pause immediately at hard-stop.
+- Visibility: everyone can view costs.
+- Threshold editing: any operator.
+- Payment status: do not show in the float nav; payment belongs in Advanced/Operate.
+- First payment-review version: add payment checklist in Advanced/Operate.
+
+**Implementation Plan:**
+1. Inspect existing usage, budget, billing, Dedicated Inference, and model-cost services to reuse current runtime ledgers and provider billing integrations.
+2. Add a V2 cost-control backend service that combines provider API data and local estimates into minute/day/month totals for Dedicated Instances and LLM-as-a-service.
+3. Add backend state for configurable monthly thresholds, warning/hard-stop percentages, and persisted pause state.
+4. Add V2 API routes for cost-control status, threshold updates, pause status, and authorized override actions.
+5. Wire cost-pause checks into cost-generating V2 paths and the existing Dedicated/LLM action paths so hard-stop pause blocks new and active spend-generating work.
+6. Add the float-nav burn-rate meter to the right of global voice controls with minute/day/month values, category breakdown, threshold percentage, warning state, and hard-stop red pulse state.
+7. Add editable threshold controls for operators and override affordances for owner/infra_admin/model_admin.
+8. Add a payment review checklist to Advanced/Operate rather than the float nav.
+9. Update generated OpenAPI/client artifacts and V2 browser smoke coverage for visibility, warning, pause, threshold edit, fallback estimate, and payment checklist behavior.
+10. Validate with focused backend tests, frontend build/type checks, V2 browser smoke, live preview restart on port `18182`, and worklist progress updates.
+
+**Completion Criteria:**
+- [ ] Floating nav shows minute/day/month cost burn to the right of voice controls
+- [ ] Dedicated Instances and LLM-as-a-service are shown as separate cost categories
+- [ ] Provider billing APIs are used when available and local estimates fill gaps when unavailable
+- [ ] Estimated values are identifiable through tooltips
+- [ ] Dedicated idle runtime is included in cost calculations
+- [ ] Warning state starts at 80% of monthly threshold
+- [ ] Hard pause triggers immediately at 105% of monthly threshold
+- [ ] Pause state is persisted in backend state and reflected in the float nav
+- [ ] Cost-generating actions are blocked while hard pause is active
+- [ ] Owners, infra_admins, and model_admins can override pause state
+- [ ] Everyone can view cost status; operators can edit thresholds
+- [ ] Advanced/Operate includes a payment review checklist
+- [ ] Generated OpenAPI/client artifacts are current
+- [ ] Focused tests, frontend build, V2 browser smoke, and live preview health check pass
+
+**Progress Notes:**
+- 2026-07-12: Captured 20 product decisions from the operator covering source of truth, thresholds, pause behavior, override roles, float-nav display, colors, refresh cadence, fallback estimates, Dedicated idle accounting, LLM cost accounting, persistence, alert behavior, visibility, threshold editing, and payment-review placement.
+- 2026-07-12: Added this worklist task before implementation so the cost-control/payment-review work has explicit scope, completion criteria, and verification requirements.
+
+**Dependencies:** Existing usage, budget, billing, Dedicated Inference, model registry, V2 shell float nav, Advanced/Operate dashboard
+**Blocks:** Operator-facing budget guardrails and payment review workflow
+
+---
+
 ### Task ID: INT-165
 **Title:** Convert V2 side rail into hamburger drawer navigation
 **Status:** ✅ `COMPLETED`
