@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.0 — Research dossiers, onboarding templates, and UI polish (2026-07-12)
+
+- Added model-scoped onboarding prompt templates so new chat sessions can start
+  with prepared, formatted content suited to each model family.
+- Refined Chat diagnostics and response presentation so malformed, empty, or
+  tool-call-shaped upstream failures are surfaced as useful operator evidence.
+- Expanded the V2 Research workflow with dossier, pinning, and report packet
+  surfaces for richer source review.
+- Restyled Chat and Research into more distinctive ICQ/Carbon and legal research
+  inspired workspaces while preserving the V2 console navigation model.
+- Fixed model artwork rendering so tracked logo, brand, and background sources
+  display as artwork instead of plain URL references.
+- Hardened browser smoke coverage for the polished V2 console surfaces.
+
 ## 2.0.0 — Release RPM and Chat permission fix (2026-07-11)
 
 - Fixed V2 Chat RBAC so view-only users can load the Chat workspace while model

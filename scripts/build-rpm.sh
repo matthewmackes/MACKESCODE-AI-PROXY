@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="matts-value-set"
-VERSION="${MATTS_RPM_VERSION:-2.0.0}"
+VERSION="${MATTS_RPM_VERSION:-2.1.0}"
 TOPDIR="${MATTS_RPM_TOPDIR:-$ROOT_DIR/build/rpmbuild}"
 STAGE_ROOT="$ROOT_DIR/build/rpm-stage"
 SOURCE_DIR="$STAGE_ROOT/$NAME-$VERSION"

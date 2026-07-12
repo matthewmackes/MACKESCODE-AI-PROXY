@@ -1,5 +1,5 @@
 Name:           matts-value-set
-Version:        2.0.0
+Version:        2.1.0
 Release:        1%{?dist}
 Summary:        MDE LLM-PROXY - Local Anthropic-compatible proxy for various LLM models
 License:        MIT
@@ -271,6 +271,11 @@ fi
 /var/log/matts-value-set/usage.jsonl
 
 %changelog
+* Sun Jul 12 2026 MDE LLM-PROXY <matts@example.com> 2.1.0-1
+- Release v2.1.0 with Research dossiers, onboarding templates, and V2 interface polish.
+- Add richer Chat diagnostics and response presentation safeguards for low-quality upstream outputs.
+- Refresh model artwork handling and browser smoke coverage for the current console surfaces.
+
 * Sat Jul 11 2026 MDE LLM-PROXY <matts@example.com> 2.0.0-1
 - Release v2.0.0 with the V2 React console, Code workspace, and Chat RBAC split.
 - Bundle pure-Python runtime dependencies under /usr/lib/matts-value-set/vendor/python.

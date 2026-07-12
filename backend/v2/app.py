@@ -50,7 +50,7 @@ def create_app():
     if FastAPI is None:
         raise RuntimeError("FastAPI is required for the v2 backend. Install dependencies before starting it.")
     origins = cors_origins()
-    app = FastAPI(title="MDE LLM-PROXY Console API", version="2.0.0")
+    app = FastAPI(title="MDE LLM-PROXY Console API", version="2.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -61,7 +61,7 @@ def create_app():
 
     @app.get("/v2/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": "2.0.0"}
+        return {"status": "ok", "version": "2.1.0"}
 
     @app.exception_handler(StarletteHTTPException)
     async def v2_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[valid-type]

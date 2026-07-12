@@ -353,9 +353,17 @@ class ResearchSearchService:
         report_packet = self._report_packet(dossier_id, query, mode, generated_at, evidence, claims, payload)
         model_outputs = payload.get("model_outputs") if isinstance(payload.get("model_outputs"), dict) else {}
         synthesis_answer = synthesis.get("coordinated_answer") or model_outputs.get("answer") or ""
+        source_catalog = {
+            "engines": self.engines(),
+            "source_classes": self.source_classes(),
+        }
+        model_strategy = payload.get("model_strategy") if isinstance(payload.get("model_strategy"), dict) else {}
         return {
             "schema_version": 2,
             "dossier_id": dossier_id,
+            "mode": mode,
+            "generated_at": generated_at,
+            "query_text": query,
             "query": {
                 "text": query,
                 "mode": mode,
@@ -363,11 +371,13 @@ class ResearchSearchService:
                 "source_selection_mode": source_selection_mode,
                 "submitted_at": generated_at,
             },
-            "source_catalog": {
-                "engines": self.engines(),
-                "source_classes": self.source_classes(),
-            },
+            "source_catalog": source_catalog,
             "engine_runs": engines,
+            "engines": engines,
+            "results": results,
+            "source_classes": source_catalog["source_classes"],
+            "model_strategy": model_strategy,
+            "model_outputs": model_outputs,
             "evidence": evidence,
             "claims": claims,
             "synthesis": {
@@ -376,7 +386,7 @@ class ResearchSearchService:
                 "evidence_ids": list(evidence_by_id.keys()),
             },
             "model_audit": {
-                "strategy": payload.get("model_strategy") if isinstance(payload.get("model_strategy"), dict) else {},
+                "strategy": model_strategy,
                 "outputs": model_outputs,
                 "diagnostics": {
                     "degraded_engines": synthesis.get("degraded_engines") if isinstance(synthesis.get("degraded_engines"), list) else [],
