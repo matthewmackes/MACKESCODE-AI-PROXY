@@ -43,11 +43,11 @@ The interface refactoring work consolidates previously separate components into 
 
 ### Task ID: INT-167
 **Title:** Prepare and publish v2.2.0 RPM release
-**Status:** 🔄 `IN_PROGRESS`
+**Status:** ✅ `COMPLETED`
 **Priority:** P0
 **Assigned To:** Codex
 **Start Time:** 2026-07-12
-**Completion Time:** TBD
+**Completion Time:** 2026-07-12
 **Estimated Duration:** 90 minutes
 
 **Description:** User requested `push all, commit all, and release` after the V2 voice, branding, GUI polish, hamburger navigation, Advanced Overview, and cost-control work landed on `agent/platform-speech`. Prepare the compatible feature/operational release as `v2.2.0`, land it on `main`, run the strict release gate, build RPM/SRPM artifacts, tag the exact source, push, and publish a GitHub release.
@@ -63,20 +63,25 @@ The interface refactoring work consolidates previously separate components into 
 8. Record exact commit, tag, artifact paths, release URL, and verification evidence.
 
 **Completion Criteria:**
-- [ ] Feature branch changes are landed on `main`
-- [ ] `v2.2.0` version metadata is consistent across release-owned files
-- [ ] Strict release gate passes with browser smoke required
-- [ ] `scripts/build-rpm.sh` produces RPM and SRPM artifacts for `2.2.0`
-- [ ] Release-prep source is committed and pushed to `origin/main`
-- [ ] Annotated tag `v2.2.0` is pushed
-- [ ] GitHub release `v2.2.0` exists and contains the RPM/SRPM artifacts
+- [x] Feature branch changes are landed on `main`
+- [x] `v2.2.0` version metadata is consistent across release-owned files
+- [x] Strict release gate passes with browser smoke required
+- [x] `scripts/build-rpm.sh` produces RPM and SRPM artifacts for `2.2.0`
+- [x] Release-prep source is committed and pushed to `origin/main`
+- [x] Annotated tag `v2.2.0` is pushed
+- [x] GitHub release `v2.2.0` exists and contains the RPM/SRPM artifacts
 
 **Progress Notes:**
 - 2026-07-12: Existing latest public release is `v2.1.0`; `RELEASE.md` says compatible features and operational surface changes should use a minor version, so this release is being prepared as `v2.2.0`.
 - 2026-07-12: Fast-forwarded `main` from `3d100999` to `61e0d954`, landing the feature branch commits on the release branch.
+- 2026-07-12: Prepared release metadata in `764e9a1d`, then fixed the V2 shell bundle budget in `f2ccdd18` so the entry chunk stays under the 180,000 byte release limit.
+- 2026-07-12: Strict release gate passed via `MATTS_BROWSER_SMOKE_REQUIRED=1 scripts/release-check.sh`: 592 Python tests passed, coverage was 54.89% (6845/12470 lines), OpenAPI/client drift passed, React build passed, bundle check passed at 179,979 bytes, production audit found 0 vulnerabilities, and V2 browser smoke passed with health version `2.2.0`.
+- 2026-07-12: Built RPM artifacts with `scripts/build-rpm.sh`: `build/rpmbuild/RPMS/noarch/matts-value-set-2.2.0-1.el9.noarch.rpm` and `build/rpmbuild/SRPMS/matts-value-set-2.2.0-1.el9.src.rpm`.
+- 2026-07-12: Verified RPM metadata reports `Version: 2.2.0`, `Release: 1.el9`, `Architecture: noarch`; SHA256 checksums are `e0d70e79e1aacba2f80ded2d11a1d3dbfa29dd7224687d797a4718ea96666447` for the RPM and `118345c9af3906fed492e9234a4931eb69dfc9393f9abaa9ebc81c06563a5fef` for the SRPM.
+- 2026-07-12: Pushed `main` through release commit `f2ccdd18`, pushed annotated tag `v2.2.0`, and published GitHub release `https://github.com/matthewmackes/MACKESCODE-AI-PROXY/releases/tag/v2.2.0` with both RPM artifacts.
 
 **Dependencies:** Completed INT-165 and INT-166 feature work, release gate, RPM build toolchain, GitHub release credentials
-**Blocks:** Public v2.2.0 release publication
+**Blocks:** None
 
 ---
 
