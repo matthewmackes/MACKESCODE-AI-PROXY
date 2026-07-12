@@ -57,7 +57,7 @@ export default function TmuxTerminal({ active, canControl, sessionName, workspac
       rows: 40,
       cursorBlink: true,
       convertEol: true,
-      fontFamily: 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontFamily: '"IBM Plex Mono", Menlo, "DejaVu Sans Mono", "Bitstream Vera Sans Mono", Courier, monospace',
       fontSize: 13,
       theme: terminalTheme
     });

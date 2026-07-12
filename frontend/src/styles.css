@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bitcount+Single:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Montserrat:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
 
 html,
 body,
@@ -29,6 +29,9 @@ body,
   --cds-yellow: #f1c21b;
   --cds-purple: #8a3ffc;
   --cds-terminal: #161616;
+  --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", Menlo, "DejaVu Sans Mono", "Bitstream Vera Sans Mono", Courier, monospace;
   color-scheme: light;
 }
 
@@ -39,8 +42,11 @@ body,
 body {
   background: var(--cds-background);
   color: var(--cds-text);
-  font-family: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  line-height: 1.45;
   letter-spacing: 0;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -48,11 +54,30 @@ input,
 select,
 textarea {
   font: inherit;
+  line-height: inherit;
   letter-spacing: 0;
 }
 
 button {
   cursor: pointer;
+}
+
+.shellCurrentWorkspace strong,
+.readinessPulseMetrics b,
+.homeSummaryMetric strong,
+.advancedOverviewFacts b,
+.advancedOverview .readinessPulseMetrics b,
+.advancedOverview .homeSummaryMetric strong,
+.modelMetric strong,
+.researchMetrics strong,
+.icqChatStats span,
+.modelFacts span,
+.selectedModelFacts span,
+.modelAlertCard small,
+.homeNationMix b,
+.advancedOverview .homeNationMix b,
+.terminalStatus {
+  font-variant-numeric: tabular-nums;
 }
 
 .carbonShell {
@@ -187,6 +212,8 @@ button {
   max-width: 26vw;
   height: 28px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border: 1px solid var(--cds-border-subtle);
   background: var(--cds-field, #ffffff);
   color: var(--cds-text);
@@ -672,7 +699,7 @@ button {
   border: 1px solid #393939;
   background: #161616;
   color: #f4f4f4;
-  font: 12px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font: 12px/1.45 var(--font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -710,9 +737,9 @@ button {
 }
 
 .chatHero .heroHeader h1 {
-  font-family: "Inter", "IBM Plex Sans", system-ui, sans-serif;
-  font-optical-sizing: auto;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .heroHeader p,
@@ -996,7 +1023,7 @@ button {
 }
 
 .authTokenField input {
-  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 .authDialogActions {
@@ -1350,8 +1377,8 @@ button {
 }
 
 .messageRow p {
-  font-family: "Montserrat", "Inter", "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-optical-sizing: auto;
+  font-family: var(--font-sans);
+  line-height: 1.5;
   margin: 0;
   white-space: pre-wrap;
 }
@@ -2027,7 +2054,7 @@ button {
   overflow: auto;
   background: var(--cds-terminal);
   color: #f4f4f4;
-  font: 13px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font: 13px/1.45 var(--font-mono);
   white-space: pre-wrap;
 }
 
@@ -2352,7 +2379,7 @@ button {
   border: 1px solid var(--cds-border-subtle);
   background: #161616;
   color: #f4f4f4;
-  font: 12px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font: 12px/1.45 var(--font-mono);
   white-space: pre-wrap;
 }
 
@@ -2423,7 +2450,7 @@ button {
   overflow: auto;
   margin: 8px 0 0;
   color: #f4f4f4;
-  font: 12px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font: 12px/1.45 var(--font-mono);
   white-space: pre-wrap;
 }
 
@@ -3716,7 +3743,7 @@ button {
 .createResult pre {
   margin: 0;
   white-space: pre-wrap;
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .imageGalleryResult {
@@ -4462,8 +4489,9 @@ button {
 }
 
 .chatHero .heroHeader h1 {
-  font-family: "Bitcount Single", "Inter", "IBM Plex Sans", system-ui, sans-serif;
-  font-weight: 650;
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .heroHeader p,
@@ -4604,7 +4632,8 @@ button {
 
 .icqComposerInput,
 .icqTranscriptPane .messageBody p {
-  font-family: "Inter", "IBM Plex Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
+  line-height: 1.5;
 }
 
 .chatEmptyState {
@@ -6038,7 +6067,7 @@ html[data-chat-theme="dark"] .shellVoiceField select {
   border: 1px solid var(--cds-border-subtle);
   background: var(--cds-terminal);
   color: #f4f4f4;
-  font: 12px/1.45 "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font: 12px/1.45 var(--font-mono);
   white-space: pre-wrap;
 }
 
@@ -6316,19 +6345,31 @@ html[data-chat-theme="dark"] .shellVoiceField select {
 
   .shellVoiceTools {
     flex-basis: 100%;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(92px, .72fr);
+    align-items: end;
+    justify-content: stretch;
     padding: 7px 0 0;
     border-left: 0;
     border-top: 1px solid var(--cds-border-subtle);
   }
 
+  .shellVoiceToggle {
+    min-width: 0;
+    justify-content: center;
+  }
+
   .shellVoiceField select {
-    width: 150px;
-    max-width: 42vw;
+    width: 100%;
+    max-width: none;
   }
 
   .shellVoiceField.compact select {
-    width: 112px;
+    width: 100%;
+  }
+
+  .shellVoiceStatus {
+    display: none;
   }
 
   .heroHeader h1,

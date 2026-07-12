@@ -24,7 +24,7 @@ export default function TuiTerminal({ clientId, controller }: Props) {
       cursorBlink: true,
       convertEol: true,
       disableStdin: !controller,
-      fontFamily: 'IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontFamily: '"IBM Plex Mono", Menlo, "DejaVu Sans Mono", "Bitstream Vera Sans Mono", Courier, monospace',
       fontSize: 13,
       theme: terminalTheme
     });
