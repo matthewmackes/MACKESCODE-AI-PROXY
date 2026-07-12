@@ -3,9 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import alibabaCloudMark from 'simple-icons/icons/alibabacloud.svg?raw';
 import anthropicMark from 'simple-icons/icons/anthropic.svg?raw';
 import deepseekMark from 'simple-icons/icons/deepseek.svg?raw';
+import digitalOceanMark from 'simple-icons/icons/digitalocean.svg?raw';
 import googleMark from 'simple-icons/icons/google.svg?raw';
 import metaMark from 'simple-icons/icons/meta.svg?raw';
+import minimaxMark from 'simple-icons/icons/minimax.svg?raw';
 import mistralMark from 'simple-icons/icons/mistralai.svg?raw';
+import moonshotMark from 'simple-icons/icons/moonshotai.svg?raw';
 import nvidiaMark from 'simple-icons/icons/nvidia.svg?raw';
 import xiaomiMark from 'simple-icons/icons/xiaomi.svg?raw';
 import {
@@ -14,16 +17,21 @@ import {
   getChatPayload,
   getCodePayload,
   getCreatePayload,
+  getResearchReport,
   getModels,
   getResearchPayload,
   getWhatsNew,
   ModelCard,
+  ResearchClaim,
+  ResearchDossier,
+  ResearchEvidence,
   ResearchModelOutput,
   ResearchModelRole,
+  ResearchModelStrategy,
+  ResearchPayload,
+  ResearchReportPacket,
   ResearchSourceCoverage,
   WhatsNewPayload,
-  ResearchResult,
-  ResearchResultPayload,
   deleteCodeAttachment,
   reviewCodeImages,
   runChat,
@@ -31,6 +39,7 @@ import {
   runResearchSearch,
   sendCodeSession,
   startCodeSession,
+  updateResearchPins,
   uploadCodeAttachment
 } from '../api/v2';
 import { getMeCapabilities, getTmuxWorkspace } from '../api/generated/v2Client';
@@ -41,6 +50,7 @@ const iconBase = '/branding/Mackes-Carbon/scalable';
 export const WHATS_NEW_DISMISSED_KEY = 'matts-v2-whats-new-dismissed';
 export const V2_WORKSPACE_SESSION_KEYS = {
   chatTranscript: 'matts-v2-chat-transcript',
+  chatUiState: 'matts-v2-chat-ui-state',
   codeWorkspace: 'matts-v2-code-workspace',
   researchWorkspace: 'matts-v2-research-workspace',
   createWorkspace: 'matts-v2-create-workspace',
@@ -52,6 +62,7 @@ export const V2_AUTH_REQUIRED_EVENT = 'matts-v2-auth-required';
 export const V2_ADVANCED_LAZY_DELAY_KEY = 'matts-v2-advanced-lazy-delay-ms';
 export const V2_RESETTABLE_WORKSPACE_KEYS = [
   V2_WORKSPACE_SESSION_KEYS.chatTranscript,
+  V2_WORKSPACE_SESSION_KEYS.chatUiState,
   V2_WORKSPACE_SESSION_KEYS.codeWorkspace,
   V2_WORKSPACE_SESSION_KEYS.researchWorkspace,
   V2_WORKSPACE_SESSION_KEYS.createWorkspace,
@@ -85,10 +96,57 @@ function asText(value: unknown, fallback = ''): string {
   return JSON.stringify(value, null, 2);
 }
 
-function responseText(payload: unknown): string {
+function responseObject(payload: unknown): Record<string, unknown> {
   const row = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
-  const response = row.response && typeof row.response === 'object' ? row.response as Record<string, unknown> : row;
+  return row.response && typeof row.response === 'object' ? row.response as Record<string, unknown> : row;
+}
+
+function diagnosticWarningText(response: Record<string, unknown>): string {
+  const diagnostics = response.diagnostics && typeof response.diagnostics === 'object' ? response.diagnostics as Record<string, unknown> : {};
+  const warnings = Array.isArray(diagnostics.warnings) ? diagnostics.warnings : [];
+  const warningLines = warnings
+    .filter((warning): warning is Record<string, unknown> => Boolean(warning && typeof warning === 'object'))
+    .map((warning) => asText(warning.message || warning.code))
+    .filter(Boolean);
+  const stopReason = asText(diagnostics.stop_reason);
+  if (!warningLines.length && !stopReason) return '';
+  const trace = response.trace && typeof response.trace === 'object' ? response.trace as Record<string, unknown> : {};
+  const traceId = asText(trace.console_trace_id || response.trace_id);
+  return [
+    'Model response diagnostic',
+    ...warningLines.map((line) => `- ${line}`),
+    stopReason ? `- Stop reason: ${stopReason}` : '',
+    traceId ? `- Trace: ${traceId}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function responseText(payload: unknown): string {
+  const response = responseObject(payload);
+  if (Object.prototype.hasOwnProperty.call(response, 'text')) {
+    const text = asText(response.text);
+    return text.trim() ? text : diagnosticWarningText(response);
+  }
   return asText(response.text || response.content || response.message || response.answer || response);
+}
+
+function responseHasDiagnostics(payload: unknown): boolean {
+  const response = responseObject(payload);
+  const diagnostics = response.diagnostics && typeof response.diagnostics === 'object' ? response.diagnostics as Record<string, unknown> : {};
+  return Boolean(asText(diagnostics.output_format_issue) || (Array.isArray(diagnostics.warnings) && diagnostics.warnings.length));
+}
+
+function chatResponseMetadata(payload: unknown): string {
+  const response = responseObject(payload);
+  const routing = response.routing && typeof response.routing === 'object' ? response.routing as Record<string, unknown> : {};
+  const trace = response.trace && typeof response.trace === 'object' ? response.trace as Record<string, unknown> : {};
+  const cost = response.cost && typeof response.cost === 'object' ? response.cost as Record<string, unknown> : {};
+  const costValue = Number(cost.total_cost_usd);
+  const parts = [
+    asText(routing.used || routing.requested),
+    Number.isFinite(costValue) ? `$${costValue.toFixed(costValue < 0.01 ? 6 : 4)}` : '',
+    asText(trace.console_trace_id || response.trace_id),
+  ].filter(Boolean);
+  return parts.join(' · ');
 }
 
 function StatusPanel({ tone = 'neutral', title, detail }: { tone?: 'neutral' | 'loading' | 'error' | 'success'; title: string; detail?: string }) {
@@ -141,12 +199,13 @@ const LOCAL_BRAND_MARKS: Record<string, LocalBrandMark> = {
   baai: { key: 'baai', label: 'BAAI', short: 'BAAI' },
   blackforest: { key: 'blackforest', label: 'Black Forest Labs', short: 'BFL' },
   deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS', svg: deepseekMark },
+  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO', svg: digitalOceanMark },
   google: { key: 'google', label: 'Google', short: 'G', svg: googleMark },
   meta: { key: 'meta', label: 'Meta', short: 'META', svg: metaMark },
   microsoft: { key: 'microsoft', label: 'Microsoft', short: 'MS' },
-  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI' },
+  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI', svg: minimaxMark },
   mistral: { key: 'mistral', label: 'Mistral AI', short: 'M', svg: mistralMark },
-  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI' },
+  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI', svg: moonshotMark },
   nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV', svg: nvidiaMark },
   openai: { key: 'openai', label: 'OpenAI', short: 'OAI' },
   stability: { key: 'stability', label: 'Stability AI', short: 'SD' },
@@ -175,6 +234,8 @@ const LOCAL_BRAND_MATCHERS: Array<[string, string[]]> = [
 ];
 
 function localBrandMark(model: ModelCard): LocalBrandMark | undefined {
+  const renderKey = model.artwork?.render?.key;
+  if (renderKey && LOCAL_BRAND_MARKS[renderKey]) return LOCAL_BRAND_MARKS[renderKey];
   const haystack = [
     model.id,
     model.display_name,
@@ -202,20 +263,20 @@ function canRenderArtworkLogo(url: string): boolean {
 
 function ModelLogo({ model, size }: { model: ModelCard; size?: 'large' | 'xl' }) {
   const logo = model.artwork?.logo || '';
-  const renderableLogo = canRenderArtworkLogo(logo);
   const brandMark = localBrandMark(model);
+  const renderableLogo = !brandMark && canRenderArtworkLogo(logo);
   const [failedLogo, setFailedLogo] = useState(false);
   useEffect(() => setFailedLogo(false), [model.id, logo, renderableLogo]);
   const className = ['modelLogo', size].filter(Boolean).join(' ');
-  const artworkState = renderableLogo && logo && !failedLogo ? 'public-logo' : brandMark?.svg ? 'local-brand-svg' : brandMark ? 'local-brand-text' : logo ? 'attributed-initials' : 'generated-initials';
+  const artworkState = brandMark?.svg ? 'local-brand-svg' : brandMark ? 'local-brand-text' : renderableLogo && logo && !failedLogo ? 'public-logo' : logo ? 'attributed-initials' : 'generated-initials';
   return (
     <div className={className} data-artwork-state={artworkState} data-brand={brandMark?.key || ''} data-testid="model-logo" aria-label={`${model.display_name} model identity`}>
-      {renderableLogo && logo && !failedLogo ? (
-        <img src={logo} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailedLogo(true)} />
-      ) : brandMark?.svg ? (
+      {brandMark?.svg ? (
         <span className="modelBrandSvg" aria-hidden="true" title={brandMark.label} dangerouslySetInnerHTML={{ __html: brandMark.svg }} />
       ) : brandMark ? (
         <span className="modelBrandText" aria-hidden="true" title={brandMark.label}>{brandMark.short}</span>
+      ) : renderableLogo && logo && !failedLogo ? (
+        <img src={logo} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailedLogo(true)} />
       ) : (
         <span aria-hidden="true">{modelLogoInitials(model)}</span>
       )}
@@ -318,14 +379,14 @@ function ModelArtworkGallery({ model }: { model: ModelCard }) {
       <div className="artworkIdentity" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--secondary' as string]: model.nation_palette?.secondary || '#da1e28', ['--surface' as string]: model.nation_palette?.surface || '#edf5ff' }}>
         <ModelLogo model={model} size="xl" />
         <div>
-          <span>Brand Identity</span>
+          <span>Artwork Preview</span>
           <strong>{model.company}</strong>
           <p>{model.family} · {model.training_nation}</p>
         </div>
         {model.artwork?.brand_url ? <a className="artworkBrandLink" href={model.artwork.brand_url} target="_blank" rel="noreferrer">Brand Site</a> : <span className="artworkBrandLink muted">Generated Identity</span>}
       </div>
       <div className="artworkFacts" aria-label="Artwork metadata">
-        <div><span>Logo</span><strong>{model.artwork?.logo ? 'Tracked public URL' : brandMark ? 'Local brand mark' : 'Generated initials'}</strong></div>
+        <div><span>Logo</span><strong>{brandMark?.svg ? 'Bundled SVG' : brandMark ? 'Local brand mark' : model.artwork?.logo ? 'Generated from source' : 'Generated initials'}</strong></div>
         <div><span>Background</span><strong>{backgroundLabel}</strong></div>
         <div><span>Sources</span><strong>{sources.length.toLocaleString()}</strong></div>
         <div><span>Policy</span><strong>{model.artwork?.policy_notes ? 'Tracked' : 'Default'}</strong></div>
@@ -601,9 +662,72 @@ function SelectedModelPanel({ model }: { model?: ModelCard }) {
   );
 }
 
-type ChatMessage = { role: string; content: string; model?: string; company?: string; accent?: string };
+type ChatDeliveryState = 'sending' | 'failed';
+type ChatThemeMode = 'light' | 'dark';
+type ChatMessage = {
+  id?: string;
+  role: string;
+  content: string;
+  model?: string;
+  company?: string;
+  accent?: string;
+  createdAt?: string;
+  delivery?: ChatDeliveryState;
+  metadata?: string;
+  diagnostic?: boolean;
+  diagnosticDetail?: string;
+};
+type ChatUiState = {
+  selectedModel: string;
+  favorites: string[];
+  theme: ChatThemeMode;
+};
 const CHAT_TRANSCRIPT_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatTranscript;
+const CHAT_UI_STATE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatUiState;
 const CHAT_TRANSCRIPT_LIMIT = 50;
+
+function chatMessageId(role: string): string {
+  return `${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function chatTimestamp(): string {
+  return new Date().toISOString();
+}
+
+function formatChatTimestamp(value?: string): string {
+  if (!value) return 'Restored';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Restored';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function loadChatUiState(): ChatUiState {
+  if (typeof window === 'undefined') return { selectedModel: '', favorites: [], theme: 'light' };
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(CHAT_UI_STATE_SESSION_KEY) || '{}');
+    const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    return {
+      selectedModel: asText(row.selectedModel),
+      favorites: Array.isArray(row.favorites) ? row.favorites.filter((item): item is string => typeof item === 'string' && Boolean(item)) : [],
+      theme: row.theme === 'dark' ? 'dark' : 'light',
+    };
+  } catch {
+    return { selectedModel: '', favorites: [], theme: 'light' };
+  }
+}
+
+function saveChatUiState(state: ChatUiState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(CHAT_UI_STATE_SESSION_KEY, JSON.stringify({
+      selectedModel: state.selectedModel,
+      favorites: state.favorites.slice(0, 24),
+      theme: state.theme,
+    }));
+  } catch {
+    // Browser storage failures should not block the Chat UI.
+  }
+}
 
 function normalizeChatMessage(value: unknown): ChatMessage | null {
   if (!value || typeof value !== 'object') return null;
@@ -613,11 +737,17 @@ function normalizeChatMessage(value: unknown): ChatMessage | null {
   const content = row.content;
   if (!role || !content.trim()) return null;
   return {
+    ...(typeof row.id === 'string' && row.id ? { id: row.id } : {}),
     role,
     content,
     ...(typeof row.model === 'string' && row.model ? { model: row.model } : {}),
     ...(typeof row.company === 'string' && row.company ? { company: row.company } : {}),
     ...(typeof row.accent === 'string' && row.accent ? { accent: row.accent } : {}),
+    ...(typeof row.createdAt === 'string' && row.createdAt ? { createdAt: row.createdAt } : {}),
+    ...(row.delivery === 'sending' || row.delivery === 'failed' ? { delivery: row.delivery } : {}),
+    ...(typeof row.metadata === 'string' && row.metadata ? { metadata: row.metadata } : {}),
+    ...(row.diagnostic === true ? { diagnostic: true } : {}),
+    ...(typeof row.diagnosticDetail === 'string' && row.diagnosticDetail ? { diagnosticDetail: row.diagnosticDetail } : {}),
   };
 }
 
@@ -652,7 +782,7 @@ function saveChatTranscript(messages: ChatMessage[]): void {
 
 function serializeTranscript(messages: ChatMessage[]): string {
   return messages.map((message, index) => {
-    const label = [message.role.toUpperCase(), message.model, message.company].filter(Boolean).join(' · ');
+    const label = [message.role.toUpperCase(), message.model, message.company, formatChatTimestamp(message.createdAt), message.delivery, message.diagnostic ? 'diagnostic' : ''].filter(Boolean).join(' · ');
     return `#${index + 1} ${label}\n${message.content}`;
   }).join('\n\n');
 }
@@ -680,6 +810,37 @@ function chatBriefMarkdown(messages: ChatMessage[], selectedModel: string, model
     '## Transcript',
     serializeTranscript(messages) || 'No conversation yet.',
   ].join('\n');
+}
+
+function chatContactSearchText(model: ModelCard): string {
+  return [model.display_name, model.company, model.family, model.training_nation, model.type, model.cost_label].join(' ').toLowerCase();
+}
+
+function chatPresence(model?: ModelCard): { label: string; tone: 'online' | 'away' | 'offline' } {
+  if (!model) return { label: 'offline', tone: 'offline' };
+  if (model.route_enabled) return { label: 'online', tone: 'online' };
+  if (['not_checked', 'rate_limited', 'probe_failed'].includes(model.access_status)) return { label: readableStatus(model.access_status), tone: 'away' };
+  return { label: readableStatus(model.access_status), tone: 'offline' };
+}
+
+function chatContactGroups(models: ModelCard[], favorites: string[], filter: string): Array<{ label: string; models: ModelCard[]; pinned?: boolean }> {
+  const favoriteSet = new Set(favorites);
+  const query = filter.trim().toLowerCase();
+  const visible = models
+    .filter((model) => !query || chatContactSearchText(model).includes(query))
+    .sort((left, right) => left.display_name.localeCompare(right.display_name));
+  const groups: Array<{ label: string; models: ModelCard[]; pinned?: boolean }> = [];
+  const pinned = visible.filter((model) => favoriteSet.has(model.id));
+  if (pinned.length) groups.push({ label: 'Pinned', models: pinned, pinned: true });
+  const byNation = new Map<string, ModelCard[]>();
+  visible.filter((model) => !favoriteSet.has(model.id)).forEach((model) => {
+    const nation = model.training_nation || 'Unknown';
+    byNation.set(nation, [...(byNation.get(nation) || []), model]);
+  });
+  Array.from(byNation.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .forEach(([label, rows]) => groups.push({ label, models: rows }));
+  return groups;
 }
 
 async function copyText(text: string): Promise<void> {
@@ -767,11 +928,11 @@ function useCreateMood() {
   };
 }
 
-function researchBriefMetrics(data: ResearchResultPayload, results: ResearchResult[]): Array<[string, number]> {
-  const engineCount = new Set(results.map((result) => result.engine || result.engine_name).filter(Boolean)).size;
-  const degradedCount = data.synthesis?.degraded_engines?.length || results.filter((result) => ['needs_key', 'not_indexed', 'unavailable', 'error'].includes(result.status)).length;
-  const liveCount = numeric(data.synthesis?.live_result_count) || results.filter((result) => ['live', 'catalog', 'local'].includes(result.status)).length;
-  const evidenceCount = numeric(data.synthesis?.evidence_count) || results.length;
+function researchBriefMetrics(data: ResearchDossier, evidence: ResearchEvidence[]): Array<[string, number]> {
+  const engineCount = new Set(evidence.map((result) => result.engine || result.engine_name).filter(Boolean)).size;
+  const degradedCount = data.synthesis?.degraded_engines?.length || evidence.filter((result) => ['needs_key', 'not_indexed', 'unavailable', 'error'].includes(result.status)).length;
+  const liveCount = numeric(data.synthesis?.live_result_count) || evidence.filter((result) => ['live', 'catalog', 'local'].includes(result.status)).length;
+  const evidenceCount = numeric(data.synthesis?.evidence_count) || evidence.length;
   return [
     ['Evidence', evidenceCount],
     ['Live', liveCount],
@@ -788,7 +949,7 @@ const RESEARCH_SOURCE_LABELS: Array<[string, string]> = [
   ['technical-docs', 'Docs'],
 ];
 
-function researchSourceMetrics(data: ResearchResultPayload): Array<[string, number]> {
+function researchSourceMetrics(data: ResearchDossier): Array<[string, number]> {
   const coverage = data.synthesis?.source_coverage || [];
   if (coverage.length) {
     return coverage
@@ -801,7 +962,7 @@ function researchSourceMetrics(data: ResearchResultPayload): Array<[string, numb
     .filter(([, value]) => value > 0);
 }
 
-function researchSourceCoverage(data: ResearchResultPayload): ResearchSourceCoverage[] {
+function researchSourceCoverage(data: ResearchDossier): ResearchSourceCoverage[] {
   const coverage = data.synthesis?.source_coverage || [];
   if (coverage.length) return coverage;
   const counts = data.synthesis?.source_engine_counts || {};
@@ -819,26 +980,40 @@ function researchSourceCoverage(data: ResearchResultPayload): ResearchSourceCove
   }));
 }
 
-function researchBriefMarkdown(data: ResearchResultPayload, results: ResearchResult[], metrics: Array<[string, number]>): string {
+function researchEvidenceId(result: ResearchEvidence): string {
+  return result.evidence_id || result.id || result.citation || result.title;
+}
+
+function researchEvidenceMap(data: ResearchDossier): Map<string, ResearchEvidence> {
+  return new Map((data.evidence || []).map((item) => [researchEvidenceId(item), item]));
+}
+
+function researchBriefMarkdown(data: ResearchDossier, evidence: ResearchEvidence[], metrics: Array<[string, number]>): string {
   const sourceCoverage = researchSourceCoverage(data);
+  const strategy = data.model_audit?.strategy;
+  const outputs = data.model_audit?.outputs;
   const lines = [
-    `# ${data.synthesis?.title || 'Research Brief'}`,
+    `# ${data.report_packet?.title || data.synthesis?.title || 'Research Packet'}`,
     '',
-    `Query: ${data.query}`,
-    `Mode: ${data.mode}`,
+    `Dossier: ${data.dossier_id}`,
+    `Query: ${data.query?.text || ''}`,
+    `Mode: ${data.query?.mode || 'Balanced'}`,
     `Generated: ${new Date().toISOString()}`,
     '',
     '## Summary',
     data.synthesis?.summary || 'No synthesis available yet.',
     '',
-    '## Coordinated Answer',
-    data.model_outputs?.answer || data.synthesis?.coordinated_answer || 'No coordinated answer is available yet.',
+    '## Answer',
+    outputs?.answer || data.synthesis?.answer || data.synthesis?.coordinated_answer || 'No coordinated answer is available yet.',
+    '',
+    '## Claim Evidence Map',
+    ...(data.claims?.length ? data.claims.map((claim) => `- ${claim.text} (${claim.confidence}; ${claim.status}) Evidence: ${claim.supporting_evidence_ids.join(', ') || 'n/a'}`) : ['- No structured claims are available.']),
     '',
     '## Research Team',
   ];
   const team = [
-    ...(data.model_strategy?.analysts || []),
-    ...(data.model_strategy?.coordinator ? [data.model_strategy.coordinator] : []),
+    ...(strategy?.analysts || []),
+    ...(strategy?.coordinator ? [strategy.coordinator] : []),
   ];
   if (team.length) {
     team.forEach((role) => {
@@ -857,7 +1032,7 @@ function researchBriefMarkdown(data: ResearchResultPayload, results: ResearchRes
     '',
     '## Analyst Outputs',
   );
-  const analystOutputs = data.model_outputs?.analysts || [];
+  const analystOutputs = outputs?.analysts || [];
   if (analystOutputs.length) {
     analystOutputs.forEach((output) => lines.push(`- ${output.label}: ${output.text}`));
   } else {
@@ -867,10 +1042,10 @@ function researchBriefMarkdown(data: ResearchResultPayload, results: ResearchRes
     '',
     '## Evidence',
   );
-  if (!results.length) {
+  if (!evidence.length) {
     lines.push('- No evidence matches the active filter.');
   } else {
-    results.forEach((result, index) => {
+    evidence.forEach((result, index) => {
       lines.push(
         `${index + 1}. ${result.title}`,
         `   - Engine: ${result.engine_name} (${readableStatus(result.status)})`,
@@ -888,10 +1063,28 @@ function researchBriefMarkdown(data: ResearchResultPayload, results: ResearchRes
   return lines.join('\n');
 }
 
-function researchSourcePacket(result: ResearchResult): string {
+function researchReportMarkdown(data: ResearchDossier, packet?: ResearchReportPacket): string {
+  const report = packet || data.report_packet;
+  const metrics = researchBriefMetrics(data, data.evidence || []);
+  const lines = [
+    researchBriefMarkdown(data, data.evidence || [], metrics),
+    '',
+    '## Full Report Sections',
+  ];
+  (report?.sections || []).forEach((section) => {
+    lines.push('', `### ${section.title || section.id}`, section.content || '');
+    if (Array.isArray(section.items) && section.items.length) {
+      section.items.forEach((item, index) => lines.push(`${index + 1}. ${asText(item)}`));
+    }
+  });
+  return lines.join('\n');
+}
+
+function researchSourcePacket(result: ResearchEvidence): string {
   const lines = [
     `# ${result.title || 'Research Source'}`,
     '',
+    `Evidence ID: ${researchEvidenceId(result)}`,
     `Engine: ${result.engine_name || result.engine || 'n/a'}`,
     `Status: ${readableStatus(result.status)}`,
     `Citation: ${result.citation || 'n/a'}`,
@@ -905,8 +1098,10 @@ function researchSourcePacket(result: ResearchResult): string {
   return lines.join('\n');
 }
 
-function ResearchBriefActions({ brief, disabled = false, className = 'researchBriefActions' }: { brief: string; disabled?: boolean; className?: string }) {
-  const readyStatus = disabled ? 'No brief' : 'Brief Ready';
+function ResearchReportActions({ dossier, onPrint, className = 'researchBriefActions researchReportActions' }: { dossier: ResearchDossier | null; onPrint: () => void; className?: string }) {
+  const disabled = !dossier;
+  const brief = dossier ? researchReportMarkdown(dossier) : '';
+  const readyStatus = disabled ? 'No packet' : 'Packet Ready';
   const [briefStatus, setBriefStatus] = useState(readyStatus);
   useEffect(() => {
     setBriefStatus(readyStatus);
@@ -926,7 +1121,7 @@ function ResearchBriefActions({ brief, disabled = false, className = 'researchBr
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `mde-llm-proxy-research-brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
+    link.download = `mde-llm-proxy-research-packet-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -936,13 +1131,14 @@ function ResearchBriefActions({ brief, disabled = false, className = 'researchBr
   return (
     <div className={className} aria-label="Research brief actions">
       <span>{briefStatus}</span>
-      <button className="secondaryButton" type="button" disabled={disabled} onClick={() => void copyBrief()}>Copy Brief</button>
-      <button className="secondaryButton" type="button" disabled={disabled} onClick={downloadBrief}>Download Brief</button>
+      <button className="secondaryButton" type="button" disabled={disabled} onClick={() => void copyBrief()}>Copy Packet</button>
+      <button className="secondaryButton" type="button" disabled={disabled} onClick={downloadBrief}>Download Packet</button>
+      <button className="primaryButton" type="button" disabled={disabled} onClick={onPrint}>Print / Save PDF</button>
     </div>
   );
 }
 
-function ResearchTeamPanel({ strategy }: { strategy?: ResearchResultPayload['model_strategy'] }) {
+function ResearchTeamPanel({ strategy }: { strategy?: ResearchModelStrategy }) {
   if (!strategy) return null;
   const policy = strategy.policy || {};
   const roles = [
@@ -979,11 +1175,11 @@ function ResearchTeamPanel({ strategy }: { strategy?: ResearchResultPayload['mod
   );
 }
 
-function ResearchModelOutputs({ data }: { data: ResearchResultPayload }) {
-  const outputs = data.model_outputs;
+function ResearchModelOutputs({ data }: { data: ResearchDossier }) {
+  const outputs = data.model_audit?.outputs;
   const analysts = outputs?.analysts || [];
   const coordinator = outputs?.coordinator;
-  const answer = outputs?.answer || data.synthesis?.coordinated_answer || coordinator?.text || '';
+  const answer = outputs?.answer || data.synthesis?.answer || data.synthesis?.coordinated_answer || coordinator?.text || '';
   if (!answer && !analysts.length && !coordinator) return null;
   return (
     <div className="researchModelOutputs" data-testid="research-model-outputs">
@@ -1010,26 +1206,26 @@ function ResearchModelOutputs({ data }: { data: ResearchResultPayload }) {
   );
 }
 
-function ResearchEvidence({ data, compact = false }: { data: ResearchResultPayload; compact?: boolean }) {
+function ResearchResultsTab({ data, pinnedIds, onTogglePin, pinPending }: { data: ResearchDossier; pinnedIds: string[]; onTogglePin: (id: string) => void; pinPending: boolean }) {
   const [engineFilter, setEngineFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [copiedResultId, setCopiedResultId] = useState('');
-  const results = data.results || [];
-  const engineOptions = useMemo(() => {
-    const rows = new Map<string, string>();
-    results.forEach((result) => rows.set(result.engine || result.engine_name, result.engine_name || result.engine));
-    return Array.from(rows.entries()).filter(([id]) => Boolean(id));
-  }, [results]);
-  const filterableEngineIds = useMemo(() => new Set(engineOptions.map(([id]) => id)), [engineOptions]);
+  const evidence = data.evidence || [];
+  const engineOptions = useMemo(() => Array.from(new Map(evidence.map((result) => [result.engine || result.engine_name, result.engine_name || result.engine])).entries()).filter(([id]) => Boolean(id)), [evidence]);
+  const statusOptions = useMemo(() => Array.from(new Set(evidence.map((result) => result.status).filter(Boolean))).sort(), [evidence]);
+  const typeOptions = useMemo(() => Array.from(new Set(evidence.map((result) => result.source_type || result.kind).filter(Boolean))).sort(), [evidence]);
   useEffect(() => {
     if (engineFilter !== 'all' && !engineOptions.some(([id]) => id === engineFilter)) setEngineFilter('all');
   }, [engineFilter, engineOptions]);
-  const visibleResults = engineFilter === 'all' ? results : results.filter((result) => result.engine === engineFilter);
+  const visibleResults = evidence
+    .filter((result) => engineFilter === 'all' || result.engine === engineFilter)
+    .filter((result) => statusFilter === 'all' || result.status === statusFilter)
+    .filter((result) => typeFilter === 'all' || (result.source_type || result.kind) === typeFilter);
   const metrics = researchBriefMetrics(data, visibleResults);
-  const sourceMetrics = researchSourceMetrics(data);
   const sourceCoverage = researchSourceCoverage(data);
-  const brief = researchBriefMarkdown(data, visibleResults, metrics);
-  const copySourcePacket = async (result: ResearchResult) => {
-    const resultId = String(result.id || result.citation || result.title);
+  const copySourcePacket = async (result: ResearchEvidence) => {
+    const resultId = researchEvidenceId(result);
     try {
       await copyText(researchSourcePacket(result));
       setCopiedResultId(resultId);
@@ -1038,39 +1234,23 @@ function ResearchEvidence({ data, compact = false }: { data: ResearchResultPaylo
     }
   };
   return (
-    <div className={compact ? 'researchEvidence compact' : 'researchEvidence'}>
-      <div className="synthesisPanel">
-        <div>
-          <span>{readableStatus(data.mode)}</span>
-          <strong>{data.synthesis?.title || 'Research synthesis'}</strong>
-        </div>
-        <p>{data.synthesis?.summary || 'No synthesis available yet.'}</p>
-      </div>
-      <ResearchTeamPanel strategy={data.model_strategy} />
-      <ResearchModelOutputs data={data} />
+    <div className="researchEvidence lexisResultsPane">
       <div className="researchCommandBoard">
         <div className="researchMetrics" aria-label="Research result summary">
           {metrics.map(([label, value]) => <div key={label}><span>{label}</span><strong>{Number(value).toLocaleString()}</strong></div>)}
         </div>
-        {sourceMetrics.length ? (
-          <div className="researchSourceMix" aria-label="Research source classes">
-            {sourceMetrics.map(([label, value]) => <span key={label}>{label}<strong>{Number(value).toLocaleString()}</strong></span>)}
-          </div>
-        ) : null}
         {sourceCoverage.length ? (
           <div className="sourceCoveragePanel" aria-label="Required research source coverage" data-testid="research-source-coverage">
             {sourceCoverage.map((row) => {
               const engineId = row.engine_id || row.id;
-              const filterable = filterableEngineIds.has(engineId);
               const active = engineFilter === engineId;
               return (
                 <button
                   aria-pressed={active}
                   className={`sourceCoverageChip status-${row.status} ${active ? 'active' : ''}`}
-                  disabled={!filterable}
                   key={engineId}
                   onClick={() => setEngineFilter(active ? 'all' : engineId)}
-                  title={filterable ? `${row.detail} Filter evidence to ${row.label || row.name}.` : row.detail}
+                  title={`${row.detail} Filter evidence to ${row.label || row.name}.`}
                   type="button"
                 >
                   <strong>{row.label || row.name}</strong>
@@ -1086,36 +1266,151 @@ function ResearchEvidence({ data, compact = false }: { data: ResearchResultPaylo
             {engineOptions.map(([id, label]) => (
               <button className={engineFilter === id ? 'active' : ''} key={id} type="button" onClick={() => setEngineFilter(id)}>{label}</button>
             ))}
+            <select value={statusFilter} aria-label="Filter by status" onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">All status</option>
+              {statusOptions.map((status) => <option value={status} key={status}>{readableStatus(status)}</option>)}
+            </select>
+            <select value={typeFilter} aria-label="Filter by source type" onChange={(event) => setTypeFilter(event.target.value)}>
+              <option value="all">All types</option>
+              {typeOptions.map((type) => <option value={type} key={type}>{readableStatus(type)}</option>)}
+            </select>
           </div>
         ) : null}
-        <ResearchBriefActions brief={brief} />
       </div>
-      <div className="resultList">
+      <div className="lexisResultTable" role="table" aria-label="Research evidence results">
+        <div className="lexisResultHeader" role="row">
+          <span>Pin</span>
+          <span>Score</span>
+          <span>Source</span>
+          <span>Title</span>
+          <span>Status</span>
+          <span>Actions</span>
+        </div>
         {visibleResults.length ? visibleResults.map((result) => (
-          <article className={`searchResult status-${result.status}`} key={String(result.id)}>
-            <div className="resultMeta">
-              <span>{result.engine_name}</span>
+          <details className={`lexisResultRow status-${result.status}`} key={researchEvidenceId(result)}>
+            <summary>
+              <span><button className={`pinButton ${pinnedIds.includes(researchEvidenceId(result)) ? 'active' : ''}`} type="button" disabled={pinPending} aria-pressed={pinnedIds.includes(researchEvidenceId(result))} aria-label={`${pinnedIds.includes(researchEvidenceId(result)) ? 'Unpin' : 'Pin'} ${result.title}`} onClick={(event) => { event.preventDefault(); onTogglePin(researchEvidenceId(result)); }}><CarbonIcon path={pinnedIds.includes(researchEvidenceId(result)) ? 'apps/star--filled.svg' : 'apps/star.svg'} label="Pin" /></button></span>
+              <span>{Number.isFinite(Number(result.relevance_score ?? result.score)) ? Number(result.relevance_score ?? result.score).toLocaleString() : 'n/a'}</span>
+              <span>{result.engine_name || result.engine}</span>
+              <strong>{result.url ? <a href={result.url} target="_blank" rel="noreferrer">{result.title}</a> : result.title}</strong>
               <span>{readableStatus(result.status)}</span>
-              <span>{result.citation}</span>
-              {Number.isFinite(Number(result.score)) ? <span>{Math.round(Number(result.score) * 100)} score</span> : null}
-              <button
-                className={`resultCopyButton ${copiedResultId === String(result.id || result.citation || result.title) ? 'copied' : ''}`}
-                type="button"
-                onClick={() => void copySourcePacket(result)}
-                aria-label={`Copy Source for ${result.title}`}
-              >
-                <CarbonIcon path="apps/copy--to-clipboard.svg" label="Copy Source" />
-                {copiedResultId === `failed:${String(result.id || result.citation || result.title)}` ? 'Copy Failed' : copiedResultId === String(result.id || result.citation || result.title) ? 'Copied' : 'Copy Source'}
+              <button className={`resultCopyButton ${copiedResultId === researchEvidenceId(result) ? 'copied' : ''}`} type="button" onClick={(event) => { event.preventDefault(); void copySourcePacket(result); }} aria-label={`Copy Source for ${result.title}`}>
+                {copiedResultId === `failed:${researchEvidenceId(result)}` ? 'Copy Failed' : copiedResultId === researchEvidenceId(result) ? 'Copied' : 'Copy Source'}
               </button>
+            </summary>
+            <div className="lexisResultDetail">
+              <p>{result.snippet || 'No snippet provided.'}</p>
+              <dl>
+                <div><dt>Citation</dt><dd>{result.citation || 'n/a'}</dd></div>
+                <div><dt>Type</dt><dd>{readableStatus(result.source_type || result.kind)}</dd></div>
+                <div><dt>Source</dt><dd>{result.source}{result.published_at ? ` · ${result.published_at}` : ''}</dd></div>
+                {result.coordinates ? <div><dt>Coordinates</dt><dd>{result.coordinates}</dd></div> : null}
+                {result.path ? <div><dt>Path</dt><dd>{result.path}{result.chunk ? `#${result.chunk}` : ''}</dd></div> : null}
+              </dl>
             </div>
-            <h3>{result.url ? <a href={result.url} target="_blank" rel="noreferrer">{result.title}</a> : result.title}</h3>
-            {result.thumbnail_url ? <img className="resultThumbnail" src={result.thumbnail_url} alt="" loading="lazy" /> : null}
-            <p>{result.snippet}</p>
-            {result.coordinates ? <small>Coordinates: {result.coordinates}</small> : null}
-            <small>{result.source}{result.published_at ? ` · ${result.published_at}` : ''}</small>
-          </article>
+          </details>
         )) : <div className="emptyState">No evidence matches this filter.</div>}
       </div>
+    </div>
+  );
+}
+
+function ResearchBriefTab({ data }: { data: ResearchDossier }) {
+  const evidence = researchEvidenceMap(data);
+  return (
+    <div className="lexisBriefPane">
+      <div className="synthesisPanel">
+        <div>
+          <span>{readableStatus(data.query?.mode)}</span>
+          <strong>{data.synthesis?.title || 'Research synthesis'}</strong>
+        </div>
+        <p>{data.synthesis?.answer || data.synthesis?.coordinated_answer || data.synthesis?.summary || 'No synthesis available yet.'}</p>
+      </div>
+      <div className="claimMap" data-testid="research-claim-map">
+        <div className="claimMapHeader">
+          <span>{data.claims.length} claim{data.claims.length === 1 ? '' : 's'}</span>
+          <strong>Claim Evidence Map</strong>
+        </div>
+        {data.claims.length ? data.claims.map((claim) => (
+          <article className={`claimRow status-${claim.status}`} key={claim.claim_id}>
+            <div>
+              <span>{claim.confidence} · {readableStatus(claim.status)}</span>
+              <strong>{claim.text}</strong>
+              <p>{claim.caveat}</p>
+            </div>
+            <div className="claimEvidenceChips">
+              {claim.supporting_evidence_ids.length ? claim.supporting_evidence_ids.map((id) => {
+                const source = evidence.get(id);
+                return <span key={id}>{source?.citation || source?.title || id}</span>;
+              }) : <span>No linked evidence</span>}
+            </div>
+          </article>
+        )) : <div className="emptyState">No structured claims are available.</div>}
+      </div>
+      <details className="researchAuditPanel">
+        <summary>Model audit and diagnostics</summary>
+        <ResearchTeamPanel strategy={data.model_audit?.strategy} />
+        <ResearchModelOutputs data={data} />
+        <pre>{JSON.stringify(data.model_audit?.diagnostics || {}, null, 2)}</pre>
+      </details>
+    </div>
+  );
+}
+
+function ResearchSourceRegistryTab({ payload, dossier, activeEngineIds, onToggleEngine }: { payload?: ResearchPayload; dossier: ResearchDossier | null; activeEngineIds: string[]; onToggleEngine: (id: string) => void }) {
+  const engines = dossier?.source_catalog?.engines || payload?.engines || [];
+  const sourceClasses = dossier?.source_catalog?.source_classes || payload?.source_classes || [];
+  const coverage = dossier ? researchSourceCoverage(dossier) : [];
+  return (
+    <div className="sourceRegistryPanel" data-testid="research-source-registry">
+      <div className="sourceRegistryGrid">
+        {engines.map((engine) => {
+          const active = activeEngineIds.includes(engine.id);
+          return (
+            <article className={`sourceRegistryCard status-${engine.status} ${active ? 'active' : ''}`} key={engine.id}>
+              <div>
+                <span>{readableStatus(engine.kind)}</span>
+                <strong>{engine.name}</strong>
+                <p>{engine.detail || readableStatus(engine.status)}</p>
+              </div>
+              <button className="secondaryButton" type="button" aria-pressed={active} onClick={() => onToggleEngine(engine.id)}>{active ? 'Included' : 'Include'}</button>
+              <small>{readableStatus(engine.status)}{engine.run_status ? ` · run ${readableStatus(engine.run_status)}` : ''}</small>
+            </article>
+          );
+        })}
+      </div>
+      {sourceClasses.length ? (
+        <div className="sourceClassStrip" aria-label="Research source classes">
+          {sourceClasses.map((source) => {
+            const row = coverage.find((item) => item.engine_id === source.engine_id || item.id === source.id);
+            return (
+              <span className={`sourceClassChip kind-${source.kind.replace(/[^a-z0-9_-]/gi, '-')}`} key={source.id} title={source.detail || source.name}>
+                <strong>{source.label || source.name}</strong>
+                <small>{readableStatus(row?.status || source.status)} · {readableStatus(source.kind)}</small>
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ResearchPrintPacket({ dossier, packet }: { dossier: ResearchDossier | null; packet: ResearchReportPacket | null }) {
+  if (!dossier) return null;
+  const report = packet || dossier.report_packet;
+  return (
+    <div className="researchPrintFrame" aria-hidden="true">
+      <h1>{report?.title || 'Research Packet'}</h1>
+      <p><strong>Query:</strong> {dossier.query.text}</p>
+      <p><strong>Dossier:</strong> {dossier.dossier_id}</p>
+      {(report?.sections || []).map((section) => (
+        <section key={section.id}>
+          <h2>{section.title}</h2>
+          {section.content ? <pre>{section.content}</pre> : null}
+          {Array.isArray(section.items) ? section.items.map((item, index) => <p key={`${section.id}-${index}`}>{asText(item)}</p>) : null}
+        </section>
+      ))}
     </div>
   );
 }
@@ -1253,13 +1548,15 @@ function normalizeResearchSourceCoverage(value: unknown): ResearchSourceCoverage
   };
 }
 
-function normalizeResearchResult(value: unknown): ResearchResult | null {
+function normalizeResearchEvidence(value: unknown): ResearchEvidence | null {
   if (!value || typeof value !== 'object') return null;
   const row = value as Record<string, unknown>;
   const title = asText(row.title);
   if (!title) return null;
+  const evidenceId = asText(row.evidence_id || row.id || row.citation || title);
   return {
-    id: asText(row.id, title),
+    id: evidenceId,
+    evidence_id: evidenceId,
     engine: asText(row.engine || row.engine_name, 'local'),
     engine_name: asText(row.engine_name || row.engine, 'Evidence'),
     title,
@@ -1269,15 +1566,34 @@ function normalizeResearchResult(value: unknown): ResearchResult | null {
     source: asText(row.source, 'Session'),
     status: asText(row.status, 'local'),
     kind: asText(row.kind, 'web'),
+    source_type: asText(row.source_type || row.kind, 'web'),
     score: numeric(row.score),
+    relevance_score: Number.isFinite(Number(row.relevance_score)) ? Number(row.relevance_score) : numeric(row.score),
     position: numeric(row.position),
     citation: asText(row.citation),
+    source_label: asText(row.source_label || row.source || row.engine_name),
+    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
     ...(typeof row.path === 'string' ? { path: row.path } : {}),
     ...(Number.isFinite(Number(row.chunk)) ? { chunk: Number(row.chunk) } : {}),
     ...(typeof row.collection_id === 'string' ? { collection_id: row.collection_id } : {}),
     ...(typeof row.thumbnail_url === 'string' ? { thumbnail_url: row.thumbnail_url } : {}),
     ...(typeof row.content_url === 'string' ? { content_url: row.content_url } : {}),
     ...(typeof row.coordinates === 'string' ? { coordinates: row.coordinates } : {}),
+  };
+}
+
+function normalizeResearchClaim(value: unknown): ResearchClaim | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const text = asText(row.text);
+  if (!text) return null;
+  return {
+    claim_id: asText(row.claim_id, text),
+    text,
+    confidence: asText(row.confidence, 'low'),
+    status: asText(row.status, 'needs_review'),
+    supporting_evidence_ids: normalizeStringArray(row.supporting_evidence_ids),
+    caveat: asText(row.caveat),
   };
 }
 
@@ -1318,46 +1634,72 @@ function normalizeResearchModelOutput(value: unknown): ResearchModelOutput | nul
   return { ...role, text: asText(row.text) };
 }
 
-function normalizeResearchPayload(value: unknown): ResearchResultPayload | null {
+function normalizeResearchReportSection(value: unknown): ResearchReportPacket['sections'][number] | null {
   if (!value || typeof value !== 'object') return null;
   const row = value as Record<string, unknown>;
-  if (!Array.isArray(row.results)) return null;
-  const results = row.results.map(normalizeResearchResult).filter((result): result is ResearchResult => Boolean(result));
+  const id = asText(row.id || row.title);
+  const title = asText(row.title || row.id);
+  if (!id || !title) return null;
+  return {
+    id,
+    title,
+    kind: asText(row.kind, 'section'),
+    content: asText(row.content) || undefined,
+    items: Array.isArray(row.items) ? row.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object')) : undefined,
+  };
+}
+
+function normalizeResearchReportPacket(value: unknown, dossierId: string): ResearchReportPacket {
+  const row = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    dossier_id: asText(row.dossier_id, dossierId),
+    title: asText(row.title, 'Research Packet'),
+    generated_at: Number.isFinite(Number(row.generated_at)) ? Number(row.generated_at) : Date.now() / 1000,
+    sections: Array.isArray(row.sections) ? row.sections.map(normalizeResearchReportSection).filter((item): item is ResearchReportPacket['sections'][number] => Boolean(item)) : [],
+    pinned_evidence_ids: normalizeStringArray(row.pinned_evidence_ids),
+  };
+}
+
+function normalizeResearchPayload(value: unknown): ResearchDossier | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  if (Number(row.schema_version) !== 2 || !asText(row.dossier_id) || !Array.isArray(row.evidence)) return null;
+  const evidence = row.evidence.map(normalizeResearchEvidence).filter((result): result is ResearchEvidence => Boolean(result));
+  const claims = Array.isArray(row.claims) ? row.claims.map(normalizeResearchClaim).filter((claim): claim is ResearchClaim => Boolean(claim)) : [];
   const synthesis = row.synthesis && typeof row.synthesis === 'object' ? row.synthesis as Record<string, unknown> : {};
-  const strategyRow = row.model_strategy && typeof row.model_strategy === 'object' ? row.model_strategy as Record<string, unknown> : {};
-  const outputsRow = row.model_outputs && typeof row.model_outputs === 'object' ? row.model_outputs as Record<string, unknown> : {};
+  const auditRow = row.model_audit && typeof row.model_audit === 'object' ? row.model_audit as Record<string, unknown> : {};
+  const strategyRow = auditRow.strategy && typeof auditRow.strategy === 'object' ? auditRow.strategy as Record<string, unknown> : {};
+  const outputsRow = auditRow.outputs && typeof auditRow.outputs === 'object' ? auditRow.outputs as Record<string, unknown> : {};
   const analysts = Array.isArray(strategyRow.analysts) ? strategyRow.analysts.map(normalizeResearchRole).filter((item): item is ResearchModelRole => Boolean(item)) : [];
   const outputAnalysts = Array.isArray(outputsRow.analysts) ? outputsRow.analysts.map(normalizeResearchModelOutput).filter((item): item is ResearchModelOutput => Boolean(item)) : [];
   const coordinator = normalizeResearchRole(strategyRow.coordinator);
   const outputCoordinator = normalizeResearchModelOutput(outputsRow.coordinator);
   const policy = strategyRow.policy && typeof strategyRow.policy === 'object' ? strategyRow.policy as Record<string, unknown> : {};
+  const queryRow = row.query && typeof row.query === 'object' ? row.query as Record<string, unknown> : {};
+  const sourceCatalog = row.source_catalog && typeof row.source_catalog === 'object' ? row.source_catalog as Record<string, unknown> : {};
+  const dossierId = asText(row.dossier_id);
+  const reportPacket = normalizeResearchReportPacket(row.report_packet, dossierId);
   return {
-    query: asText(row.query),
-    mode: asText(row.mode, 'Balanced'),
-    engines: Array.isArray(row.engines) ? row.engines as ResearchResultPayload['engines'] : [],
-    results,
-    model_strategy: Object.keys(strategyRow).length ? {
-      policy: {
-        max_model_price_usd: Number.isFinite(Number(policy.max_model_price_usd)) ? Number(policy.max_model_price_usd) : undefined,
-        price_metric: asText(policy.price_metric) || undefined,
-        comparison: asText(policy.comparison) || undefined,
-        fast_max_latency_ms: Number.isFinite(Number(policy.fast_max_latency_ms)) ? Number(policy.fast_max_latency_ms) : undefined,
-        fast_response_required: typeof policy.fast_response_required === 'boolean' ? policy.fast_response_required : undefined,
-        llm_calls_enabled: typeof policy.llm_calls_enabled === 'boolean' ? policy.llm_calls_enabled : undefined,
-      },
-      candidate_count: Number.isFinite(Number(strategyRow.candidate_count)) ? Number(strategyRow.candidate_count) : undefined,
-      analysts,
-      coordinator: coordinator || { role: 'coordinator', label: 'Research coordinator', focus: '', status: 'unavailable' },
-    } : undefined,
-    model_outputs: Object.keys(outputsRow).length ? {
-      analysts: outputAnalysts,
-      coordinator: outputCoordinator || undefined,
-      answer: asText(outputsRow.answer) || undefined,
-      generated_at: Number.isFinite(Number(outputsRow.generated_at)) ? Number(outputsRow.generated_at) : undefined,
-    } : undefined,
+    schema_version: 2,
+    dossier_id: dossierId,
+    query: {
+      text: asText(queryRow.text),
+      mode: asText(queryRow.mode, 'Balanced'),
+      selected_engines: normalizeStringArray(queryRow.selected_engines),
+      source_selection_mode: asText(queryRow.source_selection_mode, 'all'),
+      submitted_at: Number.isFinite(Number(queryRow.submitted_at)) ? Number(queryRow.submitted_at) : 0,
+    },
+    source_catalog: {
+      engines: Array.isArray(sourceCatalog.engines) ? sourceCatalog.engines as ResearchPayload['engines'] : [],
+      source_classes: Array.isArray(sourceCatalog.source_classes) ? sourceCatalog.source_classes as ResearchPayload['source_classes'] : [],
+    },
+    engine_runs: Array.isArray(row.engine_runs) ? row.engine_runs as ResearchPayload['engines'] : [],
+    evidence,
+    claims,
     synthesis: {
       title: asText(synthesis.title) || undefined,
       summary: asText(synthesis.summary) || undefined,
+      answer: asText(synthesis.answer) || undefined,
       citations: normalizeStringArray(synthesis.citations),
       degraded_engines: normalizeStringArray(synthesis.degraded_engines),
       live_result_count: Number.isFinite(Number(synthesis.live_result_count)) ? Number(synthesis.live_result_count) : undefined,
@@ -1370,25 +1712,52 @@ function normalizeResearchPayload(value: unknown): ResearchResultPayload | null 
       source_coverage: Array.isArray(synthesis.source_coverage)
         ? synthesis.source_coverage.map(normalizeResearchSourceCoverage).filter((item): item is ResearchSourceCoverage => Boolean(item))
         : undefined,
+      evidence_ids: normalizeStringArray(synthesis.evidence_ids),
     },
+    model_audit: {
+      strategy: Object.keys(strategyRow).length ? {
+        policy: {
+          max_model_price_usd: Number.isFinite(Number(policy.max_model_price_usd)) ? Number(policy.max_model_price_usd) : undefined,
+          price_metric: asText(policy.price_metric) || undefined,
+          comparison: asText(policy.comparison) || undefined,
+          fast_max_latency_ms: Number.isFinite(Number(policy.fast_max_latency_ms)) ? Number(policy.fast_max_latency_ms) : undefined,
+          fast_response_required: typeof policy.fast_response_required === 'boolean' ? policy.fast_response_required : undefined,
+          llm_calls_enabled: typeof policy.llm_calls_enabled === 'boolean' ? policy.llm_calls_enabled : undefined,
+        },
+        candidate_count: Number.isFinite(Number(strategyRow.candidate_count)) ? Number(strategyRow.candidate_count) : undefined,
+        analysts,
+        coordinator: coordinator || { role: 'coordinator', label: 'Research coordinator', focus: '', status: 'unavailable' },
+      } : undefined,
+      outputs: Object.keys(outputsRow).length ? {
+        analysts: outputAnalysts,
+        coordinator: outputCoordinator || undefined,
+        answer: asText(outputsRow.answer) || undefined,
+        generated_at: Number.isFinite(Number(outputsRow.generated_at)) ? Number(outputsRow.generated_at) : undefined,
+      } : undefined,
+      diagnostics: auditRow.diagnostics && typeof auditRow.diagnostics === 'object' ? auditRow.diagnostics as Record<string, unknown> : {},
+    },
+    report_packet: reportPacket,
+    pinned_evidence_ids: normalizeStringArray(row.pinned_evidence_ids || reportPacket.pinned_evidence_ids),
   };
 }
 
 type ResearchEngineSelectionMode = 'all' | 'custom';
+type ResearchTab = 'search' | 'results' | 'brief' | 'sources';
 
 type ResearchWorkspaceState = {
   query: string;
   mode: string;
   engineSelectionMode: ResearchEngineSelectionMode;
   selectedEngines: string[];
-  result: ResearchResultPayload | null;
+  activeTab: ResearchTab;
+  dossier: ResearchDossier | null;
 };
 
 const RESEARCH_WORKSPACE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.researchWorkspace;
 const RESEARCH_SELECTED_ENGINE_LIMIT = 12;
 
 function emptyResearchWorkspace(): ResearchWorkspaceState {
-  return { query: '', mode: 'Balanced', engineSelectionMode: 'all', selectedEngines: [], result: null };
+  return { query: '', mode: 'Balanced', engineSelectionMode: 'all', selectedEngines: [], activeTab: 'search', dossier: null };
 }
 
 function loadResearchWorkspace(): ResearchWorkspaceState {
@@ -1402,12 +1771,15 @@ function loadResearchWorkspace(): ResearchWorkspaceState {
     const selectedEngines = normalizeStringArray(row.selectedEngines).slice(0, RESEARCH_SELECTED_ENGINE_LIMIT);
     const storedMode = row.engineSelectionMode === 'custom' || row.engineSelectionMode === 'all' ? row.engineSelectionMode : '';
     const engineSelectionMode = (storedMode || (selectedEngines.length ? 'custom' : 'all')) as ResearchEngineSelectionMode;
+    const activeTab = ['search', 'results', 'brief', 'sources'].includes(asText(row.activeTab)) ? asText(row.activeTab) as ResearchTab : 'search';
+    const dossier = normalizeResearchPayload(row.dossier || row.result);
     return {
       query: asText(row.query),
       mode: asText(row.mode, 'Balanced'),
       engineSelectionMode,
       selectedEngines: engineSelectionMode === 'custom' ? selectedEngines : [],
-      result: normalizeResearchPayload(row.result),
+      activeTab: dossier ? activeTab : 'search',
+      dossier,
     };
   } catch {
     return emptyResearchWorkspace();
@@ -1415,7 +1787,7 @@ function loadResearchWorkspace(): ResearchWorkspaceState {
 }
 
 function hasResearchWorkspaceState(state: ResearchWorkspaceState): boolean {
-  return Boolean(state.query.trim() || state.mode !== 'Balanced' || state.engineSelectionMode !== 'all' || state.selectedEngines.length || state.result);
+  return Boolean(state.query.trim() || state.mode !== 'Balanced' || state.engineSelectionMode !== 'all' || state.selectedEngines.length || state.activeTab !== 'search' || state.dossier);
 }
 
 function saveResearchWorkspace(state: ResearchWorkspaceState): void {
@@ -2232,15 +2604,27 @@ export function ChatPage() {
   const chat = useQuery({ queryKey: ['chat-payload'], queryFn: getChatPayload });
   const chatCapabilities = useQuery({ queryKey: ['chat-capabilities'], queryFn: getMeCapabilities, retry: false });
   const models = useTextModels(chat.data?.models);
-  const [model, setModel] = useState('');
+  const restoredUi = useMemo(loadChatUiState, []);
+  const [model, setModel] = useState(restoredUi.selectedModel);
+  const [contactFilter, setContactFilter] = useState('');
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(restoredUi.favorites);
+  const [chatTheme, setChatTheme] = useState<ChatThemeMode>(restoredUi.theme);
+  const [contactsOpen, setContactsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(loadChatTranscript);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceDefaultLoaded, setVoiceDefaultLoaded] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState('Ready');
   const [transcriptStatus, setTranscriptStatus] = useState('Ready');
-  const selectedModel = model || chat.data?.default_model || models[0]?.id || '';
+  const selectedModel = models.some((item) => item.id === model)
+    ? model
+    : models.some((item) => item.id === chat.data?.default_model)
+      ? chat.data?.default_model || ''
+      : models[0]?.id || '';
   const selectedModelCard = models.find((item) => item.id === selectedModel) || models[0];
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  const contactGroups = useMemo(() => chatContactGroups(models, favoriteIds, contactFilter), [contactFilter, favoriteIds, models]);
+  const activePresence = chatPresence(selectedModelCard);
   const canUseChat = chatCapabilities.data?.capabilities['chat.use']?.allowed === true;
   const chatUseDenied = Boolean(chatCapabilities.data && !canUseChat);
   const chatAuthPrompted = useRef(false);
@@ -2252,6 +2636,11 @@ export function ChatPage() {
   const transcript = serializeTranscript(messages);
   const chatBrief = chatBriefMarkdown(messages, selectedModel, selectedModelCard);
   const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant');
+  const activeContactLabel = selectedModelCard?.display_name || 'No contact selected';
+  const modelForMessage = (message: ChatMessage): ModelCard | undefined => {
+    if (message.role !== 'assistant') return undefined;
+    return models.find((item) => item.display_name === message.model || item.id === message.model) || selectedModelCard;
+  };
   const copyTranscript = async () => {
     if (!transcript) return;
     try {
@@ -2312,6 +2701,13 @@ export function ChatPage() {
   useEffect(() => {
     saveChatTranscript(messages);
   }, [messages]);
+  useEffect(() => {
+    saveChatUiState({ selectedModel, favorites: favoriteIds, theme: chatTheme });
+  }, [chatTheme, favoriteIds, selectedModel]);
+  useEffect(() => {
+    if (!models.length) return;
+    if (!selectedModel || !models.some((item) => item.id === selectedModel)) setModel(models[0].id);
+  }, [models, selectedModel]);
   const requestChatModelUse = () => {
     window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
       detail: {
@@ -2355,26 +2751,49 @@ export function ChatPage() {
     setTranscriptStatus('Cleared');
     stopVoice();
   };
+  const selectContact = (id: string) => {
+    setModel(id);
+    setContactsOpen(false);
+  };
+  const toggleFavorite = (id: string) => {
+    setFavoriteIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [id, ...current].slice(0, 24));
+  };
+  type ChatSendRequest = {
+    prompt: string;
+    baseMessages: ChatMessage[];
+    userMessageId: string;
+    modelId: string;
+    modelName: string;
+    company?: string;
+    accent?: string;
+  };
   const mutation = useMutation({
-    mutationFn: () => runChat({ model: selectedModel, messages: [...messages, { role: 'user', content: prompt }] }),
-    onSuccess: (payload) => {
+    mutationFn: (request: ChatSendRequest) => runChat({ model: request.modelId, client_selected_model_id: request.modelId, messages: [...request.baseMessages, { role: 'user', content: request.prompt }] }),
+    onSuccess: (payload, request) => {
       const answer = responseText(payload);
-      const nextMessages = [
-        ...messages,
-        { role: 'user', content: prompt },
+      const diagnostic = responseHasDiagnostics(payload);
+      const metadata = chatResponseMetadata(payload);
+      const diagnosticDetail = diagnostic ? JSON.stringify(responseObject(payload), null, 2) : '';
+      setMessages((current) => [
+        ...current.map((message) => message.id === request.userMessageId ? { ...message, delivery: undefined } : message),
         {
+          id: chatMessageId('assistant'),
           role: 'assistant',
-          content: answer,
-          model: selectedModelCard?.display_name || selectedModel,
-          company: selectedModelCard?.company,
-          accent: selectedModelCard?.nation_palette?.accent,
+          content: answer || 'Model response diagnostic\n- The model returned no visible assistant text.',
+          model: request.modelName,
+          company: request.company,
+          accent: request.accent,
+          createdAt: chatTimestamp(),
+          ...(metadata ? { metadata } : {}),
+          diagnostic,
+          ...(diagnosticDetail ? { diagnosticDetail } : {}),
         }
-      ];
-      setMessages(nextMessages);
+      ].slice(-CHAT_TRANSCRIPT_LIMIT));
       setPrompt('');
-      speak(answer);
+      if (!diagnostic) speak(answer);
     },
-    onError: (error) => {
+    onError: (error, request) => {
+      setMessages((current) => current.map((message) => message.id === request.userMessageId ? { ...message, delivery: 'failed' } : message));
       if (authLikeError(error)) requestChatModelUse();
     }
   });
@@ -2385,36 +2804,119 @@ export function ChatPage() {
       return;
     }
     if (!canSendChat) return;
-    mutation.mutate();
+    const text = prompt.trim();
+    const userMessageId = chatMessageId('user');
+    const userMessage: ChatMessage = {
+      id: userMessageId,
+      role: 'user',
+      content: text,
+      createdAt: chatTimestamp(),
+      delivery: 'sending',
+    };
+    setMessages((current) => [...current, userMessage].slice(-CHAT_TRANSCRIPT_LIMIT));
+    setPrompt('');
+    mutation.mutate({
+      prompt: text,
+      baseMessages: messages,
+      userMessageId,
+      modelId: selectedModel,
+      modelName: selectedModelCard?.display_name || selectedModel,
+      company: selectedModelCard?.company,
+      accent: selectedModelCard?.nation_palette?.accent,
+    });
   };
   const handleChatComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey) || !canSendChat) return;
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    if (!canSendChat) return;
     event.preventDefault();
-    mutation.mutate();
+    sendChat();
   };
   return (
-    <section className="heroWorkspace chatHero">
+    <section className={`heroWorkspace chatHero ${chatTheme === 'dark' ? 'chatThemeDark' : 'chatThemeLight'} ${contactsOpen ? 'contactPaneOpen' : ''}`}>
       <div className="heroHeader">
         <div>
           <p className="eyebrow">Autonomous System Manager</p>
           <h1>Chat</h1>
-          <p>Command-center chat with RBAC-aware model execution, voice output, and model identity carried into every response.</p>
+          <p>Classic contact-list chat where routable LLMs appear as online buddies with Carbon-aware status and controls.</p>
         </div>
         <div className="heroActions">
-          <button className={`iconButton ${voiceEnabled ? 'active' : ''}`} type="button" aria-label={voiceEnabled ? 'Mute voice' : 'Enable voice'} aria-pressed={voiceEnabled} onClick={toggleVoice}>
-            <CarbonIcon path="actions/call-start-symbolic.svg" label="Voice" />
+          <button className="secondaryButton chatContactsToggle" type="button" onClick={() => setContactsOpen(true)}>
+            <CarbonIcon path="apps/system-users.svg" label="Contacts" />
+            Contacts
+          </button>
+          <button className="secondaryButton" type="button" onClick={() => setChatTheme((current) => current === 'dark' ? 'light' : 'dark')}>
+            <CarbonIcon path={chatTheme === 'dark' ? 'apps/light.svg' : 'apps/moon.svg'} label="Theme" />
+            {chatTheme === 'dark' ? 'Light' : 'Dark'}
           </button>
         </div>
       </div>
-      <div className="workspaceGrid twoColumn">
-        <div className="composerPanel">
+      <div className="icqChatShell">
+        <button className="icqContactScrim" type="button" aria-label="Close contacts" onClick={() => setContactsOpen(false)} />
+        <aside className="icqContactPane" aria-label="LLM contact list">
+          <div className="icqWindowTitle">
+            <div>
+              <span>ICQ Contacts</span>
+              <strong>{models.length.toLocaleString()} online</strong>
+            </div>
+            <button className="iconButton icqCloseContacts" type="button" aria-label="Close contacts" onClick={() => setContactsOpen(false)}>
+              <CarbonIcon path="actions/window-close-symbolic.svg" label="Close" />
+            </button>
+          </div>
           {chat.isLoading ? <StatusPanel tone="loading" title="Loading chat workspace" /> : null}
           {chat.error ? <StatusPanel tone="error" title="Chat API unavailable" detail={errorText(chat.error)} /> : null}
           {chatUseDenied && !chat.error ? <StatusPanel tone="error" title="Model-use permission required" detail="Chat is visible with console view access, but sending messages requires model_use." /> : null}
           {!chat.isLoading && !chat.error && !models.length ? <StatusPanel title="No routable text models" detail="Enable or discover a routable text model before sending chat requests." /> : null}
-          <ModelSelect models={models} value={selectedModel} onChange={setModel} />
-          <SelectedModelPanel model={selectedModelCard} />
-          <div className={`voiceConsole ${voiceEnabled ? 'active' : 'muted'}`} aria-label="Chat voice controls">
+          <label className="icqContactSearch">
+            <CarbonIcon path="actions/system-search-symbolic.svg" label="Search" />
+            <input value={contactFilter} onChange={(event) => setContactFilter(event.target.value)} placeholder="Find LLM contact" />
+          </label>
+          <div className="icqContactGroups">
+            {contactGroups.length ? contactGroups.map((group) => (
+              <section className="icqContactGroup" key={group.label}>
+                <div className="icqGroupHeader">
+                  <span>{group.label}</span>
+                  <strong>{group.models.length}</strong>
+                </div>
+                {group.models.map((contact) => {
+                  const presence = chatPresence(contact);
+                  const active = contact.id === selectedModel;
+                  const favorite = favoriteSet.has(contact.id);
+                  return (
+                    <div className={`icqContactRow ${active ? 'active' : ''}`} key={`${group.label}-${contact.id}`}>
+                      <button className="icqContactButton" type="button" onClick={() => selectContact(contact.id)} aria-pressed={active}>
+                        <span className={`presenceDot ${presence.tone}`} title={presence.label} />
+                        <ModelLogo model={contact} />
+                        <span className="icqContactText">
+                          <strong>{contact.display_name}</strong>
+                          <small>{contact.company} · {contact.cost_label || 'cost n/a'}</small>
+                        </span>
+                      </button>
+                      <button className={`icqFavoriteButton ${favorite ? 'active' : ''}`} type="button" aria-label={`${favorite ? 'Unpin' : 'Pin'} ${contact.display_name}`} aria-pressed={favorite} onClick={() => toggleFavorite(contact.id)}>
+                        <CarbonIcon path={favorite ? 'apps/star--filled.svg' : 'apps/star.svg'} label="Favorite" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </section>
+            )) : <div className="emptyState">No contacts match this search.</div>}
+          </div>
+        </aside>
+        <main className="icqChatWindow">
+          <div className="icqWindowTitle icqChatTitle">
+            <div className="icqActiveContact">
+              {selectedModelCard ? <ModelLogo model={selectedModelCard} /> : <div className="chatUserAvatar"><CarbonIcon path="apps/chat-bot.svg" label="Model" /></div>}
+              <div>
+                <span><i className={`presenceDot ${activePresence.tone}`} /> {activePresence.label}</span>
+                <strong>{activeContactLabel}</strong>
+                <p>{selectedModelCard ? `${selectedModelCard.company} · ${selectedModelCard.training_nation} · ${selectedModelCard.cost_label}` : 'Select an LLM contact'}</p>
+              </div>
+            </div>
+            <div className="icqChatStats">
+              <span>{messages.length} message{messages.length === 1 ? '' : 's'}</span>
+              <span>{transcriptStatus}</span>
+            </div>
+          </div>
+          <div className={`voiceConsole icqVoiceStrip ${voiceEnabled ? 'active' : 'muted'}`} aria-label="Chat voice controls">
             <div className="voiceConsoleLead">
               <CarbonIcon path={voiceEnabled ? 'actions/media-playback-start-symbolic.svg' : 'actions/media-playback-stop-symbolic.svg'} label="Voice status" />
               <div>
@@ -2425,23 +2927,14 @@ export function ChatPage() {
             </div>
             <div className="voiceControls">
               <button className="secondaryButton" type="button" onClick={toggleVoice}>{voiceEnabled ? 'Mute' : 'Enable'}</button>
-              <button className="secondaryButton" type="button" onClick={() => speak(voicePreview)} disabled={!voiceEnabled}>Preview Voice</button>
+              <button className="secondaryButton" type="button" onClick={() => speak(voicePreview)} disabled={!voiceEnabled}>Preview</button>
               <button className="secondaryButton" type="button" onClick={stopVoice}>Stop</button>
             </div>
           </div>
-          <textarea className="xlInput" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleChatComposerKeyDown} placeholder="Ask the platform to inspect, explain, run, or coordinate work." />
-          <button className="primaryButton" type="button" disabled={!canSendChat} onClick={sendChat}>
-            <CarbonIcon path="actions/document-send-symbolic.svg" label="Send" />
-            {mutation.isPending ? 'Sending' : 'Send'}
-          </button>
-          {mutation.error ? <div className="errorBanner">{errorText(mutation.error)}</div> : null}
-        </div>
-        <div className="conversationPanel">
-          <div className="transcriptToolbar" aria-label="Chat transcript controls">
+          <div className="transcriptToolbar icqTranscriptStrip" aria-label="Chat transcript controls">
             <div>
-              <span>{messages.length} message{messages.length === 1 ? '' : 's'}</span>
+              <span>History</span>
               <strong>{lastAssistant?.model || selectedModelCard?.display_name || 'No response yet'}</strong>
-              <small>{transcriptStatus}</small>
             </div>
             <div className="transcriptActions">
               <button className="secondaryButton" type="button" disabled={!messages.length} onClick={() => void copyTranscript()}>Copy</button>
@@ -2451,14 +2944,63 @@ export function ChatPage() {
               <button className="secondaryButton" type="button" disabled={!messages.length} onClick={clearTranscript}>Clear</button>
             </div>
           </div>
-          {mutation.isPending ? <StatusPanel tone="loading" title="Waiting for model response" detail={selectedModelCard?.display_name || selectedModel} /> : null}
-          {messages.length ? messages.map((message, index) => (
-            <div className={`messageRow ${message.role}`} key={`${message.role}-${index}`} style={{ ['--message-accent' as string]: message.accent || undefined }}>
-              <span>{message.role}{message.model ? ` · ${message.model}` : ''}{message.company ? ` · ${message.company}` : ''}</span>
-              <p>{message.content}</p>
-            </div>
-          )) : <div className="emptyState">No conversation yet.</div>}
-        </div>
+          <div className="conversationPanel icqTranscriptPane">
+            {mutation.isPending ? <div className="icqSystemNotice">Waiting for {selectedModelCard?.display_name || selectedModel}...</div> : null}
+            {messages.length ? messages.map((message, index) => {
+              const rowModel = modelForMessage(message);
+              const isAssistant = message.role === 'assistant';
+              const isUser = message.role === 'user';
+              const rowTitle = message.diagnostic ? 'System message' : isUser ? 'You' : message.model || rowModel?.display_name || 'Assistant';
+              return (
+                <div className={`messageRow ${message.role} ${message.diagnostic ? 'diagnostic system' : ''}`} key={message.id || `${message.role}-${index}`} style={{ ['--message-accent' as string]: message.accent || rowModel?.nation_palette?.accent || undefined }}>
+                  <div className="messageAvatar" aria-hidden="true">
+                    {message.diagnostic ? <CarbonIcon path="apps/information--filled.svg" label="System" /> : isAssistant && rowModel ? <ModelLogo model={rowModel} /> : <div className="chatUserAvatar"><CarbonIcon path="apps/user--avatar.svg" label="User" /></div>}
+                  </div>
+                  <div className="messageBody">
+                    <div className="messageHeaderLine">
+                      <strong>{rowTitle}</strong>
+                      <time>{formatChatTimestamp(message.createdAt)}</time>
+                      {message.delivery ? <small className={`deliveryState ${message.delivery}`}>{message.delivery}</small> : null}
+                    </div>
+                    {message.metadata ? <small className="messageMetadata">{message.metadata}</small> : null}
+                    <p>{message.content}</p>
+                    {message.diagnosticDetail ? (
+                      <details className="messageDiagnostics">
+                        <summary>Raw details</summary>
+                        <pre>{message.diagnosticDetail}</pre>
+                      </details>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            }) : (
+              <div className="chatEmptyState">
+                <div className="chatEmptyMark">
+                  {selectedModelCard ? <ModelLogo model={selectedModelCard} /> : <CarbonIcon path="apps/chat-bot.svg" label="Model" />}
+                </div>
+                <div>
+                  <span>Ready for dialogue</span>
+                  <strong>{activeContactLabel}</strong>
+                  <small>No conversation yet.</small>
+                  <p>{selectedModelCard ? `${selectedModelCard.company} model contact. ${selectedModelCard.cost_label || 'Cost metadata pending.'}` : 'Select an LLM contact to start a session.'}</p>
+                </div>
+                <div className="chatStarterRow" aria-label="Suggested starters">
+                  <button type="button" onClick={() => setPrompt('Summarize the current operator status and next action.')}>Status brief</button>
+                  <button type="button" onClick={() => setPrompt('Compare the active model with a lower-cost alternative.')}>Compare model</button>
+                  <button type="button" onClick={() => setPrompt('Draft a concise technical answer with citations where available.')}>Draft answer</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <form className="icqComposer" onSubmit={(event) => { event.preventDefault(); sendChat(); }}>
+            <textarea className="icqComposerInput" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleChatComposerKeyDown} placeholder="Message active LLM contact" />
+            <button className="primaryButton" type="submit" disabled={!canSendChat}>
+              <CarbonIcon path="actions/document-send-symbolic.svg" label="Send" />
+              {mutation.isPending ? 'Sending' : 'Send'}
+            </button>
+          </form>
+          {mutation.error ? <div className="errorBanner">{errorText(mutation.error)}</div> : null}
+        </main>
       </div>
     </section>
   );
@@ -3069,7 +3611,9 @@ export function ResearchPage() {
   const [mode, setMode] = useState(restoredWorkspace.mode);
   const [engineSelectionMode, setEngineSelectionMode] = useState<ResearchEngineSelectionMode>(restoredWorkspace.engineSelectionMode);
   const [selectedEngines, setSelectedEngines] = useState<string[]>(restoredWorkspace.selectedEngines);
-  const [researchResult, setResearchResult] = useState<ResearchResultPayload | null>(restoredWorkspace.result);
+  const [activeTab, setActiveTab] = useState<ResearchTab>(restoredWorkspace.activeTab);
+  const [researchDossier, setResearchDossier] = useState<ResearchDossier | null>(restoredWorkspace.dossier);
+  const [printPacket, setPrintPacket] = useState<ResearchReportPacket | null>(researchDossier?.report_packet || null);
   const engines = payload.data?.engines || [];
   const sourceClasses = payload.data?.source_classes || [];
   const engineIds = useMemo(() => engines.map((engine) => engine.id).filter(Boolean), [engines]);
@@ -3117,7 +3661,21 @@ export function ResearchPage() {
   };
   const searchMutation = useMutation({
     mutationFn: () => runResearchSearch({ query, mode, ...(engineSelectionMode === 'custom' ? { engines: activeEngineIds } : {}) }),
-    onSuccess: (result) => setResearchResult(result),
+    onSuccess: (result) => {
+      setResearchDossier(result);
+      setPrintPacket(result.report_packet);
+      setActiveTab('results');
+    },
+  });
+  const pinMutation = useMutation({
+    mutationFn: (evidenceIds: string[]) => {
+      if (!researchDossier) throw new Error('No research dossier is active.');
+      return updateResearchPins(researchDossier.dossier_id, evidenceIds);
+    },
+    onSuccess: (result) => {
+      setResearchDossier(result);
+      setPrintPacket(result.report_packet);
+    },
   });
   const canRunResearchSearch = Boolean(query.trim()) && !searchMutation.isPending && !customSelectionEmpty;
   const submitResearchSearch = () => {
@@ -3129,59 +3687,110 @@ export function ResearchPage() {
     event.preventDefault();
     searchMutation.mutate();
   };
-  const researchBrief = useMemo(() => {
-    if (!researchResult) return '';
-    const results = researchResult.results || [];
-    return researchBriefMarkdown(researchResult, results, researchBriefMetrics(researchResult, results));
-  }, [researchResult]);
+  const pinnedIds = researchDossier?.pinned_evidence_ids || [];
+  const toggleEvidencePin = (evidenceId: string) => {
+    if (!researchDossier || pinMutation.isPending) return;
+    const next = pinnedIds.includes(evidenceId) ? pinnedIds.filter((id) => id !== evidenceId) : [...pinnedIds, evidenceId];
+    pinMutation.mutate(next);
+  };
+  const printResearchReport = async () => {
+    if (!researchDossier) return;
+    try {
+      const report = await getResearchReport(researchDossier.dossier_id);
+      setPrintPacket(report);
+    } catch {
+      setPrintPacket(researchDossier.report_packet);
+    }
+    window.setTimeout(() => window.print(), 0);
+  };
+  const visibleSourceClasses = sourceClasses.length ? sourceClasses : researchDossier?.source_catalog?.source_classes || [];
   useEffect(() => {
-    saveResearchWorkspace({ query, mode, engineSelectionMode, selectedEngines: engineSelectionMode === 'custom' ? activeEngineIds : [], result: researchResult });
-  }, [query, mode, engineSelectionMode, activeEngineIds, researchResult]);
+    saveResearchWorkspace({ query, mode, engineSelectionMode, selectedEngines: engineSelectionMode === 'custom' ? activeEngineIds : [], activeTab, dossier: researchDossier });
+  }, [query, mode, engineSelectionMode, activeEngineIds, activeTab, researchDossier]);
   return (
-    <section className="heroWorkspace researchHero">
+    <section className="heroWorkspace researchHero lexisResearchHero">
       <div className="heroHeader">
         <div>
-          <p className="eyebrow">Search + Evidence + Synthesis</p>
+          <p className="eyebrow">Technical Research Dossier</p>
           <h1>Research</h1>
-          <p>Wide search-style results with search engine badges, evidence workspace, and model-backed synthesis.</p>
+          <p>Professional technical research with source controls, evidence tables, claim mapping, and a full printable packet.</p>
         </div>
+        <ResearchReportActions dossier={researchDossier} onPrint={() => void printResearchReport()} className="researchBriefDock" />
       </div>
-      <div className="searchLine">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleResearchSearchKeyDown} placeholder="Search across configured engines" />
-        <select value={mode} onChange={(event) => setMode(event.target.value)}>{(payload.data?.modes || ['Balanced']).map((item) => <option key={item}>{item}</option>)}</select>
-        <button className="primaryButton" type="button" onClick={submitResearchSearch} disabled={!canRunResearchSearch}>Search</button>
+      <div className="researchTabs" role="tablist" aria-label="Research workspace tabs">
+        {([
+          ['search', 'Advanced Search'],
+          ['results', 'Results'],
+          ['brief', 'Synthesis Brief'],
+          ['sources', 'Source Registry'],
+        ] as Array<[ResearchTab, string]>).map(([tab, label]) => (
+          <button key={tab} role="tab" type="button" aria-selected={activeTab === tab} className={activeTab === tab ? 'active' : ''} disabled={tab !== 'search' && tab !== 'sources' && !researchDossier} onClick={() => setActiveTab(tab)}>
+            {label}
+          </button>
+        ))}
       </div>
-      <ResearchBriefActions brief={researchBrief} disabled={!researchResult} className="researchBriefDock" />
-      <ResearchTeamPanel strategy={researchResult?.model_strategy || payload.data?.model_strategy} />
       {payload.isLoading ? <StatusPanel tone="loading" title="Loading research engines" /> : null}
       {payload.error ? <StatusPanel tone="error" title="Research setup unavailable" detail={errorText(payload.error)} /> : null}
-      {searchMutation.isPending ? <StatusPanel tone="loading" title="Searching configured engines" detail={query} /> : null}
       {searchMutation.error ? <StatusPanel tone="error" title="Research search failed" detail={errorText(searchMutation.error)} /> : null}
+      {pinMutation.error ? <StatusPanel tone="error" title="Research pin update failed" detail={errorText(pinMutation.error)} /> : null}
       {customSelectionEmpty ? <StatusPanel tone="neutral" title="Select at least one research engine" detail="Use Select All or turn on one source before searching." /> : null}
-      <div className="engineControls" aria-label="Research engine selection controls">
-        <span>{selectionSummary}</span>
-        <button className="secondaryButton" type="button" aria-pressed={engineSelectionMode === 'all'} onClick={() => { setEngineSelectionMode('all'); setSelectedEngines([]); }}>Select All</button>
-        <button className="secondaryButton" type="button" aria-pressed={requiredSourceSetSelected} onClick={selectRequiredSources} disabled={!requiredSourceIds.length}>Required Sources</button>
-        <button className="secondaryButton" type="button" onClick={() => { setEngineSelectionMode('custom'); setSelectedEngines([]); }} disabled={!engineIds.length}>Clear</button>
-      </div>
-      <div className="engineStrip">
-        {engines.map((engine) => {
-          const checked = engineSelectionMode === 'all' || activeEngineIds.includes(engine.id);
-          return <button aria-pressed={checked} className={`engineChip ${checked ? 'active' : ''} status-${engine.status}`} key={engine.id} type="button" title={engine.detail || engine.status} onClick={() => toggleEngine(engine.id)}>{engine.name}<span>{readableStatus(engine.status)}</span></button>;
-        })}
-      </div>
-      {sourceClasses.length ? (
-        <div className="sourceClassStrip" aria-label="Research source classes">
-          {sourceClasses.map((source) => (
-            <span className={`sourceClassChip kind-${source.kind.replace(/[^a-z0-9_-]/gi, '-')}`} key={source.id} title={source.detail || source.name}>
-              <strong>{source.label || source.name}</strong>
-              <small>{readableStatus(source.status)} · {readableStatus(source.kind)}</small>
-            </span>
-          ))}
+
+      {activeTab === 'search' ? (
+        <div className="researchTabPanel lexisSearchPanel" role="tabpanel">
+          <div className="searchLine lexisSearchLine">
+            <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleResearchSearchKeyDown} placeholder="Search technical documentation, examples, papers, web, and local RAG" />
+            <select value={mode} onChange={(event) => setMode(event.target.value)}>{(payload.data?.modes || ['Balanced']).map((item) => <option key={item}>{item}</option>)}</select>
+            <button className="primaryButton" type="button" onClick={submitResearchSearch} disabled={!canRunResearchSearch}>{searchMutation.isPending ? 'Searching' : 'Search'}</button>
+          </div>
+          {searchMutation.isPending ? (
+            <div className="researchSearchStatus" role="status">
+              <strong>Searching configured sources</strong>
+              <span>{query}</span>
+              <div className="resultSkeleton"><span /><span /><span /></div>
+            </div>
+          ) : null}
+          <div className="engineControls" aria-label="Research engine selection controls">
+            <span>{selectionSummary}</span>
+            <button className="secondaryButton" type="button" aria-pressed={engineSelectionMode === 'all'} onClick={() => { setEngineSelectionMode('all'); setSelectedEngines([]); }}>Select All</button>
+            <button className="secondaryButton" type="button" aria-pressed={requiredSourceSetSelected} onClick={selectRequiredSources} disabled={!requiredSourceIds.length}>Required Sources</button>
+            <button className="secondaryButton" type="button" onClick={() => { setEngineSelectionMode('custom'); setSelectedEngines([]); }} disabled={!engineIds.length}>Clear</button>
+          </div>
+          <div className="engineStrip">
+            {engines.map((engine) => {
+              const checked = engineSelectionMode === 'all' || activeEngineIds.includes(engine.id);
+              return <button aria-pressed={checked} className={`engineChip ${checked ? 'active' : ''} status-${engine.status}`} key={engine.id} type="button" title={engine.detail || engine.status} onClick={() => toggleEngine(engine.id)}>{engine.name}<span>{readableStatus(engine.status)}</span></button>;
+            })}
+          </div>
+          {visibleSourceClasses.length ? (
+            <div className="sourceClassStrip" aria-label="Research source classes">
+              {visibleSourceClasses.map((source) => (
+                <span className={`sourceClassChip kind-${source.kind.replace(/[^a-z0-9_-]/gi, '-')}`} key={source.id} title={source.detail || source.name}>
+                  <strong>{source.label || source.name}</strong>
+                  <small>{readableStatus(source.status)} · {readableStatus(source.kind)}</small>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {!payload.isLoading && !payload.error && !engines.length ? <StatusPanel title="No research engines reported" detail="Configure external search credentials or local RAG to populate search sources." /> : null}
+          {!researchDossier && !searchMutation.isPending ? <div className="emptyState">Enter a technical query and choose sources to create a research dossier.</div> : null}
         </div>
       ) : null}
-      {!payload.isLoading && !payload.error && !engines.length ? <StatusPanel title="No research engines reported" detail="Configure external search credentials or local RAG to populate search sources." /> : null}
-      {researchResult ? <ResearchEvidence data={researchResult} /> : null}
+      {activeTab === 'results' ? (
+        <div className="researchTabPanel" role="tabpanel">
+          {researchDossier ? <ResearchResultsTab data={researchDossier} pinnedIds={pinnedIds} onTogglePin={toggleEvidencePin} pinPending={pinMutation.isPending} /> : <div className="emptyState">Run a search to populate Results.</div>}
+        </div>
+      ) : null}
+      {activeTab === 'brief' ? (
+        <div className="researchTabPanel" role="tabpanel">
+          {researchDossier ? <ResearchBriefTab data={researchDossier} /> : <div className="emptyState">Run a search to create a synthesis brief.</div>}
+        </div>
+      ) : null}
+      {activeTab === 'sources' ? (
+        <div className="researchTabPanel" role="tabpanel">
+          <ResearchSourceRegistryTab payload={payload.data} dossier={researchDossier} activeEngineIds={activeEngineIds} onToggleEngine={toggleEngine} />
+        </div>
+      ) : null}
+      <ResearchPrintPacket dossier={researchDossier} packet={printPacket} />
     </section>
   );
 }

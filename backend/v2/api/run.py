@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
+from backend.v2.services.chat_response import normalize_chat_result
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from backend.v2.services.run_store import RunStore
 from src.console.services.eval_gates import EvalGateBlocked
@@ -243,7 +244,7 @@ if router:
             raise HTTPException(status_code=400, detail={"message": str(exc), "code": "invalid_chat_run"})
         if status >= 400:
             raise HTTPException(status_code=status, detail=result)
-        return {"status": status, "response": result}
+        return {"status": status, "response": normalize_chat_result(result, str(payload.get("client_selected_model_id") or ""))}
 
     @router.get("/prompt-templates")
     def prompt_templates(

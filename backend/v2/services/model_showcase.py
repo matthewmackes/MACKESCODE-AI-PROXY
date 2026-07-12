@@ -40,6 +40,21 @@ BRAND_ARTWORK: dict[str, dict[str, str]] = {
     "DigitalOcean": {"logo": "https://cdn.simpleicons.org/digitalocean/0080FF", "source": "Simple Icons public CDN", "source_url": "https://simpleicons.org/?q=digitalocean", "brand_url": "https://www.digitalocean.com/products/gradientai", "background": "brand_nation_panel"},
 }
 
+BUNDLED_ARTWORK_KEYS: dict[str, str] = {
+    "Alibaba": "alibaba",
+    "Alibaba Qwen": "alibaba",
+    "Anthropic": "anthropic",
+    "DeepSeek": "deepseek",
+    "DigitalOcean": "digitalocean",
+    "Google": "google",
+    "Meta": "meta",
+    "MiniMax": "minimax",
+    "Mistral AI": "mistral",
+    "Moonshot AI": "moonshot",
+    "NVIDIA": "nvidia",
+    "Xiaomi": "xiaomi",
+}
+
 DIGITALOCEAN_LLM_LINKS = [
     {
         "label": "Serverless Inference",
@@ -97,6 +112,8 @@ class ModelShowcaseService:
         logo = str(profile.get("logo") or configured.get("logo") or "")
         brand_url = str(configured.get("brand_url") or "")
         background = str(configured.get("background") or "generated_brand_panel")
+        render_key = BUNDLED_ARTWORK_KEYS.get(brand, "")
+        render_mode = "bundled_svg" if render_key else "generated_initials"
         sources = []
         if logo:
             sources.append({
@@ -133,6 +150,11 @@ class ModelShowcaseService:
             "logo": logo,
             "brand_url": brand_url,
             "background": background,
+            "render": {
+                "mode": render_mode,
+                "key": render_key,
+                "label": brand,
+            },
             "sources": sources,
             "policy_notes": "Public artwork URLs are display references only; local operators can replace them with approved vendor assets in the model registry.",
         }

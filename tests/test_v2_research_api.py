@@ -9,6 +9,8 @@ except (ImportError, RuntimeError):  # pragma: no cover
     TestClient = None
 
 from backend.v2.app import create_app
+from backend.v2.api import research as research_api
+from backend.v2.services.research_dossier_store import ResearchDossierStore
 
 
 SEARCH_ENV = (
@@ -75,6 +77,7 @@ class V2ResearchApiTests(unittest.TestCase):
                 "MATTS_RESEARCH_LLM_ENABLED",
             ) + SEARCH_ENV
             old_env = {key: os.environ.get(key) for key in env_keys}
+            old_store = research_api.dossier_store
             try:
                 for key in SEARCH_ENV:
                     os.environ.pop(key, None)
@@ -83,6 +86,7 @@ class V2ResearchApiTests(unittest.TestCase):
                 os.environ["MATTS_V2_RAG_CONFIG_FILE"] = str(root / "rag-config.json")
                 os.environ["MATTS_V2_RAG_INDEX_FILE"] = str(root / "rag-index.json")
                 os.environ["MATTS_RESEARCH_LLM_ENABLED"] = "0"
+                research_api.dossier_store = ResearchDossierStore(root / "research.sqlite3", clock=lambda: 1000.0)
 
                 client = TestClient(create_app())
                 client.post("/v2/run/rag/config", json={
@@ -109,19 +113,42 @@ class V2ResearchApiTests(unittest.TestCase):
                 self.assertIn("model_strategy", payload.json())
 
                 self.assertEqual(response.status_code, 200)
-                results = response.json()["results"]
-                self.assertTrue(any(row["engine"] == "bing" and row["status"] == "needs_key" for row in results))
-                self.assertTrue(any(row["engine"] == "local-rag" and row["path"] == "docs/guide.md" for row in results))
-                self.assertGreaterEqual(len([engine for engine in response.json()["engines"] if engine["kind"] == "web"]), 2)
-                self.assertEqual(len(response.json()["model_outputs"]["analysts"]), 3)
-                self.assertIn("coordinated_answer", response.json()["synthesis"])
-                self.assertIn("bing", response.json()["synthesis"]["degraded_engines"])
-                coverage = {row["engine_id"]: row for row in response.json()["synthesis"]["source_coverage"]}
+                dossier = response.json()
+                self.assertEqual(dossier["schema_version"], 2)
+                self.assertTrue(dossier["dossier_id"])
+                self.assertEqual(dossier["query"]["text"], "gateway traces")
+                self.assertEqual(dossier["query"]["source_selection_mode"], "custom")
+                evidence = dossier["evidence"]
+                self.assertTrue(all(row["evidence_id"] for row in evidence))
+                self.assertTrue(any(row["engine"] == "bing" and row["status"] == "needs_key" for row in evidence))
+                self.assertTrue(any(row["engine"] == "local-rag" and row["path"] == "docs/guide.md" for row in evidence))
+                self.assertGreaterEqual(len([engine for engine in dossier["engine_runs"] if engine["kind"] == "web"]), 2)
+                self.assertEqual(len(dossier["model_audit"]["outputs"]["analysts"]), 3)
+                self.assertTrue(dossier["claims"])
+                self.assertIn("coordinated_answer", dossier["synthesis"])
+                self.assertIn("bing", dossier["synthesis"]["degraded_engines"])
+                self.assertEqual(dossier["report_packet"]["dossier_id"], dossier["dossier_id"])
+                self.assertTrue(any(section["id"] == "all-evidence" for section in dossier["report_packet"]["sections"]))
+                coverage = {row["engine_id"]: row for row in dossier["synthesis"]["source_coverage"]}
                 for engine_id in ["images", "examples", "mapping", "wikipedia", "technical-docs"]:
                     self.assertIn(engine_id, coverage)
                     self.assertTrue(coverage[engine_id]["required"])
                     self.assertIn(coverage[engine_id]["status"], {"covered", "degraded", "no_matches", "not_selected"})
+                reloaded = client.get(f"/v2/research/dossiers/{dossier['dossier_id']}")
+                self.assertEqual(reloaded.status_code, 200)
+                self.assertEqual(reloaded.json()["dossier_id"], dossier["dossier_id"])
+                pin_id = next(row["evidence_id"] for row in evidence if row["engine"] == "local-rag")
+                pinned = client.patch(f"/v2/research/dossiers/{dossier['dossier_id']}/pins", json={"evidence_ids": [pin_id]})
+                self.assertEqual(pinned.status_code, 200)
+                self.assertEqual(pinned.json()["pinned_evidence_ids"], [pin_id])
+                report = client.get(f"/v2/research/dossiers/{dossier['dossier_id']}/report")
+                self.assertEqual(report.status_code, 200)
+                self.assertEqual(report.json()["pinned_evidence_ids"], [pin_id])
+                self.assertTrue(any(section["id"] == "pinned-evidence" and section["items"] for section in report.json()["sections"]))
+                invalid_pin = client.patch(f"/v2/research/dossiers/{dossier['dossier_id']}/pins", json={"evidence_ids": ["missing"]})
+                self.assertEqual(invalid_pin.status_code, 400)
             finally:
+                research_api.dossier_store = old_store
                 for key, value in old_env.items():
                     if value is None:
                         os.environ.pop(key, None)

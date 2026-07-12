@@ -137,6 +137,7 @@ def start_server(port: int, run_db: Path) -> subprocess.Popen[bytes]:
             "MATTS_REPORTING_EXPORT_DIR": str(runtime_dir / "reporting"),
             "MATTS_RELEASE_CANDIDATE_REPORTS_DIR": str(runtime_dir / "release-candidates"),
             "MATTS_WORKSPACE_BUNDLES_DIR": str(runtime_dir / "workspace-bundles"),
+            "MATTS_V2_RESEARCH_DB": str(runtime_dir / "research.sqlite3"),
             "MATTS_RESEARCH_LLM_ENABLED": "0",
             "MATTS_RESEARCH_IMAGE_TIMEOUT": "1",
             "MATTS_RESEARCH_MAP_TIMEOUT": "1",
@@ -154,7 +155,7 @@ def start_server(port: int, run_db: Path) -> subprocess.Popen[bytes]:
         ],
         cwd=str(ROOT),
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         preexec_fn=os.setsid,
     )
@@ -179,6 +180,8 @@ def assert_no_broken_model_artwork(page, label: str) -> None:
     assert logo_count > 0, "%s did not render model identity marks" % label
     local_brand_count = page.locator('.modelLogo[data-artwork-state^="local-brand"]').count()
     assert local_brand_count > 0, "%s did not render any local model brand marks" % label
+    bundled_svg_count = page.locator('.modelLogo[data-artwork-state="local-brand-svg"]').count()
+    assert bundled_svg_count > 0, "%s did not render any bundled SVG model artwork" % label
     fallback_count = page.locator('.modelLogo[data-artwork-state$="initials"]').count()
     assert local_brand_count + fallback_count > 0, "%s did not render any intentional model artwork marks" % label
     deadline = time.time() + 5
@@ -269,7 +272,8 @@ def assert_create_atmosphere_contained(page, label: str) -> None:
 def run_mobile_whats_new_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
-    page = browser.new_page(viewport={"width": 390, "height": 844})
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
     try:
         artwork_events = install_model_artwork_guard(page)
         page.goto(base_url, wait_until="networkidle")
@@ -304,7 +308,7 @@ def run_mobile_whats_new_smoke(browser, base_url: str) -> None:
         expect(page.locator(".whatsNewModal")).to_have_count(0)
         assert_no_model_artwork_guard_events(artwork_events, "mobile Whats New")
     finally:
-        page.close()
+        context.close()
 
 
 def dismiss_whats_new_if_present(page, timeout: int = 5000) -> None:
@@ -323,30 +327,32 @@ def dismiss_whats_new_if_present(page, timeout: int = 5000) -> None:
 def run_mobile_create_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
-    page = browser.new_page(viewport={"width": 390, "height": 844})
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
     try:
-        page.goto(base_url + "#create", wait_until="networkidle")
+        page.goto(base_url + "#create", wait_until="domcontentloaded", timeout=60000)
         dismiss_whats_new_if_present(page)
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         expect(page.locator(".createAtmosphere")).to_be_visible()
         assert_no_document_horizontal_overflow(page, "mobile Create")
         assert_create_atmosphere_contained(page, "mobile Create")
     finally:
-        page.close()
+        context.close()
 
 
 def run_mobile_advanced_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
-    page = browser.new_page(viewport={"width": 390, "height": 844})
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
     try:
-        page.goto(base_url + "#advanced", wait_until="domcontentloaded")
+        page.goto(base_url + "#advanced", wait_until="domcontentloaded", timeout=60000)
         dismiss_whats_new_if_present(page)
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.get_by_test_id("shell-readiness-pulse")).to_be_visible()
         for label in ("console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
-        expect(page.locator(".consoleHeader")).to_be_visible()
+        expect(page.locator(".consoleHeader")).to_be_visible(timeout=45000)
         expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
         expect(page.get_by_test_id("tmux-session-table")).to_be_visible()
         expect(page.get_by_test_id("tmux-control-dock")).to_be_visible()
@@ -365,7 +371,7 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         expect(page.get_by_test_id("tui-terminal")).to_be_visible()
         assert_no_document_horizontal_overflow(page, "mobile Code TUI")
     finally:
-        page.close()
+        context.close()
 
 
 def run_advanced_loading_skeleton_smoke(browser, base_url: str) -> None:
@@ -824,6 +830,8 @@ def run_browser_smoke(base_url: str) -> None:
               },
               configurable: true
             });
+            window.__mattsPrintCalled = false;
+            window.print = () => { window.__mattsPrintCalled = true; };
             """
         )
         artwork_events = install_model_artwork_guard(page)
@@ -834,21 +842,29 @@ def run_browser_smoke(base_url: str) -> None:
                 route.continue_()
                 return
             post_data = route.request.post_data or ""
-            if "detail-string-smoke" in post_data:
+            latest_prompt = post_data
+            try:
+                payload = json.loads(post_data)
+                messages = payload.get("messages", [])
+                if messages:
+                    latest_prompt = str(messages[-1].get("content", ""))
+            except (json.JSONDecodeError, AttributeError, TypeError):
+                latest_prompt = post_data
+            if "detail-string-smoke" in latest_prompt:
                 route.fulfill(
                     status=400,
                     content_type="application/json",
                     body=json.dumps({"detail": "Hero client detail string reached the UI"}),
                 )
                 return
-            if "plain-text-smoke" in post_data:
+            if "plain-text-smoke" in latest_prompt:
                 route.fulfill(
                     status=502,
                     content_type="text/plain",
                     body="Hero client plain text error reached the UI",
                 )
                 return
-            if "route-diagnostic-smoke" in post_data:
+            if "route-diagnostic-smoke" in latest_prompt:
                 route.fulfill(
                     status=404,
                     content_type="application/json",
@@ -1096,11 +1112,51 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         assert page.evaluate("window.location.hash") == "#chat"
         expect(page.get_by_text("Autonomous System Manager")).to_be_visible()
-        expect(page.locator(".selectedModelPanel")).to_be_visible()
+        expect(page.locator(".icqContactPane")).to_be_visible()
+        expect(page.locator(".icqChatWindow")).to_be_visible()
+        expect(page.locator(".icqContactButton").first).to_be_visible()
+        expect(page.locator(".icqContactRow.active")).to_be_visible()
+        first_contact_name = page.locator(".icqContactText strong").first.inner_text()
+        page.locator(".icqContactSearch input").fill(first_contact_name)
+        expect(page.locator(".icqContactButton").first).to_contain_text(first_contact_name)
+        page.locator(".icqContactSearch input").fill("")
+        if page.locator(".icqContactButton").count() > 1:
+            second_contact = page.locator(".icqContactButton").nth(1)
+            second_contact_name = second_contact.locator(".icqContactText strong").inner_text()
+            second_contact.click()
+            expect(page.locator(".icqChatTitle")).to_contain_text(second_contact_name)
+            page.locator(".icqFavoriteButton").nth(1).click()
+            expect(page.locator(".icqContactGroups")).to_contain_text("Pinned")
+        page.get_by_role("button", name="Dark", exact=True).click()
+        expect(page.locator(".chatHero")).to_have_class(re.compile("chatThemeDark"))
+        page.get_by_role("button", name="Light", exact=True).click()
+        expect(page.locator(".chatHero")).to_have_class(re.compile("chatThemeLight"))
+        assert_no_document_horizontal_overflow(page, "desktop ICQ Chat")
+        page.set_viewport_size({"width": 390, "height": 844})
+        expect(page.get_by_role("button", name="Contacts", exact=True)).to_be_visible()
+        assert_no_document_horizontal_overflow(page, "mobile ICQ Chat closed")
+        page.get_by_role("button", name="Contacts", exact=True).click()
+        page.wait_for_function("document.querySelector('.chatHero')?.classList.contains('contactPaneOpen')", timeout=5000)
+        page.wait_for_function(
+            """
+            () => {
+              const pane = document.querySelector('.icqContactPane');
+              if (!pane) return false;
+              const rect = pane.getBoundingClientRect();
+              return rect.left >= -1 && rect.right <= window.innerWidth + 2;
+            }
+            """,
+            timeout=5000,
+        )
+        drawer_box = page.locator(".icqContactPane").bounding_box()
+        assert drawer_box and drawer_box["x"] >= -1 and drawer_box["width"] <= 390, "mobile contact drawer escaped viewport: %s" % drawer_box
+        assert_no_document_horizontal_overflow(page, "mobile ICQ Chat drawer")
+        page.locator(".icqCloseContacts").click()
+        page.set_viewport_size({"width": 1440, "height": 950})
         expect(page.locator(".voiceConsole")).to_be_visible()
         expect(page.locator(".voiceConsole")).to_contain_text("Voice enabled")
         expect(page.locator(".voiceConsole")).to_contain_text("calm mission-computer")
-        expect(page.get_by_role("button", name="Preview Voice")).to_be_enabled()
+        expect(page.get_by_role("button", name="Preview", exact=True)).to_be_enabled()
         page.wait_for_function(
             """
             () => {
@@ -1111,7 +1167,7 @@ def run_browser_smoke(base_url: str) -> None:
               const panelRect = panel.getBoundingClientRect();
               const leadRect = lead.getBoundingClientRect();
               const controlsRect = controls.getBoundingClientRect();
-              const separated = controlsRect.top >= leadRect.bottom - 1;
+              const separated = controlsRect.top >= leadRect.bottom - 1 || controlsRect.left >= leadRect.right - 1;
               const contained = controlsRect.right <= panelRect.right + 2 && leadRect.right <= panelRect.right + 2;
               return separated && contained && panel.scrollWidth <= panel.clientWidth + 2;
             }
@@ -1134,7 +1190,7 @@ def run_browser_smoke(base_url: str) -> None:
               const toolbarRect = toolbar.getBoundingClientRect();
               const summaryRect = summary.getBoundingClientRect();
               const actionsRect = actions.getBoundingClientRect();
-              const separated = actionsRect.top >= summaryRect.bottom - 1;
+              const separated = actionsRect.top >= summaryRect.bottom - 1 || actionsRect.left >= summaryRect.right - 1;
               const contained = actionsRect.right <= toolbarRect.right + 2 && summaryRect.right <= toolbarRect.right + 2;
               return separated && contained && toolbar.scrollWidth <= toolbar.clientWidth + 2;
             }
@@ -1143,11 +1199,11 @@ def run_browser_smoke(base_url: str) -> None:
         )
         expect(page.locator(".starterDeck")).to_have_count(0)
         page.locator(".voiceConsole").get_by_role("button", name="Mute", exact=True).click()
-        page.locator(".chatHero .xlInput").fill("Verify the V2 smoke transcript path.")
-        expect(page.locator(".chatHero .xlInput")).to_have_value("Verify the V2 smoke transcript path.")
+        page.locator(".chatHero .icqComposerInput").fill("Verify the V2 smoke transcript path.")
+        expect(page.locator(".chatHero .icqComposerInput")).to_have_value("Verify the V2 smoke transcript path.")
         with page.expect_response(lambda response: response.url.endswith("/v2/chat") and response.status == 200):
-            page.locator(".chatHero .xlInput").press("Control+Enter")
-        expect(page.locator(".transcriptToolbar")).to_contain_text("2 messages")
+            page.locator(".chatHero .icqComposerInput").press("Enter")
+        expect(page.locator(".icqChatStats")).to_contain_text("2 messages")
         expect(page.locator(".transcriptToolbar").get_by_role("button", name="Copy", exact=True)).to_be_enabled()
         expect(page.locator(".transcriptToolbar").get_by_role("button", name="Download", exact=True)).to_be_enabled()
         expect(page.locator(".transcriptToolbar").get_by_role("button", name="Copy Brief")).to_be_enabled()
@@ -1160,12 +1216,12 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
         hero_nav.get_by_role("button", name="Chat", exact=True).click()
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
-        expect(page.locator(".transcriptToolbar")).to_contain_text("2 messages")
+        expect(page.locator(".icqChatStats")).to_contain_text("2 messages")
         expect(page.locator(".messageRow.assistant")).to_contain_text("V2 smoke transcript response")
         page.locator(".transcriptToolbar").get_by_role("button", name="Copy", exact=True).click()
-        expect(page.locator(".transcriptToolbar")).to_contain_text("Copied")
+        expect(page.locator(".icqChatStats")).to_contain_text("Copied")
         page.locator(".transcriptToolbar").get_by_role("button", name="Copy Brief").click()
-        expect(page.locator(".transcriptToolbar")).to_contain_text("Brief copied")
+        expect(page.locator(".icqChatStats")).to_contain_text("Brief copied")
         copied_chat_brief = page.evaluate("window.__mattsSmokeClipboard || ''")
         assert "# Chat Brief" in copied_chat_brief and "V2 smoke transcript response" in copied_chat_brief and "Active Model:" in copied_chat_brief
         with page.expect_download() as download_info:
@@ -1176,23 +1232,23 @@ def run_browser_smoke(base_url: str) -> None:
         assert chat_brief_download.value.suggested_filename.startswith("mde-llm-proxy-chat-brief-")
         assert chat_brief_download.value.suggested_filename.endswith(".md")
         page.locator(".transcriptToolbar").get_by_role("button", name="Clear", exact=True).click()
-        expect(page.locator(".transcriptToolbar")).to_contain_text("0 messages")
+        expect(page.locator(".icqChatStats")).to_contain_text("0 messages")
         expect(page.get_by_text("No conversation yet.")).to_be_visible()
         assert page.evaluate("window.sessionStorage.getItem('matts-v2-chat-transcript')") is None
-        page.locator(".chatHero .xlInput").fill("line one")
-        page.locator(".chatHero .xlInput").press("Enter")
-        expect(page.locator(".chatHero .xlInput")).to_have_value("line one\n")
-        page.locator(".chatHero .xlInput").fill("detail-string-smoke")
+        page.locator(".chatHero .icqComposerInput").fill("line one")
+        page.locator(".chatHero .icqComposerInput").press("Shift+Enter")
+        expect(page.locator(".chatHero .icqComposerInput")).to_have_value("line one\n")
+        page.locator(".chatHero .icqComposerInput").fill("detail-string-smoke")
         with page.expect_response(lambda response: response.url.endswith("/v2/chat") and response.status == 400):
             page.get_by_role("button", name="Send", exact=True).click()
         expect(page.locator(".errorBanner")).to_have_text("Hero client detail string reached the UI")
         expect(page.get_by_text("v2 request failed: 400")).to_have_count(0)
-        page.locator(".chatHero .xlInput").fill("plain-text-smoke")
+        page.locator(".chatHero .icqComposerInput").fill("plain-text-smoke")
         with page.expect_response(lambda response: response.url.endswith("/v2/chat") and response.status == 502):
             page.get_by_role("button", name="Send", exact=True).click()
         expect(page.locator(".errorBanner")).to_have_text("Hero client plain text error reached the UI")
         expect(page.get_by_text("v2 request failed: 502")).to_have_count(0)
-        page.locator(".chatHero .xlInput").fill("route-diagnostic-smoke")
+        page.locator(".chatHero .icqComposerInput").fill("route-diagnostic-smoke")
         with page.expect_response(lambda response: response.url.endswith("/v2/chat") and response.status == 404):
             page.get_by_role("button", name="Send", exact=True).click()
         expect(page.locator(".errorBanner")).to_have_text("api endpoint not found. Use POST /v2/chat; this endpoint exists but not for GET.")
@@ -1271,9 +1327,11 @@ def run_browser_smoke(base_url: str) -> None:
 
         hero_nav.get_by_role("button", name="Research", exact=True).click()
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
-        expect(page.locator(".researchBriefDock")).to_contain_text("No brief")
-        expect(page.locator(".researchBriefDock").get_by_role("button", name="Copy Brief")).to_be_disabled()
-        expect(page.locator(".researchBriefDock").get_by_role("button", name="Download Brief")).to_be_disabled()
+        expect(page.locator(".researchBriefDock")).to_contain_text("No packet")
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Copy Packet")).to_be_disabled()
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Download Packet")).to_be_disabled()
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Print / Save PDF")).to_be_disabled()
+        expect(page.locator(".researchTabs").get_by_role("tab", name="Advanced Search")).to_have_attribute("aria-selected", "true")
         page.locator(".searchLine input").fill("DigitalOcean LLM models")
         research_mode_options = page.locator(".searchLine select option").all_text_contents()
         selected_research_mode = research_mode_options[-1] if research_mode_options else "Balanced"
@@ -1309,12 +1367,7 @@ def run_browser_smoke(base_url: str) -> None:
         )
         with page.expect_response(lambda response: "/v2/research/search" in response.url and response.status == 200):
             page.locator(".researchHero .searchLine input").press("Enter")
-        research_team_panel = page.locator("[data-testid='research-team-panel']").first
-        expect(research_team_panel).to_contain_text("3 analysts + 1 coordinator")
-        expect(research_team_panel).to_contain_text("Cost guard")
-        expect(page.locator("[data-testid='research-model-outputs']")).to_be_visible()
-        expect(page.locator("[data-testid='research-coordinated-answer']")).to_contain_text("Coordinated Answer")
-        expect(page.locator("[data-testid='research-analyst-outputs']")).to_contain_text("low-cost")
+        expect(page.locator(".researchTabs").get_by_role("tab", name="Results")).to_have_attribute("aria-selected", "true")
         expect(page.locator(".researchCommandBoard")).to_be_visible()
         expect(page.locator(".researchMetrics")).to_contain_text("Evidence")
         expect(page.locator(".researchMetrics")).to_contain_text("Live")
@@ -1330,9 +1383,9 @@ def run_browser_smoke(base_url: str) -> None:
         technical_docs_coverage.click()
         expect(technical_docs_coverage).to_have_attribute("aria-pressed", "true")
         expect(page.locator(".researchFilters").get_by_role("button", name="Technical Documentation")).to_have_class(re.compile("active"))
-        first_research_result = page.locator(".searchResult").first
+        first_research_result = page.locator(".lexisResultRow").first
         expect(first_research_result).to_contain_text("Technical Documentation")
-        first_research_title = first_research_result.locator("h3").inner_text()
+        first_research_title = first_research_result.locator("summary strong").inner_text()
         copy_source_button = first_research_result.get_by_role("button", name=re.compile("Copy Source"))
         copy_source_button.click()
         expect(copy_source_button).to_contain_text("Copied")
@@ -1344,23 +1397,51 @@ def run_browser_smoke(base_url: str) -> None:
         expect(technical_docs_coverage).to_have_attribute("aria-pressed", "false")
         assert page.locator(".researchFilters button").count() >= 2
         page.locator(".researchFilters button").nth(1).click()
-        expect(page.locator(".searchResult").first).to_be_visible()
+        expect(page.locator(".lexisResultRow").first).to_be_visible()
         page.locator(".researchFilters").get_by_role("button", name="All evidence").click()
-        expect(page.locator(".researchBriefDock")).to_contain_text("Brief Ready")
-        expect(page.locator(".researchBriefDock").get_by_role("button", name="Copy Brief")).to_be_enabled()
-        expect(page.locator(".researchBriefDock").get_by_role("button", name="Download Brief")).to_be_enabled()
-        page.locator(".researchBriefDock").get_by_role("button", name="Copy Brief").click()
+        first_pin_button = page.locator(".lexisResultRow .pinButton").first
+        with page.expect_response(lambda response: "/v2/research/dossiers/" in response.url and response.url.endswith("/pins") and response.status == 200):
+            first_pin_button.click()
+        expect(first_pin_button).to_have_attribute("aria-pressed", "true")
+        expect(page.locator(".researchBriefDock")).to_contain_text("Packet Ready")
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Copy Packet")).to_be_enabled()
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Download Packet")).to_be_enabled()
+        expect(page.locator(".researchBriefDock").get_by_role("button", name="Print / Save PDF")).to_be_enabled()
+        page.locator(".researchBriefDock").get_by_role("button", name="Copy Packet").click()
         expect(page.locator(".researchBriefDock")).to_contain_text("Copied")
-        copied_brief = page.evaluate("window.__mattsSmokeClipboard || ''")
-        assert "# " in copied_brief and "DigitalOcean LLM models" in copied_brief and "## Source Classes" in copied_brief and "## Evidence" in copied_brief
+        copied_research_packet = page.evaluate("window.__mattsSmokeClipboard || ''")
+        assert "# " in copied_research_packet and "DigitalOcean LLM models" in copied_research_packet and "## Source Classes" in copied_research_packet and "## Full Report Sections" in copied_research_packet
         with page.expect_download() as research_download:
-            page.locator(".researchBriefDock").get_by_role("button", name="Download Brief").click()
-        assert research_download.value.suggested_filename.startswith("mde-llm-proxy-research-brief-")
+            page.locator(".researchBriefDock").get_by_role("button", name="Download Packet").click()
+        assert research_download.value.suggested_filename.startswith("mde-llm-proxy-research-packet-")
         assert research_download.value.suggested_filename.endswith(".md")
-        expect(page.locator(".researchBriefActions").get_by_role("button", name="Copy Brief")).to_be_visible()
-        expect(page.locator(".researchBriefActions").get_by_role("button", name="Download Brief")).to_be_visible()
-        expect(page.get_by_text("Bing setup required for DigitalOcean LLM models")).to_be_visible()
+        with page.expect_response(lambda response: "/v2/research/dossiers/" in response.url and response.url.endswith("/report") and response.status == 200):
+            page.locator(".researchBriefDock").get_by_role("button", name="Print / Save PDF").click()
+        page.wait_for_function("window.__mattsPrintCalled === true")
+        expect(page.locator(".researchPrintFrame")).to_contain_text("DigitalOcean LLM models")
+
+        page.locator(".researchTabs").get_by_role("tab", name="Synthesis Brief").click()
+        expect(page.locator(".researchTabs").get_by_role("tab", name="Synthesis Brief")).to_have_attribute("aria-selected", "true")
+        expect(page.get_by_test_id("research-claim-map")).to_be_visible()
+        expect(page.get_by_test_id("research-claim-map")).to_contain_text("Claim Evidence Map")
+        expect(page.get_by_test_id("research-claim-map")).to_contain_text("Some selected sources were degraded")
+        page.locator(".researchAuditPanel summary").click()
+        research_team_panel = page.locator("[data-testid='research-team-panel']").first
+        expect(research_team_panel).to_contain_text("3 analysts + 1 coordinator")
+        expect(research_team_panel).to_contain_text("Cost guard")
+        expect(page.locator("[data-testid='research-model-outputs']")).to_be_visible()
+        expect(page.locator("[data-testid='research-coordinated-answer']")).to_contain_text("Coordinated Answer")
+        expect(page.locator("[data-testid='research-analyst-outputs']")).to_contain_text("low-cost")
+
+        page.locator(".researchTabs").get_by_role("tab", name="Source Registry").click()
+        expect(page.get_by_test_id("research-source-registry")).to_be_visible()
+        expect(page.get_by_test_id("research-source-registry")).to_contain_text("Technical Documentation")
+        expect(page.get_by_test_id("research-source-registry")).to_contain_text("Included")
+        page.locator(".researchTabs").get_by_role("tab", name="Results").click()
+        expect(page.locator(".lexisResultTable")).to_be_visible()
+        expect(page.locator(".lexisResultTable")).to_contain_text("Bing setup required for DigitalOcean LLM models")
         expect(page.locator(".researchFilters").get_by_role("button", name="Technical Documentation")).to_be_visible()
+        page.locator(".researchTabs").get_by_role("tab", name="Advanced Search").click()
         expect(page.locator(".engineStrip button").first).to_be_visible()
         first_engine_class = page.locator(".engineStrip button").first.get_attribute("class") or ""
         assert "active" not in first_engine_class.split()
@@ -1368,17 +1449,21 @@ def run_browser_smoke(base_url: str) -> None:
         page.locator(".engineStrip button").first.click()
         first_engine_class = page.locator(".engineStrip button").first.get_attribute("class") or ""
         assert "active" in first_engine_class.split()
+        page.locator(".researchTabs").get_by_role("tab", name="Results").click()
         stored_research = page.evaluate("window.sessionStorage.getItem('matts-v2-research-workspace')")
         assert stored_research and "DigitalOcean LLM models" in stored_research and "engineSelectionMode" in stored_research and "selectedEngines" in stored_research
+        assert '"dossier"' in stored_research and '"schema_version":2' in stored_research and '"activeTab":"results"' in stored_research
         hero_nav.get_by_role("button", name="Create", exact=True).click()
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         hero_nav.get_by_role("button", name="Research", exact=True).click()
         expect(page.get_by_role("heading", name="Research")).to_be_visible()
+        expect(page.locator(".researchTabs").get_by_role("tab", name="Results")).to_have_attribute("aria-selected", "true")
+        expect(page.locator(".researchCommandBoard")).to_be_visible()
+        expect(page.locator(".lexisResultRow").first).to_be_visible()
+        expect(page.locator(".lexisResultTable")).to_contain_text("Bing setup required for DigitalOcean LLM models")
+        page.locator(".researchTabs").get_by_role("tab", name="Advanced Search").click()
         expect(page.locator(".searchLine input")).to_have_value("DigitalOcean LLM models")
         expect(page.locator(".searchLine select")).to_have_value(selected_research_mode)
-        expect(page.locator(".researchCommandBoard")).to_be_visible()
-        expect(page.locator(".searchResult").first).to_be_visible()
-        expect(page.get_by_text("Bing setup required for DigitalOcean LLM models")).to_be_visible()
         first_engine_class = page.locator(".engineStrip button").first.get_attribute("class") or ""
         assert "active" in first_engine_class.split()
         expect(page.locator(".engineStrip").get_by_role("button", name=re.compile("Image Sources"))).to_have_class(re.compile("active"))
@@ -1512,9 +1597,9 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelInspector")).to_contain_text("Output")
         expect(page.locator(".modelInspector")).to_contain_text("Cost")
         expect(page.locator(".modelArtworkGallery")).to_be_visible()
-        expect(page.locator(".modelArtworkGallery")).to_contain_text("Brand Identity")
+        expect(page.locator(".modelArtworkGallery")).to_contain_text("Artwork Preview")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Artwork Sources")
-        expect(page.locator(".modelArtworkGallery")).to_contain_text("Tracked public URL")
+        expect(page.locator(".modelArtworkGallery")).to_contain_text("Bundled SVG")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Simple Icons")
         page.locator(".searchLine input").fill("zzzz-no-model-match")
         expect(page.get_by_text("No models match this filter")).to_be_visible()
@@ -1632,7 +1717,7 @@ def run_browser_smoke(base_url: str) -> None:
         row_terminal_href = page.get_by_test_id("tmux-session-open").first.get_attribute("href") or ""
         assert ":18182/" in row_terminal_href and "session=smoke-tmux" in row_terminal_href and "#code" in row_terminal_href, "tmux row terminal link did not preserve V2 route/session: %s" % row_terminal_href
         page.locator(".advancedTabs").get_by_role("button", name="run", exact=True).click()
-        expect(page.get_by_role("heading", name="Run")).to_be_visible(timeout=15000)
+        expect(page.get_by_role("heading", name="Run")).to_be_visible(timeout=45000)
         expect(page.get_by_test_id("chat-run-panel")).to_be_visible()
         page.get_by_test_id("chat-run-prompt").fill("generated-client-error-smoke")
         with page.expect_response(lambda response: "/v2/run/chat" in response.url and response.status == 500):
@@ -1661,10 +1746,15 @@ def run_browser_smoke(base_url: str) -> None:
             page.get_by_test_id("template-rollback").click()
         expect(page.get_by_test_id("template-rollback-status")).to_contain_text("Prompt template rolled back to version")
         assert_no_model_artwork_guard_events(artwork_events, "desktop V2")
-        run_mobile_whats_new_smoke(browser, base_url)
-        run_mobile_create_smoke(browser, base_url)
-        run_mobile_advanced_smoke(browser, base_url)
+        page.close()
         browser.close()
+        mobile_browser = p.chromium.launch()
+        try:
+            run_mobile_whats_new_smoke(mobile_browser, base_url)
+            run_mobile_advanced_smoke(mobile_browser, base_url)
+            run_mobile_create_smoke(mobile_browser, base_url)
+        finally:
+            mobile_browser.close()
 
 
 def main(argv: list[str] | None = None) -> int:

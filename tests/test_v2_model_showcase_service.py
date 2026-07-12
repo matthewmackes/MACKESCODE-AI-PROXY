@@ -50,6 +50,8 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
         self.assertEqual(cards["deepseek-r1"]["nation_palette"]["name"], "China")
         self.assertIn("deepseek", cards["deepseek-r1"]["artwork"]["logo"])
         self.assertEqual(cards["deepseek-r1"]["artwork"]["background"], "brand_nation_panel")
+        self.assertEqual(cards["deepseek-r1"]["artwork"]["render"]["mode"], "bundled_svg")
+        self.assertEqual(cards["deepseek-r1"]["artwork"]["render"]["key"], "deepseek")
         self.assertIn("deepseek.com", cards["deepseek-r1"]["artwork"]["brand_url"])
         self.assertGreaterEqual(len(cards["deepseek-r1"]["artwork"]["sources"]), 3)
         self.assertIn("policy_notes", cards["deepseek-r1"]["artwork"])
@@ -84,6 +86,7 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
         card = payload["models"][0]
         self.assertEqual(card["company"], "Zhipu AI")
         self.assertEqual(card["artwork"]["logo"], "")
+        self.assertEqual(card["artwork"]["render"]["mode"], "generated_initials")
         self.assertEqual(card["artwork"]["sources"][0]["kind"], "fallback")
         self.assertIn("generated family initial", card["artwork"]["sources"][0]["usage_notes"])
 

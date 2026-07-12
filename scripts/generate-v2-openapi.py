@@ -185,6 +185,30 @@ export type RunWorkspacePayload = {
   database: string;
 };
 
+export type OnboardingModelTemplatesPayload = {
+  generator: string;
+  summary: {
+    target: number;
+    existing: number;
+    missing: number;
+    seeded: number;
+  };
+  items: Array<{
+    model: Record<string, unknown>;
+    template: PromptTemplate;
+    status: string;
+    preview: {
+      rendered: string;
+      variables: string[];
+    };
+  }>;
+};
+
+export type OnboardingPayload = {
+  onboarding: Record<string, unknown>;
+  model_templates: OnboardingModelTemplatesPayload;
+};
+
 export type LocalRagCollection = {
   id: string;
   name: string;
@@ -470,6 +494,24 @@ export function getRunWorkspace(): Promise<RunWorkspacePayload> {
   return requestJson('/v2/run');
 }
 
+export function getOnboarding(): Promise<OnboardingPayload> {
+  return requestJson('/v2/onboarding');
+}
+
+export function seedOnboardingModelTemplates(): Promise<OnboardingPayload> {
+  return requestJson('/v2/onboarding/model-templates/seed', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function completeOnboardingItem(payload: { id: string; note?: string } & Record<string, unknown>): Promise<OnboardingPayload> {
+  return requestJson('/v2/onboarding/complete', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export function getLocalRag(): Promise<{ local_rag: LocalRagPayload }> {
   return requestJson('/v2/run/rag');
 }
@@ -550,6 +592,35 @@ export function runChat(payload: ChatRunPayload): Promise<{ status: number; resp
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export type ResearchDossier = Record<string, unknown>;
+export type ResearchReportPacket = Record<string, unknown>;
+
+export function getResearchCatalog(): Promise<Record<string, unknown>> {
+  return requestJson('/v2/research');
+}
+
+export function runResearchSearch(payload: Record<string, unknown>): Promise<ResearchDossier> {
+  return requestJson('/v2/research/search', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getResearchDossier(dossierId: string): Promise<ResearchDossier> {
+  return requestJson(`/v2/research/dossiers/${encodeURIComponent(dossierId)}`);
+}
+
+export function updateResearchPins(dossierId: string, evidenceIds: string[]): Promise<ResearchDossier> {
+  return requestJson(`/v2/research/dossiers/${encodeURIComponent(dossierId)}/pins`, {
+    method: 'PATCH',
+    body: JSON.stringify({ evidence_ids: evidenceIds })
+  });
+}
+
+export function getResearchReport(dossierId: string): Promise<ResearchReportPacket> {
+  return requestJson(`/v2/research/dossiers/${encodeURIComponent(dossierId)}/report`);
 }
 
 export function getObserve(days = 7, traceLimit = 50, auditLimit = 50): Promise<ObservePayload> {

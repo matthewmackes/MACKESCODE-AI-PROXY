@@ -169,6 +169,17 @@ class LegacyConsoleAdapter:
             },
         }
 
+    def onboarding_payload(self) -> dict[str, Any]:
+        result = self._safe_call("onboarding_payload", {"checks": [], "summary": {}, "actions": {}})
+        return result if isinstance(result, dict) else {"result": result}
+
+    def complete_onboarding_item(self, payload: dict[str, Any]) -> dict[str, Any]:
+        module = self.module()
+        if not hasattr(module, "complete_onboarding_item"):
+            raise ValueError("legacy onboarding completion unavailable")
+        result = module.complete_onboarding_item(payload or {})
+        return self.json_safe(result if isinstance(result, dict) else {"result": result})
+
     def preview_ci_triage(self, payload: dict[str, Any]) -> dict[str, Any]:
         result = self._safe_call("preview_ci_triage", {}, payload or {})
         return result if isinstance(result, dict) else {"result": result}

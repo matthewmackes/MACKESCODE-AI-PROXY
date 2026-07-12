@@ -33,6 +33,11 @@ export type ModelCard = {
     logo?: string;
     background?: string;
     brand_url?: string;
+    render?: {
+      mode?: string;
+      key?: string;
+      label?: string;
+    };
     policy_notes?: string;
     sources?: Array<{
       kind?: string;
@@ -185,8 +190,9 @@ export type ResearchSourceCoverage = {
   detail: string;
 };
 
-export type ResearchResult = {
+export type ResearchEvidence = {
   id: string;
+  evidence_id: string;
   engine: string;
   engine_name: string;
   title: string;
@@ -196,9 +202,13 @@ export type ResearchResult = {
   source: string;
   status: string;
   kind: string;
+  source_type?: string;
   score: number;
+  relevance_score?: number;
   position: number;
   citation: string;
+  source_label?: string;
+  metadata?: Record<string, unknown>;
   path?: string;
   chunk?: number;
   collection_id?: string;
@@ -207,21 +217,54 @@ export type ResearchResult = {
   coordinates?: string;
 };
 
-export type ResearchResultPayload = {
-  query: string;
-  mode: string;
-  engines: ResearchPayload['engines'];
-  results: ResearchResult[];
-  model_strategy?: ResearchModelStrategy;
-  model_outputs?: {
-    analysts?: ResearchModelOutput[];
-    coordinator?: ResearchModelOutput;
-    answer?: string;
-    generated_at?: number;
+export type ResearchResult = ResearchEvidence;
+
+export type ResearchClaim = {
+  claim_id: string;
+  text: string;
+  confidence: string;
+  status: string;
+  supporting_evidence_ids: string[];
+  caveat: string;
+};
+
+export type ResearchReportSection = {
+  id: string;
+  title: string;
+  kind: string;
+  content?: string;
+  items?: Array<Record<string, unknown>>;
+};
+
+export type ResearchReportPacket = {
+  dossier_id: string;
+  title: string;
+  generated_at: number;
+  sections: ResearchReportSection[];
+  pinned_evidence_ids: string[];
+};
+
+export type ResearchDossier = {
+  schema_version: number;
+  dossier_id: string;
+  query: {
+    text: string;
+    mode: string;
+    selected_engines: string[];
+    source_selection_mode: string;
+    submitted_at: number;
   };
+  source_catalog: {
+    engines: ResearchPayload['engines'];
+    source_classes?: ResearchPayload['source_classes'];
+  };
+  engine_runs: ResearchPayload['engines'];
+  evidence: ResearchEvidence[];
+  claims: ResearchClaim[];
   synthesis: {
     title?: string;
     summary?: string;
+    answer?: string;
     citations?: string[];
     degraded_engines?: string[];
     live_result_count?: number;
@@ -232,8 +275,23 @@ export type ResearchResultPayload = {
     source_engine_counts?: Record<string, number>;
     source_kind_counts?: Record<string, number>;
     source_coverage?: ResearchSourceCoverage[];
+    evidence_ids?: string[];
   };
+  model_audit?: {
+    strategy?: ResearchModelStrategy;
+    outputs?: {
+      analysts?: ResearchModelOutput[];
+      coordinator?: ResearchModelOutput;
+      answer?: string;
+      generated_at?: number;
+    };
+    diagnostics?: Record<string, unknown>;
+  };
+  report_packet: ResearchReportPacket;
+  pinned_evidence_ids: string[];
 };
+
+export type ResearchResultPayload = ResearchDossier;
 
 export type CreatePayload = {
   image_models: ModelCard[];
@@ -291,8 +349,20 @@ export function getResearchPayload(): Promise<ResearchPayload> {
   return requestJson<ResearchPayload>('/v2/research');
 }
 
-export function runResearchSearch(payload: Record<string, unknown>): Promise<ResearchResultPayload> {
-  return requestJson<ResearchResultPayload>('/v2/research/search', { method: 'POST', body: JSON.stringify(payload) });
+export function runResearchSearch(payload: Record<string, unknown>): Promise<ResearchDossier> {
+  return requestJson<ResearchDossier>('/v2/research/search', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function getResearchDossier(dossierId: string): Promise<ResearchDossier> {
+  return requestJson<ResearchDossier>(`/v2/research/dossiers/${encodeURIComponent(dossierId)}`);
+}
+
+export function updateResearchPins(dossierId: string, evidenceIds: string[]): Promise<ResearchDossier> {
+  return requestJson<ResearchDossier>(`/v2/research/dossiers/${encodeURIComponent(dossierId)}/pins`, { method: 'PATCH', body: JSON.stringify({ evidence_ids: evidenceIds }) });
+}
+
+export function getResearchReport(dossierId: string): Promise<ResearchReportPacket> {
+  return requestJson<ResearchReportPacket>(`/v2/research/dossiers/${encodeURIComponent(dossierId)}/report`);
 }
 
 export function getCreatePayload(): Promise<CreatePayload> {

@@ -1,6 +1,50 @@
 """Chat routing helpers for serverless and Dedicated requests."""
+import re
 import time
 from http import HTTPStatus
+
+
+TOOL_PROMPT_LEAK_PATTERNS = (
+    "<tools>",
+    "</tools>",
+    "<tool_call",
+    "FunctionCall",
+    "pydantic model json schema",
+    "You are a function calling AI model",
+)
+
+
+def _chat_output_diagnostics(text, raw_response=None):
+    text = text if isinstance(text, str) else ""
+    raw_response = raw_response if isinstance(raw_response, dict) else {}
+    warnings = []
+    issue = ""
+    stop_reason = str(raw_response.get("stop_reason") or raw_response.get("finish_reason") or "")
+    if not text.strip() and stop_reason == "max_tokens":
+        warnings.append({
+            "code": "empty_max_tokens",
+            "message": "The upstream model returned no visible text and stopped at the token limit.",
+        })
+        issue = issue or "empty_max_tokens"
+    if any(pattern.lower() in text.lower() for pattern in TOOL_PROMPT_LEAK_PATTERNS):
+        warnings.append({
+            "code": "tool_prompt_leak",
+            "message": "The model emitted function-calling XML or tool schema instructions as answer text.",
+        })
+        issue = issue or "tool_prompt_leak"
+    empty_fences = re.fullmatch(r"\s*(?:```\s*){2,}", text or "")
+    if empty_fences:
+        warnings.append({
+            "code": "blank_code_fences",
+            "message": "The model returned only empty fenced-code blocks.",
+        })
+        issue = issue or "blank_code_fences"
+    return {
+        "warnings": warnings,
+        "output_format_issue": issue,
+        "stop_reason": stop_reason,
+        "raw_available": bool(raw_response),
+    }
 
 
 class ChatRoutingService:
@@ -154,14 +198,19 @@ class ChatRoutingService:
             routing["reason"] = "registry_sync_warning"
             routing["registry_sync"] = registry_issue
             routing["policy_decision"] = {"decision": "stale_registry_warning", "model": model, "blocking": False, "reason": registry_issue.get("reason") or "registry_sync_warning"}
+        claude_do = response.get("claude_do") if isinstance(response.get("claude_do"), dict) else {}
+        upstream_cost = claude_do.get("cost") if isinstance(claude_do.get("cost"), dict) else None
+        estimated_cost = self.chat_cost_usd(model, input_text, text)
         payload = {
             "text": text,
             "raw": response,
             "usage": response.get("usage") or {},
-            "cost": self.chat_cost_usd(model, input_text, text),
+            "cost": upstream_cost or estimated_cost,
             "routing": routing,
+            "diagnostics": _chat_output_diagnostics(text, response),
         }
-        claude_do = response.get("claude_do") if isinstance(response.get("claude_do"), dict) else {}
+        if upstream_cost:
+            payload["cost_estimate"] = estimated_cost
         if isinstance(claude_do.get("streaming_metrics"), dict):
             payload["streaming_metrics"] = claude_do["streaming_metrics"]
         return HTTPStatus.OK, self.trace_record("chat.serverless", data, model, started_at, HTTPStatus.OK, payload, backend="serverless")

@@ -323,8 +323,7 @@ class ResearchSearchService:
 
         model_strategy = self.model_strategy()
         model_outputs = self._model_outputs(query, mode, results, engine_runs, model_strategy)
-
-        return {
+        legacy_payload = {
             "query": query,
             "mode": mode,
             "generated_at": self.clock(),
@@ -333,6 +332,204 @@ class ResearchSearchService:
             "model_strategy": model_strategy,
             "model_outputs": model_outputs,
             "synthesis": self._synthesis(query, mode, results, engine_runs, model_outputs),
+        }
+        return self._research_dossier(
+            legacy_payload,
+            selected_ids=selected_ids,
+            source_selection_mode="custom" if explicit_engine_selection else "all",
+        )
+
+    def _research_dossier(self, payload: dict[str, Any], selected_ids: list[str], source_selection_mode: str) -> dict[str, Any]:
+        query = str(payload.get("query") or "").strip()
+        mode = str(payload.get("mode") or "Balanced")
+        generated_at = float(payload.get("generated_at") or self.clock())
+        results = payload.get("results") if isinstance(payload.get("results"), list) else []
+        engines = payload.get("engines") if isinstance(payload.get("engines"), list) else []
+        synthesis = payload.get("synthesis") if isinstance(payload.get("synthesis"), dict) else {}
+        evidence = self._evidence_records(results)
+        evidence_by_id = {row["evidence_id"]: row for row in evidence}
+        claims = self._claim_rows(query, synthesis, evidence, engines)
+        dossier_id = _stable_id("dossier", query, mode, generated_at, ",".join(selected_ids))
+        report_packet = self._report_packet(dossier_id, query, mode, generated_at, evidence, claims, payload)
+        model_outputs = payload.get("model_outputs") if isinstance(payload.get("model_outputs"), dict) else {}
+        synthesis_answer = synthesis.get("coordinated_answer") or model_outputs.get("answer") or ""
+        return {
+            "schema_version": 2,
+            "dossier_id": dossier_id,
+            "query": {
+                "text": query,
+                "mode": mode,
+                "selected_engines": selected_ids,
+                "source_selection_mode": source_selection_mode,
+                "submitted_at": generated_at,
+            },
+            "source_catalog": {
+                "engines": self.engines(),
+                "source_classes": self.source_classes(),
+            },
+            "engine_runs": engines,
+            "evidence": evidence,
+            "claims": claims,
+            "synthesis": {
+                **synthesis,
+                "answer": synthesis_answer,
+                "evidence_ids": list(evidence_by_id.keys()),
+            },
+            "model_audit": {
+                "strategy": payload.get("model_strategy") if isinstance(payload.get("model_strategy"), dict) else {},
+                "outputs": model_outputs,
+                "diagnostics": {
+                    "degraded_engines": synthesis.get("degraded_engines") if isinstance(synthesis.get("degraded_engines"), list) else [],
+                    "source_engine_counts": synthesis.get("source_engine_counts") if isinstance(synthesis.get("source_engine_counts"), dict) else {},
+                    "source_kind_counts": synthesis.get("source_kind_counts") if isinstance(synthesis.get("source_kind_counts"), dict) else {},
+                },
+            },
+            "report_packet": report_packet,
+            "pinned_evidence_ids": [],
+        }
+
+    def _evidence_records(self, results: list[Any]) -> list[dict[str, Any]]:
+        evidence: list[dict[str, Any]] = []
+        for index, row in enumerate(results, start=1):
+            if not isinstance(row, dict):
+                continue
+            evidence_id = str(row.get("id") or _stable_id(row.get("engine"), row.get("title"), row.get("url"), row.get("snippet")))
+            record = dict(row)
+            record["id"] = evidence_id
+            record["evidence_id"] = evidence_id
+            record["position"] = int(record.get("position") or index)
+            record["source_type"] = str(record.get("kind") or "web")
+            record["relevance_score"] = _safe_float(record.get("score"), 0.0)
+            record["source_label"] = str(record.get("source") or record.get("engine_name") or record.get("engine") or "Source")
+            record["metadata"] = {
+                key: record.get(key)
+                for key in ("path", "chunk", "collection_id", "thumbnail_url", "content_url", "coordinates", "published_at")
+                if record.get(key) not in (None, "")
+            }
+            evidence.append(record)
+        evidence.sort(key=lambda row: (-_safe_float(row.get("relevance_score"), 0.0), int(row.get("position") or 9999)))
+        return evidence
+
+    def _claim_rows(self, query: str, synthesis: dict[str, Any], evidence: list[dict[str, Any]], engines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        useful = [row for row in evidence if str(row.get("status") or "") not in {"needs_key", "error", "not_indexed", "no_matches"}]
+        degraded = [str(engine.get("id") or "") for engine in engines if isinstance(engine, dict) and engine.get("run_status") in {"needs_key", "error", "degraded"}]
+        top_ids = [str(row.get("evidence_id")) for row in useful[:4] if row.get("evidence_id")]
+        claims: list[dict[str, Any]] = []
+        summary = str(synthesis.get("summary") or "").strip()
+        answer = str(synthesis.get("coordinated_answer") or synthesis.get("answer") or "").strip()
+        if answer:
+            claims.append({
+                "claim_id": _stable_id("claim", query, "answer", answer),
+                "text": answer[:900],
+                "confidence": "medium" if top_ids else "low",
+                "status": "supported" if top_ids else "needs_evidence",
+                "supporting_evidence_ids": top_ids[:3],
+                "caveat": "Review linked evidence before relying on this synthesized answer.",
+            })
+        if summary:
+            claims.append({
+                "claim_id": _stable_id("claim", query, "summary", summary),
+                "text": summary[:900],
+                "confidence": "medium" if top_ids else "low",
+                "status": "supported" if top_ids else "needs_evidence",
+                "supporting_evidence_ids": top_ids,
+                "caveat": "Coverage reflects selected source classes and configured providers.",
+            })
+        if useful:
+            claims.append({
+                "claim_id": _stable_id("claim", query, "evidence", ",".join(top_ids[:4])),
+                "text": "%s usable evidence record(s) support the current technical research result." % len(useful),
+                "confidence": "medium",
+                "status": "supported",
+                "supporting_evidence_ids": top_ids[:5],
+                "caveat": "Evidence relevance is score-sorted and should be inspected row by row.",
+            })
+        if degraded:
+            claims.append({
+                "claim_id": _stable_id("claim", query, "degraded", ",".join(degraded)),
+                "text": "Some selected sources were degraded or need configuration: %s." % ", ".join(degraded),
+                "confidence": "high",
+                "status": "limited_coverage",
+                "supporting_evidence_ids": [],
+                "caveat": "Configure degraded engines or rerun with alternate sources for broader coverage.",
+            })
+        if not claims:
+            claims.append({
+                "claim_id": _stable_id("claim", query, "empty"),
+                "text": "No supported technical research claim could be generated for this query.",
+                "confidence": "low",
+                "status": "needs_evidence",
+                "supporting_evidence_ids": [],
+                "caveat": "Broaden the query or enable additional sources.",
+            })
+        return claims
+
+    def _report_packet(
+        self,
+        dossier_id: str,
+        query: str,
+        mode: str,
+        generated_at: float,
+        evidence: list[dict[str, Any]],
+        claims: list[dict[str, Any]],
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        synthesis = payload.get("synthesis") if isinstance(payload.get("synthesis"), dict) else {}
+        source_coverage = synthesis.get("source_coverage") if isinstance(synthesis.get("source_coverage"), list) else []
+        model_outputs = payload.get("model_outputs") if isinstance(payload.get("model_outputs"), dict) else {}
+        sections = [
+            {
+                "id": "request",
+                "title": "Research Request",
+                "kind": "metadata",
+                "content": "Query: %s\nMode: %s\nDossier: %s" % (query, mode, dossier_id),
+            },
+            {
+                "id": "answer",
+                "title": "Synthesis Answer",
+                "kind": "synthesis",
+                "content": str(synthesis.get("coordinated_answer") or model_outputs.get("answer") or synthesis.get("summary") or "No synthesis answer available."),
+            },
+            {
+                "id": "claims",
+                "title": "Claim Evidence Map",
+                "kind": "claims",
+                "items": claims,
+            },
+            {
+                "id": "pinned-evidence",
+                "title": "Pinned Evidence",
+                "kind": "pinned_evidence",
+                "items": [],
+            },
+            {
+                "id": "all-evidence",
+                "title": "All Evidence Records",
+                "kind": "evidence",
+                "items": evidence,
+            },
+            {
+                "id": "source-coverage",
+                "title": "Source Coverage",
+                "kind": "source_coverage",
+                "items": source_coverage,
+            },
+            {
+                "id": "model-audit",
+                "title": "Model Audit",
+                "kind": "model_audit",
+                "content": json.dumps({
+                    "strategy": payload.get("model_strategy") if isinstance(payload.get("model_strategy"), dict) else {},
+                    "outputs": model_outputs,
+                }, indent=2, sort_keys=True),
+            },
+        ]
+        return {
+            "dossier_id": dossier_id,
+            "title": "%s Research Packet" % (mode or "Technical"),
+            "generated_at": generated_at,
+            "sections": sections,
+            "pinned_evidence_ids": [],
         }
 
     def _ensure_minimum_search_engines(self, selected_ids: list[str], engine_descriptors: dict[str, dict[str, Any]]) -> list[str]:

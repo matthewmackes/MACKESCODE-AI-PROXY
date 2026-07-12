@@ -130,6 +130,39 @@ class V2ChatApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["response"]["text"], "operator ok")
 
+    def test_chat_response_normalizes_xml_leak_diagnostics(self):
+        old_auth = os.environ.get("MATTS_CONSOLE_AUTH_ENABLED")
+        old_adapter = chat_api.legacy_adapter
+
+        class FakeAdapter:
+            def chat_completion(self, payload):
+                return 200, {
+                    "text": "You are a function calling AI model. <tools></tools>",
+                    "raw": {"stop_reason": "end_turn", "trace_id": "upstream-trace"},
+                }
+
+        os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = "0"
+        chat_api.legacy_adapter = FakeAdapter()
+        try:
+            client = TestClient(create_app())
+            response = client.post("/v2/chat", json={
+                "model": "model-a",
+                "client_selected_model_id": "model-a",
+                "messages": [{"role": "user", "content": "hello"}],
+            })
+        finally:
+            chat_api.legacy_adapter = old_adapter
+            if old_auth is None:
+                os.environ.pop("MATTS_CONSOLE_AUTH_ENABLED", None)
+            else:
+                os.environ["MATTS_CONSOLE_AUTH_ENABLED"] = old_auth
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()["response"]
+        self.assertEqual(body["diagnostics"]["output_format_issue"], "tool_prompt_leak")
+        self.assertEqual(body["routing"]["client_selected"], "model-a")
+        self.assertEqual(body["trace"]["upstream_trace_id"], "upstream-trace")
+
 
 if __name__ == "__main__":
     unittest.main()

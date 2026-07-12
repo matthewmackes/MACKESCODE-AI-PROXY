@@ -126,6 +126,51 @@ class ChatRoutingServiceTests(unittest.TestCase):
         self.assertEqual(payload["streaming_metrics"], metrics)
         self.assertEqual(traces.records[0]["streaming_metrics"], metrics)
 
+    def test_serverless_success_detects_empty_max_tokens_output(self):
+        service, _, _ = self.service(
+            request_json=lambda *args, **kwargs: (200, {
+                "content": [{"type": "text", "text": ""}],
+                "stop_reason": "max_tokens",
+                "usage": {"output_tokens": 512},
+            }),
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hello"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["text"], "")
+        self.assertEqual(payload["diagnostics"]["output_format_issue"], "empty_max_tokens")
+        self.assertEqual(payload["diagnostics"]["warnings"][0]["code"], "empty_max_tokens")
+
+    def test_serverless_success_detects_tool_prompt_leak(self):
+        service, _, _ = self.service(
+            request_json=lambda *args, **kwargs: (200, {
+                "content": [{"type": "text", "text": "You are a function calling AI model. <tools></tools>"}],
+                "usage": {"output_tokens": 20},
+            }),
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hello"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["diagnostics"]["output_format_issue"], "tool_prompt_leak")
+        self.assertEqual(payload["diagnostics"]["warnings"][0]["code"], "tool_prompt_leak")
+
+    def test_serverless_prefers_upstream_priced_cost_and_keeps_estimate(self):
+        service, _, _ = self.service(
+            request_json=lambda *args, **kwargs: (200, {
+                "content": [{"type": "text", "text": "Hi"}],
+                "usage": {"output_tokens": 1},
+                "claude_do": {"cost": {"model": "model-a", "total_cost_usd": 0.25, "priced": True}},
+            }),
+        )
+
+        status, payload = service.serverless_completion({"messages": [{"role": "user", "content": "hello"}]}, "model-a")
+
+        self.assertEqual(status, HTTPStatus.OK)
+        self.assertEqual(payload["cost"]["total_cost_usd"], 0.25)
+        self.assertEqual(payload["cost_estimate"]["total_cost_usd"], 0.01)
+
     def test_research_fallback_hint_marks_upstream_error_trace_non_blocking(self):
         traces = MemoryTraceService()
         service, _, _ = self.service(

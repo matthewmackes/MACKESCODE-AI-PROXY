@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Checkbox, Input, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { getMeCapabilities } from '../api/generated/v2Client';
-import { acknowledgeOperateConfigDrift, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, testOperateAutomation, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
+import { acknowledgeOperateConfigDrift, getOnboarding, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, seedOnboardingModelTemplates, testOperateAutomation, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
+import type { OnboardingPayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
 
 function list(value: unknown): Array<Record<string, unknown>> {
@@ -61,6 +62,64 @@ function riskColor(value: unknown): string {
   if (risk === 'medium') return 'orange';
   if (risk === 'low') return 'blue';
   return 'default';
+}
+
+function OnboardingTemplateGallery({
+  data,
+  canSeed,
+  seedLoading,
+  onSeed,
+  onCopy,
+  copiedKey
+}: {
+  data?: OnboardingPayload;
+  canSeed: boolean;
+  seedLoading: boolean;
+  onSeed: () => void;
+  onCopy: (text: string, key: string) => void;
+  copiedKey: string;
+}) {
+  const modelTemplates = data?.model_templates;
+  const summary = modelTemplates?.summary || { target: 0, existing: 0, missing: 0, seeded: 0 };
+  const items = (modelTemplates?.items || []).slice(0, 9);
+  return (
+    <Card title="Golden Path Onboarding" data-testid="operate-onboarding">
+      <Space direction="vertical" size={12} className="pageStack">
+        <Space wrap>
+          <Tag color="blue">{summary.target} routable models</Tag>
+          <Tag color="green">{summary.existing} templates ready</Tag>
+          <Tag color={summary.missing ? 'orange' : 'green'}>{summary.missing} missing</Tag>
+          {summary.seeded ? <Tag color="purple">{summary.seeded} seeded</Tag> : null}
+          <Button size="small" disabled={!canSeed || !summary.missing} loading={seedLoading} onClick={onSeed}>Seed Model Templates</Button>
+        </Space>
+        <div className="onboardingTemplateGrid" data-testid="operate-onboarding-template-gallery">
+          {items.map((item) => {
+            const model = record(item.model);
+            const template = record(item.template);
+            const preview = record(item.preview);
+            const key = valueText(template.id || model.id || model.display_name);
+            const rendered = valueText(preview.rendered || template.body);
+            const variables = Array.isArray(preview.variables) ? preview.variables.map((variable) => valueText(variable)).filter(Boolean) : [];
+            return (
+              <article className="onboardingTemplateCard" key={key}>
+                <div>
+                  <span>{valueText(model.company, 'Model')}</span>
+                  <strong>{valueText(model.display_name || model.id, 'Prepared model')}</strong>
+                  <p>{valueText(model.family)} · {valueText(model.type)} · {valueText(model.cost_label)}</p>
+                </div>
+                <Space wrap>
+                  <Tag color={item.status === 'missing' ? 'orange' : 'green'}>{item.status}</Tag>
+                  {variables.map((variable) => <Tag key={variable}>{variable}</Tag>)}
+                </Space>
+                <pre className="templatePreview">{rendered.split('\n').slice(0, 8).join('\n')}</pre>
+                <Button size="small" onClick={() => onCopy(rendered, key)}>{copiedKey === key ? 'Copied' : 'Copy Template'}</Button>
+              </article>
+            );
+          })}
+        </div>
+      </Space>
+    </Card>
+  );
 }
 
 async function copyText(text: string): Promise<void> {
@@ -198,6 +257,8 @@ function configDriftBriefMarkdown(summary: Record<string, unknown>, items: Array
 export default function OperatePage() {
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000 });
+  const onboarding = useQuery({ queryKey: ['onboarding'], queryFn: getOnboarding, refetchInterval: 60000, retry: false });
+  const seedAttempted = useRef(false);
   const [ciReference, setCiReference] = useState('acme/app#5');
   const [datasetJson, setDatasetJson] = useState('{"id":"v2-smoke-dataset","name":"V2 Smoke Dataset","examples":[{"id":"ex-001","input":"Reply only ok","expected":"ok"}]}');
   const [automationEventJson, setAutomationEventJson] = useState('{"event":{"event":"run_profile.changed","source":"run","severity":"high","model":"model-a","session":"v2-smoke"}}');
@@ -216,6 +277,7 @@ export default function OperatePage() {
   const [handoffBriefStatus, setHandoffBriefStatus] = useState('No handoff');
   const [copiedClosureKey, setCopiedClosureKey] = useState('');
   const [copiedPacketKey, setCopiedPacketKey] = useState('');
+  const [copiedTemplateKey, setCopiedTemplateKey] = useState('');
   const [copiedDriftEvidenceKey, setCopiedDriftEvidenceKey] = useState('');
   const [driftBriefStatus, setDriftBriefStatus] = useState('No drift brief');
   const [driftReason, setDriftReason] = useState('Reviewed from V2 Operate.');
@@ -312,7 +374,14 @@ export default function OperatePage() {
     mutationFn: (modelId: string) => previewOperateModelDeprecation({ model_id: modelId }),
     onSuccess: setModelDeprecationPreview
   });
+  const seedTemplatesMutation = useMutation({
+    mutationFn: seedOnboardingModelTemplates,
+    onSuccess: () => {
+      onboarding.refetch();
+    }
+  });
   const canView = capabilities.data?.capabilities['console.view']?.allowed ?? false;
+  const canSeedTemplates = capabilities.data?.capabilities['run.edit']?.allowed ?? false;
   const canImportRepository = capabilities.data?.capabilities['operate.repository.import']?.allowed ?? false;
   const canReleaseReport = capabilities.data?.capabilities['operate.rollback.admin']?.allowed ?? false;
   const canManageReviews = capabilities.data?.capabilities['operate.review.manage']?.allowed ?? false;
@@ -410,6 +479,21 @@ export default function OperatePage() {
       setCopiedDriftEvidenceKey('copy-failed');
     }
   };
+  const copyTemplatePreview = async (text: string, key: string) => {
+    try {
+      await copyText(text);
+      setCopiedTemplateKey(key);
+    } catch {
+      setCopiedTemplateKey('copy-failed');
+    }
+  };
+
+  useEffect(() => {
+    const missing = Number(onboarding.data?.model_templates?.summary?.missing || 0);
+    if (!canSeedTemplates || !missing || seedAttempted.current || seedTemplatesMutation.isPending) return;
+    seedAttempted.current = true;
+    seedTemplatesMutation.mutate();
+  }, [canSeedTemplates, onboarding.data?.model_templates?.summary?.missing, seedTemplatesMutation]);
 
   return (
     <Space direction="vertical" size={16} className="pageStack">
@@ -425,6 +509,15 @@ export default function OperatePage() {
       </Card>
       {!canView ? <Alert type="info" showIcon message="Viewing operation data requires console permission." /> : null}
       {operate.error ? <Alert type="error" showIcon message={errorText(operate.error)} /> : null}
+      {onboarding.error ? <Alert type="error" showIcon message={errorText(onboarding.error)} /> : null}
+      <OnboardingTemplateGallery
+        data={onboarding.data}
+        canSeed={canSeedTemplates}
+        seedLoading={seedTemplatesMutation.isPending}
+        onSeed={() => seedTemplatesMutation.mutate()}
+        onCopy={(text, key) => void copyTemplatePreview(text, key)}
+        copiedKey={copiedTemplateKey}
+      />
       <Space wrap data-testid="operate-summary">
         <Card className="metricCard">
           <Typography.Text type="secondary">Reviews</Typography.Text>

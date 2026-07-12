@@ -1,12 +1,11 @@
-"""v2 Chat hero routes."""
+"""v2 onboarding checklist and prepared model-template routes."""
 from __future__ import annotations
 
 from typing import Any, Optional
 
 from backend.v2.api.auth import capability_service, identity_from_request
-from backend.v2.services.chat_response import normalize_chat_result
 from backend.v2.services.legacy_console import LegacyConsoleAdapter
-from backend.v2.services.model_showcase import ModelShowcaseService
+from backend.v2.services.onboarding_templates import OnboardingTemplateService
 
 try:
     from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -18,9 +17,9 @@ except ImportError:  # pragma: no cover
     Request = object  # type: ignore[assignment]
 
 
-router = APIRouter(prefix="/v2/chat", tags=["chat"]) if APIRouter else None
+router = APIRouter(prefix="/v2/onboarding", tags=["onboarding"]) if APIRouter else None
 legacy_adapter = LegacyConsoleAdapter()
-showcase_service = ModelShowcaseService()
+template_service = OnboardingTemplateService()
 
 
 def _identity(request: Request, authorization: Optional[str], console_token: Optional[str], token: Optional[str]) -> dict[str, Any]:
@@ -33,10 +32,17 @@ def _require(identity: dict[str, Any], action: str) -> None:
         raise HTTPException(status_code=403, detail=decision.to_dict())
 
 
+def _payload(model_templates: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "onboarding": legacy_adapter.onboarding_payload(),
+        "model_templates": model_templates or template_service.payload(),
+    }
+
+
 if router:
 
     @router.get("")
-    def chat_payload(
+    def onboarding_payload(
         request: Request,
         authorization: Optional[str] = Header(default=None),
         x_matts_console_token: Optional[str] = Header(default=None),
@@ -44,21 +50,21 @@ if router:
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
         _require(identity, "console.view")
-        models = [model for model in showcase_service.payload()["models"] if model.get("type") == "text" and model.get("route_enabled")]
-        return {
-            "models": models,
-            "default_model": models[0]["id"] if models else "",
-            "voice": {
-                "mode": "browser_speech_synthesis",
-                "style": "calm mission-computer",
-                "enabled_by_default": True,
-                "max_chars": 1200,
-                "preview": "MDE LLM-PROXY voice online. I will read concise model responses when voice is enabled.",
-            },
-        }
+        return _payload()
 
-    @router.post("")
-    def chat_completion(
+    @router.post("/model-templates/seed")
+    def seed_model_templates(
+        request: Request,
+        authorization: Optional[str] = Header(default=None),
+        x_matts_console_token: Optional[str] = Header(default=None),
+        token: Optional[str] = Query(default=None),
+    ) -> dict[str, Any]:
+        identity = _identity(request, authorization, x_matts_console_token, token)
+        _require(identity, "run.edit")
+        return _payload(template_service.seed_missing())
+
+    @router.post("/complete")
+    def complete_onboarding(
         payload: dict[str, Any],
         request: Request,
         authorization: Optional[str] = Header(default=None),
@@ -66,14 +72,10 @@ if router:
         token: Optional[str] = Query(default=None),
     ) -> dict[str, Any]:
         identity = _identity(request, authorization, x_matts_console_token, token)
-        _require(identity, "chat.use")
+        _require(identity, "operate.config_drift.admin")
         payload = dict(payload or {})
-        payload.pop("trace_status_on_error", None)
-        payload.pop("trace_origin", None)
+        payload["actor"] = identity
         try:
-            status, result = legacy_adapter.chat_completion(payload)
+            return {"onboarding": legacy_adapter.complete_onboarding_item(payload), "model_templates": template_service.payload()}
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail={"message": str(exc), "code": "invalid_chat"})
-        if status >= 400:
-            raise HTTPException(status_code=status, detail=result)
-        return {"status": status, "response": normalize_chat_result(result, str(payload.get("client_selected_model_id") or ""))}
+            raise HTTPException(status_code=400, detail={"message": str(exc), "code": "onboarding_invalid"})

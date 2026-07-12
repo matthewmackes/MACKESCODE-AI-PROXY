@@ -41,6 +41,57 @@ The interface refactoring work consolidates previously separate components into 
 
 ## Active Tasks
 
+### Task ID: INT-163
+**Title:** Apply cohesive V2 interface aesthetic polish pass
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Codex
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+**Estimated Duration:** 2 hours
+
+**Description:** The live V2 interface is functional and strongly themed, but a visual review found that it reads as too sharp, too literal, and uneven across workspaces. Apply the full aesthetic review: reduce oversized hero typography, soften hard borders, lower sidebar visual weight, unify product language across Chat/Research/Models/Advanced, refine Research visual hierarchy, make Models more scannable, add richer Chat empty states, and use color more deliberately while preserving the ICQ, LexisNexis-style dossier, and Carbon-admin references.
+
+**Implementation Steps:**
+1. **Hero title scale and spacing entry:** Extensivly, professionally, creative in the implementation. Reduce the oversized `Chat`, `Research`, `Models`, and `Advanced` title scale by roughly 20-30%, preserve the intended display personality, keep the custom Chat typography intact, and rebalance header spacing so the first viewport feels premium instead of dominated by a single word.
+2. **Border and panel softness entry:** Extensivly, professionally, creative in the implementation. Replace excessive hard black/red/blue borders and offset shadows with lighter dividers, softer elevation, better padding, and restrained panel treatments while keeping enough structure for dense operational scanning.
+3. **Left sidebar weight entry:** Extensivly, professionally, creative in the implementation. Reduce the rail's visual competition with primary workspaces by softening nav active states, shrinking or calming summary cards, improving card rhythm, and making the model intelligence block supportive instead of dominant.
+4. **Cross-workspace product-language entry:** Extensivly, professionally, creative in the implementation. Harmonize shared spacing, button height, border radius, surface color, icon treatment, and status styling so Chat, Research, Models, Advanced, Code, and Create feel like one product with workspace-specific accents rather than separate prototypes.
+5. **Research visual hierarchy entry:** Extensivly, professionally, creative in the implementation. Keep the legal research dossier feel, but make red an accent rather than the main structural color; refine tabs, search controls, engine chips, source chips, result tables, claim maps, and report actions so the page is authoritative without feeling harsh.
+6. **Models scanability entry:** Extensivly, professionally, creative in the implementation. Make the Models catalog easier to scan by increasing card readability, improving card rhythm and minimum width, reducing tiny dense text, strengthening selected/highlighted model hierarchy, and preserving filters and detailed comparison actions.
+7. **Chat empty-state richness entry:** Extensivly, professionally, creative in the implementation. Replace the large blank conversation area with a quiet, useful, visually rich empty state that shows selected-model context and suggested starter prompts without adding instructional clutter or breaking the ICQ contact-list concept.
+8. **Color discipline entry:** Extensivly, professionally, creative in the implementation. Make color usage more deliberate across the shell: use blue for core console actions, red for Research dossier emphasis, green/yellow/red strictly for status, and neutral surfaces for structure; avoid competing accent blocks in the first viewport.
+9. **Responsive polish entry:** Extensivly, professionally, creative in the implementation. Ensure the aesthetic changes remain clean on mobile and desktop; preserve existing no-horizontal-overflow guarantees, stable button dimensions, readable text, and dense-but-organized operational layouts.
+10. **Verification and evidence entry:** Extensivly, professionally, creative in the implementation. Validate the pass with frontend build, focused screenshot review, V2 browser smoke, and a live V2 restart/health check; update this worklist item with exact evidence before marking complete.
+
+**Completion Criteria:**
+- [x] Hero titles are visibly smaller, better spaced, and still brand-consistent
+- [x] Chat/Research/Models/Advanced panels use softer dividers/elevation without losing scanability
+- [x] The sidebar is less visually dominant and no longer competes with main content
+- [x] Shared controls and surfaces feel unified across workspace styles
+- [x] Research uses red as a disciplined accent and presents tabs/search/chips/results more pleasantly
+- [x] Models cards and selected-model detail are easier to scan in the desktop catalog
+- [x] Chat's empty conversation state is more useful and less blank
+- [x] Color roles are consistent and less visually noisy
+- [x] Responsive behavior remains stable with no obvious text overlap or horizontal overflow
+- [x] Frontend build and V2 browser smoke pass after the polish pass
+- [x] Live V2 is restarted on the expected port and health-checked
+
+**Progress Notes:**
+- 2026-07-12: Started from live desktop screenshot review of Chat, Research, Models, and Advanced. Scope is CSS/UI polish with limited component markup changes for Chat's empty state and supporting classes.
+- 2026-07-12: Added `Bitcount Single` to the frontend font import for the Chat hero title, reduced shared hero title scale, softened sidebar/nav/readiness/model-intelligence visual weight, and introduced a shared polish layer for panel borders, elevation, button radii, workspace surfaces, and color discipline.
+- 2026-07-12: Reworked Chat's empty conversation area into a richer selected-contact empty state with starter actions while preserving the legacy `No conversation yet.` text needed by smoke coverage.
+- 2026-07-12: Refined Research hierarchy so red is concentrated in the dossier rule, active tab, primary action, and active evidence filters; engine chips now use calmer neutral selected states with status text instead of every selected source reading as an error.
+- 2026-07-12: Improved Models scanability with wider cards, softer catalog surfaces, smaller metrics, stronger selected-model detail rhythm, and less tiny dense text; Advanced panels inherited the shared softened surface treatment.
+- 2026-07-12: Captured screenshot review artifacts under `/tmp/matts-ui-polish-review/` for Chat, Research, Models, and Advanced, including a final Research chip-tone check after the second polish adjustment.
+- 2026-07-12: Verification passed with `npm run build` in `frontend`, `python3 -m py_compile scripts/v2-browser-smoke.py`, `git diff --check`, and full `PYTHONPATH=. python3 scripts/v2-browser-smoke.py`.
+- 2026-07-12: Live V2 was restarted on port `18182`; `curl -fsS http://127.0.0.1:18182/v2/health` returned `{"status":"ok","version":"2.0.0"}`.
+
+**Dependencies:** INT-162
+**Blocks:** A more polished and pleasing V2 operator interface while preserving current runtime functionality
+
+---
+
 ### Task ID: INT-162
 **Title:** Add visible V2 sign-in, settings, and Code TMux entry points
 **Status:** ✅ `COMPLETED`
