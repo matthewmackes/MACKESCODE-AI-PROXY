@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import type { SelectProps } from 'antd';
 import 'antd/dist/reset.css';
 import {
   activateRunProfile,
@@ -46,6 +47,7 @@ import {
   WorkspaceBundleSummary
 } from '../api/generated/v2Client';
 import { getModels, ModelCard } from '../api/v2';
+import { ModelIdentityCard } from '../components/modelCard';
 import { errorText } from '../utils/errors';
 import { recordValue, timestampLabel } from '../utils/format';
 
@@ -132,6 +134,11 @@ export default function RunPage() {
   const replays = replayRecords.data?.replays ?? [];
   const workspaceBundles = workspaceBundleRecords.data?.bundles ?? [];
   const routableTextModels = useMemo(() => (models.data?.models || []).filter((model: ModelCard) => model.type === 'text' && model.route_enabled), [models.data?.models]);
+  const routableTextModelById = useMemo(() => new Map<string, ModelCard>(routableTextModels.map((model) => [model.id, model])), [routableTextModels]);
+  const renderModelOption: SelectProps['optionRender'] = (option) => {
+    const model = routableTextModelById.get(String(option.value ?? ''));
+    return model ? <ModelIdentityCard model={model} size="small" showFavorite={false} interactive={false} testId="model-select-option" /> : option.label;
+  };
   const [templateId, setTemplateId] = useState('');
   const [templatePreview, setTemplatePreview] = useState<PromptTemplatePreview | null>(null);
   const [templatePreviewError, setTemplatePreviewError] = useState('');
@@ -458,7 +465,7 @@ export default function RunPage() {
                   >
                     <Space wrap>
                       <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
-                        <Select data-testid="chat-run-model" showSearch allowClear placeholder="default text model" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
+                        <Select data-testid="chat-run-model" showSearch allowClear placeholder="default text model" optionFilterProp="label" popupMatchSelectWidth={false} style={{ minWidth: 220 }} optionRender={renderModelOption} options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                       </Form.Item>
                       <Form.Item name="max_tokens" label="Max Tokens">
                         <Input data-testid="chat-run-max-tokens" type="number" />
@@ -710,7 +717,7 @@ export default function RunPage() {
                       <Input data-testid="profile-description" />
                     </Form.Item>
                     <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
-                      <Select data-testid="profile-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
+                      <Select data-testid="profile-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" popupMatchSelectWidth={false} style={{ minWidth: 220 }} optionRender={renderModelOption} options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                     </Form.Item>
                     <Form.Item name="template_id" label="Prompt Template">
                       <Select data-testid="profile-template" allowClear value={templateId} onChange={setTemplateId} options={templates.map((template) => ({ value: template.id, label: template.name }))} />
@@ -925,7 +932,7 @@ export default function RunPage() {
                         />
                       </Form.Item>
                       <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
-                        <Select data-testid="context-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
+                        <Select data-testid="context-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" popupMatchSelectWidth={false} style={{ minWidth: 220 }} optionRender={renderModelOption} options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                       </Form.Item>
                       <Form.Item name="max_tokens" label="Max Output">
                         <Input data-testid="context-max-tokens" type="number" />

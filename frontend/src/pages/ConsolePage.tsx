@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import type { SelectProps } from 'antd';
 import 'antd/dist/reset.css';
 import {
   acquireConsoleTuiControl,
@@ -27,8 +28,10 @@ import {
   stopTmuxSession,
   TmuxWorkspacePayload
 } from '../api/generated/v2Client';
+import { getModels, ModelCard } from '../api/v2';
 import TmuxTerminal from '../components/TmuxTerminal';
 import TuiTerminal from '../components/TuiTerminal';
+import { ModelIdentityCard } from '../components/modelCard';
 import { apiEndpointUrl } from '../api/auth';
 import { errorText } from '../utils/errors';
 import { money } from '../utils/format';
@@ -99,9 +102,15 @@ export default function ConsolePage() {
   const tmuxWorkspace = useQuery({ queryKey: ['tmux-workspace'], queryFn: getTmuxWorkspace, refetchInterval: 5000 });
   const commands = useQuery({ queryKey: ['console-commands', commandQuery, selectedSession], queryFn: () => getConsoleCommands(commandQuery, { session: selectedSession }), retry: false });
   const defaults = useQuery({ queryKey: ['code-session-defaults'], queryFn: getCodeSessionDefaults });
+  const modelsCatalog = useQuery({ queryKey: ['models'], queryFn: getModels });
   const runWorkspace = useQuery({ queryKey: ['run-workspace'], queryFn: getRunWorkspace });
   const canControlTui = capabilities.data?.capabilities['tui.control']?.allowed ?? false;
   const canControlTmux = capabilities.data?.capabilities['tmux.control']?.allowed ?? false;
+  const cardById = useMemo(() => new Map<string, ModelCard>((modelsCatalog.data?.models || []).map((model) => [model.id, model])), [modelsCatalog.data?.models]);
+  const renderModelOption: SelectProps['optionRender'] = (option) => {
+    const model = cardById.get(String(option.value ?? ''));
+    return model ? <ModelIdentityCard model={model} size="small" showFavorite={false} interactive={false} testId="model-select-option" /> : option.label;
+  };
   const errors = Object.entries(overview.data?.errors ?? {});
   const summary = overview.data?.summary;
   const sessions = overview.data?.sessions ?? [];
@@ -522,6 +531,8 @@ export default function ConsolePage() {
                   <Select
                     data-testid="code-session-model"
                     style={{ minWidth: 220 }}
+                    popupMatchSelectWidth={false}
+                    optionRender={renderModelOption}
                     options={(defaults.data?.text_models ?? []).map((model) => ({ value: model, label: model }))}
                   />
                 </Form.Item>

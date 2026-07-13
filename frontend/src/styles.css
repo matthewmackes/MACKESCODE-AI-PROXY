@@ -73,9 +73,6 @@ button {
 .modelMetric strong,
 .researchMetrics strong,
 .icqChatStats span,
-.modelFacts span,
-.selectedModelFacts span,
-.modelAlertCard small,
 .homeNationMix b,
 .advancedOverview .homeNationMix b,
 .terminalStatus {
@@ -1249,7 +1246,6 @@ button {
 .terminalPanel,
 .advancedPanel,
 .searchResult,
-.modelShowcaseCard,
 .whatsNewModal {
   border: 1px solid var(--cds-border-subtle);
   background: var(--cds-layer);
@@ -1365,52 +1361,6 @@ button {
 .iconButton.active {
   background: var(--cds-green);
   border-color: var(--cds-green);
-}
-
-.selectedModelPanel {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 14px;
-  border: 1px solid var(--cds-border-subtle);
-  border-left: 4px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff);
-}
-
-.selectedModelPanel span,
-.selectedModelFacts span {
-  color: var(--cds-text-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
-}
-
-.selectedModelPanel strong {
-  display: block;
-  margin-top: 3px;
-  font-size: 18px;
-  font-weight: 500;
-}
-
-.selectedModelPanel p {
-  margin: 4px 0 0;
-  color: var(--cds-text-secondary);
-}
-
-.selectedModelFacts {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.selectedModelFacts span {
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 8px;
-  border: 1px solid var(--cds-border-subtle);
-  background: rgba(255,255,255,.8);
 }
 
 .voiceConsole {
@@ -1765,40 +1715,6 @@ button {
   font-size: 12px;
 }
 
-.icqContactRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  background: var(--cds-layer);
-}
-
-.icqContactRow.active {
-  box-shadow: inset 4px 0 0 var(--cds-blue);
-}
-
-.icqContactButton,
-.icqFavoriteButton {
-  border: 0;
-  background: transparent;
-  color: var(--cds-text);
-}
-
-.icqContactButton {
-  min-height: 56px;
-  display: grid;
-  grid-template-columns: 10px 34px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  min-width: 0;
-  padding: 7px 8px;
-  text-align: left;
-}
-
-.icqContactButton:hover,
-.icqFavoriteButton:hover,
-.icqContactRow.active .icqContactButton {
-  background: var(--cds-layer-02);
-}
-
 .presenceDot {
   width: 9px;
   height: 9px;
@@ -1821,50 +1737,9 @@ button {
   background: var(--cds-border);
 }
 
-.icqContactButton .modelLogo,
 .messageAvatar .modelLogo {
   width: 34px;
   height: 34px;
-}
-
-.icqContactText {
-  min-width: 0;
-}
-
-.icqContactText strong,
-.icqContactText small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.icqContactText strong {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.icqContactText small {
-  margin-top: 3px;
-  color: var(--cds-text-secondary);
-  font-size: 11px;
-}
-
-.icqFavoriteButton {
-  width: 36px;
-  display: grid;
-  place-items: center;
-  border-left: 1px solid var(--cds-border-subtle);
-}
-
-.icqFavoriteButton .carbonIcon {
-  width: 17px;
-  height: 17px;
-  filter: none;
-}
-
-.icqFavoriteButton.active .carbonIcon {
-  filter: sepia(1) saturate(4) hue-rotate(350deg);
 }
 
 .icqChatTitle {
@@ -2198,7 +2073,6 @@ button {
   }
 
   .messageAvatar,
-  .icqContactButton .modelLogo,
   .messageAvatar .modelLogo,
   .chatUserAvatar {
     width: 32px;
@@ -2654,8 +2528,7 @@ button {
 }
 
 .attachmentChip,
-.statusPill,
-.modelFacts span {
+.statusPill {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
@@ -3620,15 +3493,13 @@ button {
   text-decoration: underline;
 }
 
-.searchResult h3,
-.modelShowcaseCard h3 {
+.searchResult h3 {
   margin: 0;
   font-size: 20px;
   font-weight: 500;
 }
 
-.searchResult p,
-.modelShowcaseCard p {
+.searchResult p {
   margin: 0;
   color: var(--cds-text-secondary);
   line-height: 1.45;
@@ -4070,8 +3941,7 @@ button {
   background: var(--cds-layer);
 }
 
-.modelMetric span,
-.modelSpotlight span {
+.modelMetric span {
   color: var(--cds-text-secondary);
   font-size: 12px;
   text-transform: uppercase;
@@ -4080,53 +3950,6 @@ button {
 .modelMetric strong {
   font-size: 34px;
   font-weight: 400;
-}
-
-.modelSpotlight {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(280px, auto);
-  gap: 16px;
-  align-items: center;
-  padding: 18px;
-  border: 1px solid var(--cds-border-subtle);
-  border-left: 6px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff);
-}
-
-.modelSpotlight strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 24px;
-  font-weight: 500;
-}
-
-.modelSpotlight p {
-  margin: 6px 0 0;
-  color: var(--cds-text-secondary);
-  line-height: 1.45;
-}
-
-.modelSpotlightFacts {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.modelSpotlightFacts span {
-  display: inline-flex;
-  min-height: 26px;
-  align-items: center;
-  padding: 0 8px;
-  border: 1px solid var(--cds-border-subtle);
-  background: rgba(255, 255, 255, .76);
-  color: var(--cds-text-secondary);
-  font-size: 12px;
-}
-
-.modelSpotlightFacts .secondaryButton {
-  min-height: 28px;
-  padding: 0 10px;
 }
 
 .modelControls {
@@ -4199,8 +4022,7 @@ button {
   white-space: nowrap;
 }
 
-.modelInspectorPalette,
-.modelCardActions {
+.modelInspectorPalette {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -4449,22 +4271,6 @@ button {
   font-size: 12px;
 }
 
-.modelShowcaseCard {
-  display: grid;
-  gap: 14px;
-  min-height: 300px;
-  padding: 18px;
-  background: linear-gradient(180deg, var(--surface), #ffffff);
-  border-top: 4px solid var(--accent);
-}
-
-.modelCardTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
 .modelLogo {
   width: 42px;
   height: 42px;
@@ -4558,45 +4364,6 @@ button {
   border-color: #f1c21b;
 }
 
-.modelFacts {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-self: end;
-}
-
-.modelCardActions {
-  align-self: end;
-}
-
-.modelCardActions .secondaryButton {
-  min-height: 36px;
-  padding: 0 10px;
-}
-
-.modelMiniCard {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  padding: 8px;
-  background: #262626;
-  border: 1px solid #393939;
-}
-
-.modelMiniCard strong,
-.modelMiniCard span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.modelMiniCard span {
-  color: #c6c6c6;
-  font-size: 11px;
-}
-
 /* V2 aesthetic polish layer: quieter shell, softer panels, and clearer hierarchy. */
 .carbonShell {
   grid-template-columns: minmax(0, 1fr);
@@ -4613,8 +4380,7 @@ button {
 
 .readinessPulse,
 .homeSummaryHeader,
-.homeMetric,
-.modelMiniCard {
+.homeMetric {
   border-color: #343434;
   background: #242424;
 }
@@ -4653,16 +4419,6 @@ button {
   border-left-width: 3px;
 }
 
-.modelMiniCard {
-  grid-template-columns: 32px minmax(0, 1fr);
-  padding: 7px;
-}
-
-.modelMiniCard .modelLogo {
-  width: 32px;
-  height: 32px;
-}
-
 .mainSurface {
   padding-top: 76px;
   background:
@@ -4675,13 +4431,11 @@ button {
 .terminalPanel,
 .advancedPanel,
 .searchResult,
-.modelShowcaseCard,
 .whatsNewModal,
 .researchBriefDock,
 .lexisResultTable,
 .claimMap,
 .sourceRegistryCard,
-.modelSpotlight,
 .modelInspector,
 .modelMetrics,
 .modelArtworkGallery {
@@ -4763,15 +4517,6 @@ button {
 .icqContactGroup {
   gap: 0;
   background: #dfe4eb;
-}
-
-.icqContactRow {
-  border-bottom: 1px solid #e2e7ef;
-}
-
-.icqContactRow.active {
-  background: #f1f6ff;
-  box-shadow: inset 3px 0 0 var(--cds-blue);
 }
 
 .icqVoiceStrip,
@@ -4996,7 +4741,6 @@ html[data-theme="dark"] .icqContactSearch .carbonIcon,
 html[data-theme="dark"] .voiceConsoleLead .carbonIcon,
 html[data-theme="dark"] .pinButton .carbonIcon,
 html[data-theme="dark"] .resultCopyButton .carbonIcon,
-html[data-theme="dark"] .icqFavoriteButton .carbonIcon,
 html[data-theme="dark"] .closeButton .carbonIcon,
 html[data-theme="dark"] .contextPill button .carbonIcon,
 html[data-theme="dark"] .evidenceItem button .carbonIcon,
@@ -5022,8 +4766,308 @@ html[data-theme="dark"] .quickSwitcherRecents button .carbonIcon {
   font-size: 13px;
 }
 
-html[data-theme="dark"] .icqFavoriteButton.active .carbonIcon {
-  filter: invert(1) sepia(1) saturate(4) hue-rotate(350deg);
+/* Unified model identity card (V2-081): one DNA, big/small sizes. */
+.mdlCard {
+  --mdl-accent: var(--cds-blue);
+  position: relative;
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--cds-border-subtle);
+  border-left: 4px solid var(--mdl-accent);
+  border-radius: 4px;
+  background: var(--cds-layer-01);
+  background: color-mix(in srgb, var(--mdl-accent) 7%, var(--cds-layer-01));
+  color: var(--cds-text);
+  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.mdlCard:hover,
+.mdlCard:focus-within {
+  background: color-mix(in srgb, var(--mdl-accent) 14%, var(--cds-layer-01));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+}
+
+.mdlCard.active {
+  border-color: var(--mdl-accent);
+  box-shadow: inset 0 0 0 1px var(--mdl-accent);
+}
+
+.mdlCardBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mdlCardBody.passive {
+  cursor: inherit;
+}
+
+.mdlCard.big .mdlCardBody {
+  gap: 14px;
+  padding: 16px;
+}
+
+.mdlCardLogo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mdl-accent) 18%, var(--cds-layer-01));
+}
+
+.mdlCard.big .mdlCardLogo {
+  width: 56px;
+  height: 56px;
+}
+
+.mdlCardLogo .modelLogo {
+  width: 30px;
+  height: 30px;
+}
+
+.mdlCard.big .mdlCardLogo .modelLogo {
+  width: 46px;
+  height: 46px;
+}
+
+.mdlCardIdentity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mdlCardName {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mdlCard.big .mdlCardName {
+  font-size: 20px;
+}
+
+.mdlCardSparkle {
+  margin-left: 5px;
+  font-size: .82em;
+  animation: mdlSparkle 2.4s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes mdlSparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .55; transform: scale(.88); }
+}
+
+.mdlCardByline {
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mdlCardBlurb {
+  margin-top: 3px;
+  color: var(--cds-text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mdlCardFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--cds-text-secondary);
+}
+
+.mdlCardFacts span {
+  padding: 1px 6px;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 3px;
+  background: var(--cds-layer-02);
+  white-space: nowrap;
+}
+
+.mdlCardCorner {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.mdlCardStar,
+.mdlCardInfo {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--cds-text-secondary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mdlCardStar:hover,
+.mdlCardInfo:hover,
+.mdlCardStar:focus-visible,
+.mdlCardInfo:focus-visible {
+  border-color: var(--cds-border-subtle);
+  background: var(--cds-layer-01);
+  color: var(--cds-text);
+}
+
+.mdlCardStar.active {
+  color: #f1c21b;
+}
+
+.mdlCardInfo .carbonIcon {
+  width: 14px;
+  height: 14px;
+  filter: none;
+}
+
+html[data-theme="dark"] .mdlCardInfo .carbonIcon {
+  filter: invert(1);
+}
+
+.mdlCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.mdlCardActions .secondaryButton {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mdlCard,
+  .mdlCard:hover,
+  .mdlCard:focus-within {
+    transform: none;
+    transition: none;
+  }
+
+  .mdlCardSparkle {
+    animation: none;
+  }
+}
+
+.mdlSelectField {
+  position: relative;
+  min-width: 230px;
+}
+
+.mdlSelectTrigger {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 4px;
+  background: var(--cds-field);
+  color: var(--cds-text);
+  text-align: left;
+  font: inherit;
+}
+
+.mdlSelectTrigger:hover,
+.mdlSelectTrigger:focus-visible {
+  border-color: var(--cds-blue);
+  outline: 0;
+}
+
+.mdlSelectTrigger small {
+  color: var(--cds-text-secondary);
+  font-size: 11px;
+}
+
+.mdlSelectPopover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 4px;
+  background: var(--cds-layer-01);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .28);
+}
+
+.mdlSelectOption.highlighted .mdlCard {
+  border-color: var(--cds-blue);
+}
+
+.icqContactGroup .mdlCard {
+  margin: 4px 6px;
+}
+
+.messageModelCard {
+  min-width: 0;
+  width: 220px;
+  flex: 0 0 auto;
+}
+
+.messageModelCard .mdlCard {
+  font-size: 12px;
+}
+
+.modelCompareModel .mdlCard {
+  min-width: 0;
+}
+
+.modelDetailBackdrop {
+  z-index: 24;
+}
+
+.modelDetailDialog {
+  position: relative;
+  width: min(980px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+}
+
+.modelDetailClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
 }
 
 html[data-theme="dark"] .quickSwitcherList button {
@@ -5035,10 +5079,6 @@ html[data-theme="dark"] .authDialog,
 html[data-theme="dark"] .shellCostPanel,
 html[data-theme="dark"] .whatsNewModal {
   box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
-}
-
-html[data-theme="dark"] .modelAlertCard {
-  background: var(--cds-layer-02);
 }
 
 html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
@@ -5133,7 +5173,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 }
 
 .chatHero.chatThemeDark .icqWindowTitle p,
-.chatHero.chatThemeDark .icqContactText small,
 .chatHero.chatThemeDark .voiceConsoleLead p {
   color: #b3b3b3;
 }
@@ -5171,29 +5210,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 .chatHero.chatThemeDark .icqContactGroups,
 .chatHero.chatThemeDark .icqContactGroup {
   background: #303030;
-}
-
-.chatHero.chatThemeDark .icqContactRow {
-  border-bottom-color: #303030;
-  background: #1f1f1f;
-}
-
-.chatHero.chatThemeDark .icqContactButton:hover,
-.chatHero.chatThemeDark .icqFavoriteButton:hover {
-  background: #2d2d2d;
-}
-
-.chatHero.chatThemeDark .icqContactRow.active {
-  background: #262f3f;
-  box-shadow: inset 3px 0 0 #78a9ff;
-}
-
-.chatHero.chatThemeDark .icqContactRow.active .icqContactButton {
-  background: #262f3f;
-}
-
-.chatHero.chatThemeDark .icqFavoriteButton {
-  border-left-color: #393939;
 }
 
 .chatHero.chatThemeDark .presenceDot {
@@ -5499,42 +5515,11 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   font-size: 28px;
 }
 
-.modelSpotlight,
 .modelInspector {
   border-left-width: 4px;
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--surface) 74%, #ffffff), #ffffff 54%),
     #ffffff;
-}
-
-.modelSpotlight strong {
-  font-size: 22px;
-}
-
-.modelShowcaseCard {
-  gap: 12px;
-  min-height: 280px;
-  padding: 18px 18px 16px;
-  border-top-width: 3px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 58%, #ffffff), #ffffff 52%);
-}
-
-.modelShowcaseCard h3 {
-  font-size: 18px;
-  font-weight: 650;
-}
-
-.modelShowcaseCard p {
-  font-size: 13px;
-}
-
-.modelFacts {
-  gap: 7px;
-}
-
-.modelCardActions {
-  padding-top: 2px;
 }
 
 .advancedHero .advancedTabs button.active,
@@ -5678,38 +5663,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
-}
-
-.modelAlertCard {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  min-height: 84px;
-  padding: 10px;
-  border: 1px solid var(--cds-border-subtle);
-  border-left: 4px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff);
-}
-
-.modelAlertCard .modelLogo {
-  width: 40px;
-  height: 40px;
-}
-
-.modelAlertCard strong,
-.modelAlertCard span,
-.modelAlertCard small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.modelAlertCard span,
-.modelAlertCard small {
-  color: var(--cds-text-secondary);
-  font-size: 12px;
 }
 
 .closeButton {
@@ -5969,27 +5922,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 
 .advancedOverview .homeModelMiniStack {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.advancedOverview .modelMiniCard {
-  min-height: 64px;
-  border-color: var(--cds-border-subtle);
-  border-left: 4px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff);
-}
-
-.advancedOverview .modelMiniCard strong {
-  color: var(--cds-text);
-}
-
-.advancedOverview .modelMiniCard span {
-  color: var(--cds-text-secondary);
-  font-size: 12px;
-}
-
-.advancedOverview .modelMiniCard .modelLogo {
-  width: 36px;
-  height: 36px;
 }
 
 .advancedOverview .statusPanel {
@@ -6545,7 +6477,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   .codeIdeGrid,
   .searchLine,
   .createPrompt,
-  .modelSpotlight,
   .modelInspectorHeader,
   .artworkIdentity,
   .modelControls,

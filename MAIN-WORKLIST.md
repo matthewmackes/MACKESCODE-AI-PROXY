@@ -10674,6 +10674,70 @@ development worklist does not pretend they are locally closable.
 
 ---
 
+### Task ID: V2-081
+**Title:** Unified LLM card (Big/Small) + Models-into-Advanced nav restructure + Health grade
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** Operator-directed unification of all LLM representations (showcase cards, XL spotlight, mini/alert tiles, ICQ contact rows, dropdown labels, compare-tray columns, message avatars) onto ONE fresh-design card component rendered at two sizes, plus two mid-survey navigation directives (Models becomes an Advanced tab; Advanced leaves the drawer nav, reachable via Settings), plus a new measured Health letter grade on every card. Design fixed by a 25-question operator survey; full prompt+answer mapping preserved below per the survey-preservation rule. Plan of record: `/root/.claude/plans/immutable-coalescing-stonebraker.md` (approved 2026-07-13).
+
+**Survey record (Q&A):**
+- Q1 Canonical card size? → One style, two sizes (Big primary-content / Small supporting; no third variant).
+- Q2 Visual foundation? → Fresh design from scratch.
+- Q3 Aesthetic direction? → Brand hero (provider identity leads).
+- Q4 Accent form? → 4px left accent stripe.
+- Q5 Background? → Faint brand tint (~7% accent over theme layer, both themes; replaces pastel surfaces; supersedes the card portion of V2-078).
+- Q6 Frame? → 4px radius + 1px subtle border.
+- Q7 Identity text? → Name + "by Provider · 🇨🇳 Nation".
+- Q8 Big facts? → Cost/M + context + type + use-case blurb + WRITE-IN: measured uptime/latency rating.
+- Q9 Status form? → Status chip in facts row.
+- Q10 Rating form? → Letter grade (Health A–D) from success rate + latency telemetry.
+- Scope check (uncounted) Advanced reachability? → Settings button only; drawer nav = Chat/Code/Research/Create; quick-switcher + hashes keep working.
+- Q11 New-model sparkle? → ✨ icon by name (shimmer, reduced-motion aware).
+- Q12 Logo? → Accent-tinted tile.
+- Q13 Small card content? → Identity + one status line (status · cost · Health), ~3 lines.
+- Q14 Name typography? → Plex Sans 500 (Big 20px / Small 14px).
+- Q15 Hover? → Lift + tint deepen combined (static under reduced motion).
+- Q16 Card click? → Opens detail modal.
+- Q17 Big-card buttons? → Compare + Use in Chat + WRITE-IN: Favorite/Star (shared cross-surface store).
+- Q18 Chat contacts? → Small cards replace ICQ rows.
+- Q19 Chat click conflict? → Click selects conversation; ⓘ opens detail (Chat only).
+- Q20 Dropdowns? → Card options in dropdown.
+- Q21 Compare tray? → Small cards as column headers over data grid.
+- Q22 Spotlight? → Drop it.
+- Q23 Small surfaces? → Small cards everywhere incl. chat message headers.
+- Q24 Mobile? → Big degrades to Small, single column under ~620px.
+- Q25 Rollout? → One big batch, full gate green, single commit, no push.
+- Mid-survey directives: Models → Advanced tab; Advanced out of the left nav.
+
+**Completion Criteria:**
+- [x] One `ModelIdentityCard` component (big/small) renders every LLM representation listed in the adoption map; ModelSpotlight and legacy card variants deleted at grep-zero
+- [x] Health grade (A–D from success rate + p50 latency, TTL-cached) on all V2 model payloads; `Health —` when unmeasured
+- [x] Models is an Advanced tab; drawer nav = Chat/Code/Research/Create; `#models`/`#advanced` hashes and saved-state import keep working; quick switcher retains both
+- [x] Shared favorites store; Compare / Use in Chat / Favorite actions on Big cards; Chat click-selects with ⓘ detail
+- [x] Big degrades to Small under ~620px; dark + light themes verified
+- [x] Full gate green (build, bundle boundary, audit, unit tests incl. new health tests, required V2 browser smoke with rewritten assertions); live console restarted; single commit
+
+**Progress Notes:**
+- 2026-07-13: Backend — `ModelScorecardService` gained p50 + `health_grade` (A ≥99%/≤1500ms; B ≥97%/≤3000ms; C ≥90% or ≤10s; else D); `ModelShowcaseService.model_card()` attaches `health` via a shared mtime+TTL-cached trace index, so `/v2/models`, `/v2/chat`, `/v2/create`, `/v2/code`, and What's New all carry it (6 new unit tests; suite 598 green).
+- 2026-07-13: Frontend — new `components/modelCard.tsx` (Brand-hero card: 4px accent stripe, ~7%/14% `color-mix` brand tint, 4px radius, accent-tinted `ModelLogo` tile, ✨ sparkle, facts chips incl. Health, lift+tint hover with reduced-motion static fallback, Big→Small under 620px, `ModelCardSelect` keyboard listbox, global `ModelDetailHost` dialog) + shared `favorites.ts` (localStorage, legacy chat-favorites adoption). All seven representations swapped: Models Big grid (Spotlight deleted), What's New/Overview Small cards, compare-tray Small headers + Health row, Chat contact Small cards (click-selects, ⓘ detail), assistant message-header Small cards, card options in Code/Create listboxes and Run/Console antd Selects (`interactive={false}` passive mode so option clicks don't pop the detail overlay).
+- 2026-07-13: Nav — `navItems` split into workspace registry vs 4-item drawer list; Advanced/Models reachable via Settings + quick switcher + hashes; `#models` resolves through sessionStorage-first `resolveWorkspaceKey` (race-free with the Advanced tab listener); `ADVANCED_TABS` gained `models`; saved-state import maps legacy keys; overview copy fixed to 4 workspaces / 6 tabs.
+- 2026-07-13: Smoke rewritten per the planning blast-radius checklist (new `open_advanced_workspace`/`open_advanced_tab` helpers, drawer negative assertions, showcase/contact/message card selectors, remembered-tab re-entry via hash, artwork guard unchanged and passing on the new card). 373 lines of dead CSS deleted at grep-zero. One strict-mode collision found by the gate (Models description matched the "Advanced" switcher regex) and fixed by rewording.
+
+**Verification:**
+- `npm run build --prefix frontend` passed; entry `assets/index-4454868a.js` = 176,232 bytes; bundle boundary + production audit (82 deps, 0 vulns) passed.
+- `python3 -m unittest discover -s tests` passed (598 tests).
+- `python3 scripts/v2-browser-smoke.py --required` passed (smoke-run7) including rewritten nav/card assertions and dark-mode checks.
+- Live console restarted on PID 2387764 serving the new bundle; `/v2/health` 200 on the LAN address.
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-080 What's New dark-mode fixes added 2026-07-13.*
+*Last updated by: Claude; V2-081 unified card + nav restructure started 2026-07-13.*
 *Timestamp: 2026-07-13*

@@ -410,6 +410,23 @@ def navigate_shell(page, key: str) -> None:
     expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
 
 
+def open_advanced_workspace(page) -> None:
+    """Advanced left the drawer nav; the Settings utility button is the entry point."""
+    from playwright.sync_api import expect
+
+    open_shell_drawer(page).get_by_test_id("shell-drawer-settings").click()
+    expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
+    expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
+
+
+def open_advanced_tab(page, tab: str) -> None:
+    from playwright.sync_api import expect
+
+    open_advanced_workspace(page)
+    page.locator(".advancedTabs").get_by_role("button", name=tab, exact=True).click()
+    expect(page.locator(".advancedTabs").get_by_role("button", name=tab, exact=True)).to_have_class(re.compile("active"))
+
+
 def run_mobile_create_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
@@ -437,7 +454,7 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.get_by_test_id("advanced-overview")).to_be_visible()
         expect(page.get_by_test_id("advanced-readiness-pulse")).to_be_visible()
-        for label in ("overview", "console", "run", "observe", "operate"):
+        for label in ("overview", "models", "console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
         page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
@@ -540,7 +557,7 @@ def run_dark_mode_smoke(browser, base_url: str) -> None:
             }
             """
         )
-        navigate_shell(page, "models")
+        open_advanced_tab(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
         assert_no_document_horizontal_overflow(page, "dark Models")
@@ -1166,8 +1183,10 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         drawer = open_shell_drawer(page)
         assert_loaded_image(drawer.get_by_test_id("drawer-brand-icon").locator("img"), "drawer MDE app icon")
-        for key in ("chat", "code", "research", "create", "models", "advanced"):
+        for key in ("chat", "code", "research", "create"):
             expect(drawer.get_by_test_id(f"shell-nav-{key}")).to_be_visible()
+        expect(drawer.get_by_test_id("shell-nav-models")).to_have_count(0)
+        expect(drawer.get_by_test_id("shell-nav-advanced")).to_have_count(0)
         expect(drawer.get_by_test_id("shell-nav-chat")).to_contain_text("Autonomous command center")
         assert page.evaluate("document.activeElement && document.activeElement.dataset && document.activeElement.dataset.testid") == "shell-nav-chat"
         page.keyboard.press("Escape")
@@ -1193,7 +1212,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(model_intelligence).to_contain_text("New")
         expect(model_intelligence).to_contain_text("Attention")
         expect(model_intelligence.locator(".homeNationMix span").first).to_be_visible()
-        expect(model_intelligence.locator(".modelMiniCard").first).to_be_visible()
+        expect(model_intelligence.locator(".mdlCard").first).to_be_visible()
         expect(model_intelligence.locator(".modelLogo").first).to_be_visible()
         readiness_pulse = page.get_by_test_id("advanced-readiness-pulse")
         expect(readiness_pulse).to_be_visible()
@@ -1282,10 +1301,14 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
 
         page.goto(base_url + "#models", wait_until="networkidle")
+        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="models", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
-        assert page.evaluate("window.location.hash") == "#models"
         drawer = open_shell_drawer(page)
-        expect(drawer.get_by_test_id("shell-nav-models")).to_have_attribute("aria-current", "page")
+        expect(drawer.get_by_test_id("shell-nav-models")).to_have_count(0)
+        expect(drawer.get_by_test_id("shell-nav-advanced")).to_have_count(0)
+        for key in ("chat", "code", "research", "create"):
+            expect(drawer.get_by_test_id(f"shell-nav-{key}")).to_be_visible()
         page.keyboard.press("Escape")
         expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
         assert_no_broken_model_artwork(page, "models hash route")
@@ -1300,18 +1323,19 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_text("Autonomous System Manager")).to_be_visible()
         expect(page.locator(".icqContactPane")).to_be_visible()
         expect(page.locator(".icqChatWindow")).to_be_visible()
-        expect(page.locator(".icqContactButton").first).to_be_visible()
-        expect(page.locator(".icqContactRow.active")).to_be_visible()
-        first_contact_name = page.locator(".icqContactText strong").first.inner_text()
+        contact_cards = page.locator('.icqContactPane [data-testid="chat-contact-card"]')
+        expect(contact_cards.first).to_be_visible()
+        expect(page.locator('.icqContactPane .mdlCard.active')).to_be_visible()
+        first_contact_name = contact_cards.first.locator(".mdlCardName").inner_text().replace("✨", "").strip()
         page.locator(".icqContactSearch input").fill(first_contact_name)
-        expect(page.locator(".icqContactButton").first).to_contain_text(first_contact_name)
+        expect(contact_cards.first).to_contain_text(first_contact_name)
         page.locator(".icqContactSearch input").fill("")
-        if page.locator(".icqContactButton").count() > 1:
-            second_contact = page.locator(".icqContactButton").nth(1)
-            second_contact_name = second_contact.locator(".icqContactText strong").inner_text()
-            second_contact.click()
+        if contact_cards.count() > 1:
+            second_contact = contact_cards.nth(1)
+            second_contact_name = second_contact.locator(".mdlCardName").inner_text().replace("✨", "").strip()
+            second_contact.locator(".mdlCardBody").click()
             expect(page.locator(".icqChatTitle")).to_contain_text(second_contact_name)
-            page.locator(".icqFavoriteButton").nth(1).click()
+            contact_cards.nth(1).locator(".mdlCardStar").click()
             expect(page.locator(".icqContactGroups")).to_contain_text("Pinned")
         page.get_by_role("button", name="Dark", exact=True).click()
         expect(page.locator(".chatHero")).to_have_class(re.compile("chatThemeDark"))
@@ -1717,7 +1741,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".imageGalleryResult")).to_contain_text("Raw payload")
         stored_create = page.evaluate("window.sessionStorage.getItem('matts-v2-create-workspace')")
         assert stored_create and "smoke image prompt" in stored_create and "sdxl-smoke" in stored_create and "serverless inference news" not in stored_create
-        navigate_shell(page, "models")
+        open_advanced_tab(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         navigate_shell(page, "create")
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
@@ -1730,7 +1754,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
         expect(page.locator(".imageGalleryResult")).to_contain_text("sdxl-smoke")
 
-        navigate_shell(page, "models")
+        open_advanced_tab(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         expect(page.get_by_role("button", name="Whats New", exact=True)).to_be_enabled()
         page.get_by_role("button", name="Whats New", exact=True).click()
@@ -1739,30 +1763,32 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="New models").first).to_be_visible()
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="Need attention").first).to_be_visible()
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="DigitalOcean LLM links").first).to_be_visible()
-        expect(page.locator(".whatsNewModal .modelAlertCard").first).to_be_visible()
+        expect(page.locator(".whatsNewModal .mdlCard").first).to_be_visible()
         expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
         assert_no_broken_model_artwork(page, "models Whats New")
         page.get_by_role("button", name="Close Whats New").click()
         expect(page.locator(".whatsNewModal")).to_have_count(0)
         expect(page.locator(".modelMetric")).to_have_count(4)
-        expect(page.get_by_text("Spotlight")).to_be_visible()
+        showcase_cards = page.locator('[data-testid="model-showcase-card"]')
+        expect(showcase_cards.first).to_be_visible()
+        expect(showcase_cards.first).to_contain_text("Health")
         expect(page.locator(".modelInspector")).to_be_visible()
         expect(page.locator(".modelInspector")).to_contain_text("Model Inspector")
         expect(page.locator(".modelInspector")).to_contain_text("Provider")
         expect(page.locator(".modelInspector")).to_contain_text("Training Nation")
         expect(page.locator(".modelInspectorPalette")).to_be_visible()
         page.locator(".modeSwitch").get_by_role("button", name="Routable").click()
-        expect(page.locator(".modelSpotlight")).to_contain_text("Routable")
-        page.locator(".searchLine input").fill("Alibaba Qwen3 32b")
-        expect(page.locator(".modelShowcaseCard").first).to_contain_text("Qwen3")
-        page.locator(".modelShowcaseCard").first.get_by_role("button", name=re.compile("Compare")).click()
+        expect(showcase_cards.first).to_contain_text("Routable")
+        page.locator(".modelControls .searchLine input").fill("Alibaba Qwen3 32b")
+        expect(showcase_cards.first).to_contain_text("Qwen3")
+        showcase_cards.first.get_by_role("button", name=re.compile("Compare")).click()
         expect(page.locator(".modelCompareTray")).to_be_visible()
         expect(page.locator(".modelCompareTray")).to_contain_text("Model Compare")
         expect(page.locator(".modelCompareTray")).to_contain_text("Context")
         expect(page.locator(".modelCompareTray")).to_contain_text("Output")
-        page.locator(".searchLine input").fill("DeepSeek")
-        expect(page.locator(".modelShowcaseCard").first).to_contain_text("DeepSeek")
-        page.locator(".modelShowcaseCard").first.get_by_role("button", name=re.compile("Compare")).click()
+        page.locator(".modelControls .searchLine input").fill("DeepSeek")
+        expect(showcase_cards.first).to_contain_text("DeepSeek")
+        showcase_cards.first.get_by_role("button", name=re.compile("Compare")).click()
         expect(page.locator(".modelCompareTray")).to_contain_text("2 selected")
         expect(page.locator(".modelCompareTray")).to_contain_text("DeepSeek")
         expect(page.locator(".modelCompareTray")).to_contain_text("Cost")
@@ -1776,15 +1802,15 @@ def run_browser_smoke(base_url: str) -> None:
         assert model_compare_download.value.suggested_filename.startswith("mde-llm-proxy-model-compare-brief-")
         assert model_compare_download.value.suggested_filename.endswith(".md")
         page.locator(".modelSort select").select_option("company")
-        page.locator(".modelShowcaseCard").first.get_by_role("button", name="Inspect").click()
+        showcase_cards.first.locator(".mdlCardBody").click()
         expect(page.locator(".modelInspector")).to_contain_text("DeepSeek")
         stored_models = page.evaluate("window.sessionStorage.getItem('matts-v2-models-showcase')")
         assert stored_models and "DeepSeek" in stored_models and "compareIds" in stored_models and "company" in stored_models
-        navigate_shell(page, "advanced")
-        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        navigate_shell(page, "models")
+        navigate_shell(page, "chat")
+        expect(page.get_by_role("heading", name="Chat")).to_be_visible()
+        open_advanced_tab(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
-        expect(page.locator(".searchLine input")).to_have_value("DeepSeek")
+        expect(page.locator(".modelControls .searchLine input")).to_have_value("DeepSeek")
         expect(page.locator(".modeSwitch").get_by_role("button", name="Routable")).to_have_class(re.compile("active"))
         expect(page.locator(".modelSort select")).to_have_value("company")
         expect(page.locator(".modelCompareTray")).to_contain_text("2 selected")
@@ -1792,7 +1818,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelInspector")).to_contain_text("DeepSeek")
         page.locator(".modelCompareTray").get_by_role("button", name="Clear Compare").click()
         expect(page.locator(".modelCompareTray")).to_have_count(0)
-        page.locator(".modelShowcaseCard").first.get_by_role("button", name="Inspect").click()
+        page.locator('[data-testid="model-showcase-card"]').first.locator(".mdlCardBody").click()
         expect(page.locator(".modelInspector")).to_contain_text("DeepSeek")
         expect(page.locator(".modelInspector")).to_contain_text("Context")
         expect(page.locator(".modelInspector")).to_contain_text("Output")
@@ -1802,12 +1828,11 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Artwork Sources")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Bundled SVG")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Simple Icons")
-        page.locator(".searchLine input").fill("zzzz-no-model-match")
+        page.locator(".modelControls .searchLine input").fill("zzzz-no-model-match")
         expect(page.get_by_text("No models match this filter")).to_be_visible()
 
-        navigate_shell(page, "advanced")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        for label in ("overview", "console", "run", "observe", "operate"):
+        for label in ("overview", "models", "console", "run", "observe", "operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="tui", exact=True)).to_have_count(0)
         page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True).click()
@@ -1815,7 +1840,7 @@ def run_browser_smoke(base_url: str) -> None:
         assert page.evaluate("window.sessionStorage.getItem('matts-v2-advanced-tab')") == "observe"
         navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
-        navigate_shell(page, "advanced")
+        page.evaluate("window.location.hash = '#advanced'")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
         page.keyboard.press("Control+K")
@@ -1883,8 +1908,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_role("heading", name="Create")).to_be_visible()
         expect(page.locator(".createHistoryCard")).to_have_count(1)
         expect(page.locator(".imageGalleryResult")).to_contain_text("smoke image prompt")
-        navigate_shell(page, "advanced")
-        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
+        open_advanced_workspace(page)
         page.keyboard.press("Control+K")
         expect(page.locator(".quickSwitcherRecents")).to_be_visible()
         expect(page.locator(".quickSwitcherRecents")).to_contain_text("Chat")
@@ -1906,8 +1930,7 @@ def run_browser_smoke(base_url: str) -> None:
         page.keyboard.press("Escape")
         expect(page.locator(".quickSwitcher")).to_have_count(0)
 
-        navigate_shell(page, "advanced")
-        expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
+        open_advanced_workspace(page)
         page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
         expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
         expect(page.get_by_text("Smoke TMux")).to_be_visible()

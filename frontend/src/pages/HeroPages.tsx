@@ -39,6 +39,9 @@ import type { OperatePayload, TmuxWorkspacePayload } from '../api/generated/v2Cl
 import { applyThemeMode, useThemeMode } from '../theme';
 import { briefDeliveryActions, copyText } from '../utils/delivery';
 import { errorText } from '../utils/errors';
+import { readableStatus } from '../utils/format';
+import { CarbonIcon, ModelCardSelect, ModelIdentityCard, ModelLogo, V2_MODEL_DETAIL_EVENT, modelHealthLabel, modelStatusLabel, useBrandSvg } from '../components/modelCard';
+import { useModelFavorites } from '../favorites';
 import {
   DEFAULT_VOICE_LANGUAGE,
   loadVoicePreferences,
@@ -49,29 +52,8 @@ import {
   voicePresetForModel
 } from '../voicePreferences';
 
-const iconBase = '/branding/Mackes-Carbon/scalable';
+export { CarbonIcon } from '../components/modelCard';
 
-let loadedBrandMarkArt: Record<string, string> = {};
-const brandMarkArtReady = import('../brandMarkArt')
-  .then((module) => {
-    loadedBrandMarkArt = module.BRAND_MARK_ART;
-    return loadedBrandMarkArt;
-  })
-  .catch(() => loadedBrandMarkArt);
-
-function useBrandMarkArt(): Record<string, string> {
-  const [art, setArt] = useState(loadedBrandMarkArt);
-  useEffect(() => {
-    let active = true;
-    void brandMarkArtReady.then((loaded) => {
-      if (active) setArt(loaded);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-  return art;
-}
 export const WHATS_NEW_DISMISSED_KEY = 'matts-v2-whats-new-dismissed';
 export const V2_WORKSPACE_SESSION_KEYS = {
   chatTranscript: 'matts-v2-chat-transcript',
@@ -111,10 +93,6 @@ const RunPage = lazy(() => delayedAdvancedImport(() => import('./RunPage')));
 const AdvancedThemeProvider = lazy(() => delayedAdvancedImport(() => import('../components/AdvancedThemeProvider')));
 const TuiTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TuiTerminal')));
 const TmuxTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TmuxTerminal')));
-
-export function CarbonIcon({ path, label }: { path: string; label: string }) {
-  return <img className="carbonIcon" src={`${iconBase}/${path}`} alt="" title={label} aria-hidden="true" />;
-}
 
 function asText(value: unknown, fallback = ''): string {
   if (value === null || value === undefined || value === '') return fallback;
@@ -229,138 +207,7 @@ function useTextModels(models: ModelCard[] | undefined) {
 }
 
 function ModelSelect({ models, value, onChange, label = 'Model' }: { models: ModelCard[]; value: string; onChange: (value: string) => void; label?: string }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {models.map((model) => <option key={model.id} value={model.id}>{model.display_name}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function modelLogoInitials(model: ModelCard): string {
-  const source = [model.company, model.family, model.provider, model.display_name].find((item) => String(item || '').trim()) || 'AI';
-  const words = String(source).replace(/[^a-zA-Z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
-  const letters = words.length > 1 ? words.slice(0, 2).map((word) => word[0]).join('') : words[0]?.slice(0, 2);
-  return (letters || 'AI').toUpperCase();
-}
-
-type LocalBrandMark = { key: string; label: string; short: string };
-
-const LOCAL_BRAND_MARKS: Record<string, LocalBrandMark> = {
-  alibaba: { key: 'alibaba', label: 'Alibaba Cloud', short: 'ALI' },
-  anthropic: { key: 'anthropic', label: 'Anthropic', short: 'ANT' },
-  arcee: { key: 'arcee', label: 'Arcee AI', short: 'ARC' },
-  baai: { key: 'baai', label: 'BAAI', short: 'BAAI' },
-  blackforest: { key: 'blackforest', label: 'Black Forest Labs', short: 'BFL' },
-  deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS' },
-  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO' },
-  google: { key: 'google', label: 'Google', short: 'G' },
-  meta: { key: 'meta', label: 'Meta', short: 'META' },
-  microsoft: { key: 'microsoft', label: 'Microsoft', short: 'MS' },
-  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI' },
-  mistral: { key: 'mistral', label: 'Mistral AI', short: 'M' },
-  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI' },
-  nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV' },
-  openai: { key: 'openai', label: 'OpenAI', short: 'OAI' },
-  stability: { key: 'stability', label: 'Stability AI', short: 'SD' },
-  xiaomi: { key: 'xiaomi', label: 'Xiaomi', short: 'MI' },
-  zhipu: { key: 'zhipu', label: 'Zhipu AI', short: 'GLM' },
-};
-
-const LOCAL_BRAND_MATCHERS: Array<[string, string[]]> = [
-  ['anthropic', ['anthropic', 'claude']],
-  ['openai', ['openai', 'gpt']],
-  ['deepseek', ['deepseek']],
-  ['mistral', ['mistral']],
-  ['alibaba', ['alibaba', 'qwen', 'gte']],
-  ['zhipu', ['zhipu', 'glm']],
-  ['moonshot', ['moonshot', 'kimi']],
-  ['meta', ['meta', 'llama']],
-  ['google', ['google', 'gemma', 'gemini']],
-  ['nvidia', ['nvidia', 'nemotron']],
-  ['minimax', ['minimax']],
-  ['xiaomi', ['xiaomi', 'mimo']],
-  ['arcee', ['arcee']],
-  ['stability', ['stability', 'stable diffusion', 'stable-diffusion', 'sdxl']],
-  ['blackforest', ['black forest', 'blackforest', 'flux']],
-  ['baai', ['baai', 'bge']],
-  ['microsoft', ['microsoft', 'e5']],
-];
-
-function localBrandMark(model: ModelCard): LocalBrandMark | undefined {
-  const renderKey = model.artwork?.render?.key;
-  if (renderKey && LOCAL_BRAND_MARKS[renderKey]) return LOCAL_BRAND_MARKS[renderKey];
-  const haystack = [
-    model.id,
-    model.display_name,
-    model.company,
-    model.family,
-    model.provider,
-    model.artwork?.logo,
-    model.artwork?.brand_url,
-  ].join(' ').toLowerCase();
-  const match = LOCAL_BRAND_MATCHERS.find(([, needles]) => needles.some((needle) => haystack.includes(needle)));
-  return match ? LOCAL_BRAND_MARKS[match[0]] : undefined;
-}
-
-function canRenderArtworkLogo(url: string): boolean {
-  if (!url) return false;
-  if (/^(blob|data):/i.test(url)) return true;
-  if (url.startsWith('/')) return true;
-  if (typeof window === 'undefined') return false;
-  try {
-    return new URL(url, window.location.origin).origin === window.location.origin;
-  } catch {
-    return false;
-  }
-}
-
-function ModelLogo({ model, size }: { model: ModelCard; size?: 'large' | 'xl' }) {
-  const logo = model.artwork?.logo || '';
-  const brandMark = localBrandMark(model);
-  const brandArt = useBrandMarkArt();
-  const brandSvg = brandMark ? brandArt[brandMark.key] : undefined;
-  const renderableLogo = !brandMark && canRenderArtworkLogo(logo);
-  const [failedLogo, setFailedLogo] = useState(false);
-  useEffect(() => setFailedLogo(false), [model.id, logo, renderableLogo]);
-  const className = ['modelLogo', size].filter(Boolean).join(' ');
-  const artworkState = brandSvg ? 'local-brand-svg' : brandMark ? 'local-brand-text' : renderableLogo && logo && !failedLogo ? 'public-logo' : logo ? 'attributed-initials' : 'generated-initials';
-  return (
-    <div className={className} data-artwork-state={artworkState} data-brand={brandMark?.key || ''} data-testid="model-logo" aria-label={`${model.display_name} model identity`}>
-      {brandSvg && brandMark ? (
-        <span className="modelBrandSvg" aria-hidden="true" title={brandMark.label} dangerouslySetInnerHTML={{ __html: brandSvg }} />
-      ) : brandMark ? (
-        <span className="modelBrandText" aria-hidden="true" title={brandMark.label}>{brandMark.short}</span>
-      ) : renderableLogo && logo && !failedLogo ? (
-        <img src={logo} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailedLogo(true)} />
-      ) : (
-        <span aria-hidden="true">{modelLogoInitials(model)}</span>
-      )}
-    </div>
-  );
-}
-
-function ModelIdentityCard({ model, variant = 'mini', showStatus = false }: { model: ModelCard; variant?: 'mini' | 'alert'; showStatus?: boolean }) {
-  return (
-    <article className={variant === 'alert' ? 'modelAlertCard' : 'modelMiniCard'} style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
-      <ModelLogo model={model} />
-      <div>
-        <strong>{model.display_name}</strong>
-        <span>{model.company} · {model.training_nation}</span>
-        {showStatus ? <small>{[model.route_enabled ? 'Routable' : readableStatus(model.access_status), model.type, model.cost_label].filter(Boolean).join(' · ')}</small> : null}
-      </div>
-    </article>
-  );
-}
-
-function ModelMiniCard({ model }: { model: ModelCard }) {
-  return <ModelIdentityCard model={model} variant="mini" />;
-}
-
-function ModelAlertCard({ model }: { model: ModelCard }) {
-  return <ModelIdentityCard model={model} variant="alert" showStatus />;
+  return <ModelCardSelect models={models} value={value} onChange={onChange} label={label} />;
 }
 
 export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClose: () => void }) {
@@ -396,7 +243,7 @@ export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClos
             </div>
             {data.new_models.length ? (
               <div className="modelAlertGrid">
-                {data.new_models.slice(0, 6).map((model) => <ModelAlertCard key={model.id} model={model} />)}
+                {data.new_models.slice(0, 6).map((model) => <ModelIdentityCard key={model.id} model={model} size="small" />)}
               </div>
             ) : <div className="emptyState">No newly discovered models in this window.</div>}
           </section>
@@ -407,7 +254,7 @@ export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClos
             </div>
             {data.attention.length ? (
               <div className="modelAlertGrid">
-                {data.attention.slice(0, 6).map((model) => <ModelAlertCard key={model.id} model={model} />)}
+                {data.attention.slice(0, 6).map((model) => <ModelIdentityCard key={model.id} model={model} size="small" />)}
               </div>
             ) : <div className="emptyState">No model access issues reported.</div>}
           </section>
@@ -427,9 +274,7 @@ export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClos
 function ModelArtworkGallery({ model }: { model: ModelCard }) {
   const sources = model.artwork?.sources || [];
   const backgroundLabel = String(model.artwork?.background || 'generated_brand_panel').replace(/_/g, ' ');
-  const brandMark = localBrandMark(model);
-  const brandArt = useBrandMarkArt();
-  const brandSvg = brandMark ? brandArt[brandMark.key] : undefined;
+  const brandSvg = useBrandSvg(model);
   return (
     <div className="modelArtworkGallery" aria-label="Artwork source gallery">
       <div className="artworkIdentity" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--secondary' as string]: model.nation_palette?.secondary || '#da1e28', ['--surface' as string]: model.nation_palette?.surface || '#edf5ff' }}>
@@ -442,7 +287,7 @@ function ModelArtworkGallery({ model }: { model: ModelCard }) {
         {model.artwork?.brand_url ? <a className="artworkBrandLink" href={model.artwork.brand_url} target="_blank" rel="noreferrer">Brand Site</a> : <span className="artworkBrandLink muted">Generated Identity</span>}
       </div>
       <div className="artworkFacts" aria-label="Artwork metadata">
-        <div><span>Logo</span><strong>{brandSvg ? 'Bundled SVG' : brandMark ? 'Local brand mark' : model.artwork?.logo ? 'Generated from source' : 'Generated initials'}</strong></div>
+        <div><span>Logo</span><strong>{brandSvg ? 'Bundled SVG' : model.artwork?.logo ? 'Generated from source' : 'Generated initials'}</strong></div>
         <div><span>Background</span><strong>{backgroundLabel}</strong></div>
         <div><span>Sources</span><strong>{sources.length.toLocaleString()}</strong></div>
         <div><span>Policy</span><strong>{model.artwork?.policy_notes ? 'Tracked' : 'Default'}</strong></div>
@@ -487,6 +332,7 @@ function ModelInspector({ model }: { model: ModelCard }) {
     ['Context', `${model.context_window.toLocaleString()} tokens`],
     ['Output', `${model.max_output_tokens.toLocaleString()} tokens`],
     ['Cost', model.cost_label],
+    ['Health', modelHealthLabel(model)],
     ['Artwork', `${model.artwork?.sources?.length || 0} source${model.artwork?.sources?.length === 1 ? '' : 's'}`],
   ];
   return (
@@ -518,6 +364,37 @@ function ModelInspector({ model }: { model: ModelCard }) {
   );
 }
 
+export function ModelDetailHost() {
+  const [model, setModel] = useState<ModelCard | null>(null);
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ model?: ModelCard }>).detail;
+      if (detail?.model) setModel(detail.model);
+    };
+    window.addEventListener(V2_MODEL_DETAIL_EVENT, onOpen);
+    return () => window.removeEventListener(V2_MODEL_DETAIL_EVENT, onOpen);
+  }, []);
+  useEffect(() => {
+    if (!model) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setModel(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [model]);
+  if (!model) return null;
+  return (
+    <div className="modalBackdrop modelDetailBackdrop" data-testid="model-detail-dialog">
+      <div className="modelDetailDialog" role="dialog" aria-modal="true" aria-label={`${model.display_name} details`}>
+        <button className="closeButton inline modelDetailClose" type="button" aria-label="Close Model Details" onClick={() => setModel(null)}>
+          <CarbonIcon path="actions/window-close-symbolic.svg" label="Close" />
+        </button>
+        <ModelInspector model={model} />
+      </div>
+    </div>
+  );
+}
+
 const MODEL_COMPARE_ROWS: Array<[string, (model: ModelCard) => string]> = [
   ['Provider', (model: ModelCard) => model.provider],
   ['Company', (model: ModelCard) => model.company],
@@ -527,6 +404,7 @@ const MODEL_COMPARE_ROWS: Array<[string, (model: ModelCard) => string]> = [
   ['Output', (model: ModelCard) => `${model.max_output_tokens.toLocaleString()} tokens`],
   ['Type', (model: ModelCard) => model.type],
   ['Cost', (model: ModelCard) => model.cost_label],
+  ['Health', (model: ModelCard) => modelHealthLabel(model)],
   ['Palette', (model: ModelCard) => model.nation_palette?.name || 'Default'],
   ['Artwork Sources', (model: ModelCard) => `${model.artwork?.sources?.length || 0}`],
 ];
@@ -599,13 +477,17 @@ function ModelCompareTray({ models, onRemove, onClear }: { models: ModelCard[]; 
       <div className="modelCompareGrid" style={{ ['--compare-count' as string]: models.length }}>
         <div className="modelCompareLabel">Model</div>
         {models.map((model) => (
-          <div className="modelCompareModel" key={model.id} style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
-            <ModelLogo model={model} />
-            <div>
-              <strong>{model.display_name}</strong>
-              <span>{model.company}</span>
-            </div>
-            <button className="iconButton" type="button" aria-label={`Remove ${model.display_name} from compare`} onClick={() => onRemove(model.id)}><CarbonIcon path="actions/list-remove-symbolic.svg" label="Remove" /></button>
+          <div className="modelCompareModel" key={model.id}>
+            <ModelIdentityCard
+              model={model}
+              size="small"
+              showFavorite={false}
+              trailing={(
+                <button className="mdlCardInfo" type="button" aria-label={`Remove ${model.display_name} from compare`} onClick={() => onRemove(model.id)}>
+                  <CarbonIcon path="actions/list-remove-symbolic.svg" label="Remove" />
+                </button>
+              )}
+            />
           </div>
         ))}
         {MODEL_COMPARE_ROWS.map(([label, value]) => (
@@ -712,7 +594,6 @@ type BrowserSpeechRecognition = {
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type ChatUiState = {
   selectedModel: string;
-  favorites: string[];
 };
 const CHAT_TRANSCRIPT_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatTranscript;
 const CHAT_UI_STATE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatUiState;
@@ -735,16 +616,13 @@ function formatChatTimestamp(value?: string): string {
 }
 
 function loadChatUiState(): ChatUiState {
-  if (typeof window === 'undefined') return { selectedModel: '', favorites: [] };
+  if (typeof window === 'undefined') return { selectedModel: '' };
   try {
     const parsed = JSON.parse(window.sessionStorage.getItem(CHAT_UI_STATE_SESSION_KEY) || '{}');
     const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
-    return {
-      selectedModel: asText(row.selectedModel),
-      favorites: Array.isArray(row.favorites) ? row.favorites.filter((item): item is string => typeof item === 'string' && Boolean(item)) : [],
-    };
+    return { selectedModel: asText(row.selectedModel) };
   } catch {
-    return { selectedModel: '', favorites: [] };
+    return { selectedModel: '' };
   }
 }
 
@@ -753,7 +631,6 @@ function saveChatUiState(state: ChatUiState): void {
   try {
     window.sessionStorage.setItem(CHAT_UI_STATE_SESSION_KEY, JSON.stringify({
       selectedModel: state.selectedModel,
-      favorites: state.favorites.slice(0, 24),
     }));
   } catch {
     // Browser storage failures should not block the Chat UI.
@@ -874,9 +751,6 @@ function chatContactGroups(models: ModelCard[], favorites: string[], filter: str
   return groups;
 }
 
-function readableStatus(value: string | undefined): string {
-  return String(value || 'unknown').replace(/_/g, ' ');
-}
 
 function speechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | null {
   if (typeof window === 'undefined') return null;
@@ -2648,7 +2522,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
   const restoredUi = useMemo(loadChatUiState, []);
   const [model, setModel] = useState(restoredUi.selectedModel);
   const [contactFilter, setContactFilter] = useState('');
-  const [favoriteIds, setFavoriteIds] = useState<string[]>(restoredUi.favorites);
+  const { favorites: favoriteIds } = useModelFavorites();
   const chatTheme = useThemeMode();
   const [contactsOpen, setContactsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -2666,7 +2540,6 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
       ? chat.data?.default_model || ''
       : models[0]?.id || '';
   const selectedModelCard = models.find((item) => item.id === selectedModel) || models[0];
-  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
   const contactGroups = useMemo(() => chatContactGroups(models, favoriteIds, contactFilter), [contactFilter, favoriteIds, models]);
   const activePresence = chatPresence(selectedModelCard);
   const canUseChat = chatCapabilities.data?.capabilities['chat.use']?.allowed === true;
@@ -2769,8 +2642,8 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     saveChatTranscript(messages);
   }, [messages]);
   useEffect(() => {
-    saveChatUiState({ selectedModel, favorites: favoriteIds });
-  }, [favoriteIds, selectedModel]);
+    saveChatUiState({ selectedModel });
+  }, [selectedModel]);
   useEffect(() => {
     if (!models.length) return;
     if (!selectedModel || !models.some((item) => item.id === selectedModel)) setModel(models[0].id);
@@ -2936,9 +2809,6 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     setModel(id);
     setContactsOpen(false);
   };
-  const toggleFavorite = (id: string) => {
-    setFavoriteIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [id, ...current].slice(0, 24));
-  };
   type ChatSendRequest = {
     prompt: string;
     baseMessages: ChatMessage[];
@@ -3058,26 +2928,16 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
                   <span>{group.label}</span>
                   <strong>{group.models.length}</strong>
                 </div>
-                {group.models.map((contact) => {
-                  const presence = chatPresence(contact);
-                  const active = contact.id === selectedModel;
-                  const favorite = favoriteSet.has(contact.id);
-                  return (
-                    <div className={`icqContactRow ${active ? 'active' : ''}`} key={`${group.label}-${contact.id}`}>
-                      <button className="icqContactButton" type="button" onClick={() => selectContact(contact.id)} aria-pressed={active}>
-                        <span className={`presenceDot ${presence.tone}`} title={presence.label} />
-                        <ModelLogo model={contact} />
-                        <span className="icqContactText">
-                          <strong>{contact.display_name}</strong>
-                          <small>{contact.company} · {contact.cost_label || 'cost n/a'}</small>
-                        </span>
-                      </button>
-                      <button className={`icqFavoriteButton ${favorite ? 'active' : ''}`} type="button" aria-label={`${favorite ? 'Unpin' : 'Pin'} ${contact.display_name}`} aria-pressed={favorite} onClick={() => toggleFavorite(contact.id)}>
-                        <CarbonIcon path={favorite ? 'apps/star--filled.svg' : 'apps/star.svg'} label="Favorite" />
-                      </button>
-                    </div>
-                  );
-                })}
+                {group.models.map((contact) => (
+                  <ModelIdentityCard
+                    key={`${group.label}-${contact.id}`}
+                    model={contact}
+                    size="small"
+                    onPrimary={(target) => selectContact(target.id)}
+                    active={contact.id === selectedModel}
+                    testId="chat-contact-card"
+                  />
+                ))}
               </section>
             )) : <div className="emptyState">No contacts match this search.</div>}
           </div>
@@ -3140,9 +3000,15 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
               const rowTitle = message.diagnostic ? 'System message' : isUser ? 'You' : message.model || rowModel?.display_name || 'Assistant';
               return (
                 <div className={`messageRow ${message.role} ${message.diagnostic ? 'diagnostic system' : ''}`} key={message.id || `${message.role}-${index}`} style={{ ['--message-accent' as string]: message.accent || rowModel?.nation_palette?.accent || undefined }}>
-                  <div className="messageAvatar" aria-hidden="true">
-                    {message.diagnostic ? <CarbonIcon path="apps/information--filled.svg" label="System" /> : isAssistant && rowModel ? <ModelLogo model={rowModel} /> : <div className="chatUserAvatar"><CarbonIcon path="apps/user--avatar.svg" label="User" /></div>}
-                  </div>
+                  {isAssistant && rowModel && !message.diagnostic ? (
+                    <div className="messageModelCard">
+                      <ModelIdentityCard model={rowModel} size="small" showFavorite={false} testId="chat-message-model-card" />
+                    </div>
+                  ) : (
+                    <div className="messageAvatar" aria-hidden="true">
+                      {message.diagnostic ? <CarbonIcon path="apps/information--filled.svg" label="System" /> : <div className="chatUserAvatar"><CarbonIcon path="apps/user--avatar.svg" label="User" /></div>}
+                    </div>
+                  )}
                   <div className="messageBody">
                     <div className="messageHeaderLine">
                       <strong>{rowTitle}</strong>
@@ -4118,6 +3984,17 @@ export function CreatePage() {
   );
 }
 
+function openModelInChat(model: ModelCard): void {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(CHAT_UI_STATE_SESSION_KEY) || '{}');
+    const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    window.sessionStorage.setItem(CHAT_UI_STATE_SESSION_KEY, JSON.stringify({ ...row, selectedModel: model.id }));
+  } catch {
+    // Chat still opens; the model can be selected manually.
+  }
+  window.location.hash = '#chat';
+}
+
 export function ModelsPage() {
   const queryClient = useQueryClient();
   const models = useQuery({ queryKey: ['models'], queryFn: getModels });
@@ -4149,8 +4026,7 @@ export function ModelsPage() {
       if (sortMode === 'name') return left.display_name.localeCompare(right.display_name);
       return Number(right.route_enabled) - Number(left.route_enabled) || Number(right.is_new) - Number(left.is_new) || left.display_name.localeCompare(right.display_name);
     });
-  const spotlight = cards.find((model) => model.route_enabled) || cards[0];
-  const inspectedModel = allCards.find((model) => model.id === inspectedModelId) || spotlight;
+  const inspectedModel = allCards.find((model) => model.id === inspectedModelId) || cards.find((model) => model.route_enabled) || cards[0];
   const compareModels = compareIds.map((id) => allCards.find((model) => model.id === id)).filter((model): model is ModelCard => Boolean(model));
   const toggleCompare = (id: string) => {
     setCompareIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id].slice(0, MODEL_COMPARE_LIMIT));
@@ -4187,25 +4063,6 @@ export function ModelsPage() {
         <div className="modelMetrics" aria-label="Model summary">
           {metrics.map((metric) => <div className="modelMetric" key={metric.label}><span>{metric.label}</span><strong>{metric.value.toLocaleString()}</strong></div>)}
         </div>
-        {spotlight ? (
-          <div className="modelSpotlight" style={{ ['--accent' as string]: spotlight.nation_palette?.accent || '#0f62fe', ['--surface' as string]: spotlight.nation_palette?.surface || '#edf5ff' }}>
-            <ModelLogo model={spotlight} size="large" />
-            <div>
-              <span>Spotlight</span>
-              <strong>{spotlight.display_name}</strong>
-              <p>{spotlight.use_case}</p>
-            </div>
-            <div className="modelSpotlightFacts">
-              <span>{spotlight.company}</span>
-              <span>{spotlight.training_nation}</span>
-              <span>{spotlight.cost_label}</span>
-              <span>{spotlight.context_window.toLocaleString()} ctx</span>
-              <span>{spotlight.route_enabled ? 'Routable' : readableStatus(spotlight.access_status)}</span>
-              <button className="secondaryButton" type="button" onClick={() => setInspectedModelId(spotlight.id)}><CarbonIcon path="apps/information.svg" label="Inspect" />Inspect</button>
-              <button className="secondaryButton" type="button" onClick={() => toggleCompare(spotlight.id)}><CarbonIcon path="apps/compare.svg" label="Compare" />{compareIds.includes(spotlight.id) ? 'Remove Compare' : 'Compare'}</button>
-            </div>
-          </div>
-        ) : null}
         <div className="modelControls">
           <div className="searchLine compact"><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter models by company, nation, family, status, or type" /></div>
           <div className="modeSwitch" aria-label="Model status filter">
@@ -4226,24 +4083,16 @@ export function ModelsPage() {
       {!models.isLoading && !models.error && !cards.length ? <StatusPanel title="No models match this filter" detail={filter ? `No model matched "${filter}".` : 'The registry did not return any model cards.'} /> : null}
       <div className="modelGrid">
         {cards.map((model) => (
-          <article className="modelShowcaseCard" key={model.id} style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--secondary' as string]: model.nation_palette?.secondary || '#da1e28', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
-            <div className="modelCardTop">
-              <ModelLogo model={model} size="large" />
-              <span className={`statusPill ${model.route_enabled ? 'ok' : 'warn'}`}>{model.route_enabled ? 'Routable' : readableStatus(model.access_status)}</span>
-            </div>
-            <h3>{model.display_name}</h3>
-            <p>{model.use_case}</p>
-            <div className="modelFacts">
-              <span>{model.company}</span>
-              <span>{model.training_nation}</span>
-              <span>{model.type}</span>
-              <span>{model.cost_label}</span>
-            </div>
-            <div className="modelCardActions">
-              <button className="secondaryButton" type="button" onClick={() => setInspectedModelId(model.id)} aria-label={`Inspect ${model.display_name}`}><CarbonIcon path="apps/information.svg" label="Inspect" />Inspect</button>
-              <button className="secondaryButton" type="button" onClick={() => toggleCompare(model.id)} aria-label={`${compareIds.includes(model.id) ? 'Remove' : 'Compare'} ${model.display_name}`}><CarbonIcon path="apps/compare.svg" label="Compare" />{compareIds.includes(model.id) ? 'Remove' : 'Compare'}</button>
-            </div>
-          </article>
+          <ModelIdentityCard
+            key={model.id}
+            model={model}
+            size="big"
+            onOpenDetail={(target) => setInspectedModelId(target.id)}
+            compared={compareIds.includes(model.id)}
+            onCompareToggle={(target) => toggleCompare(target.id)}
+            onUseInChat={openModelInChat}
+            testId="model-showcase-card"
+          />
         ))}
       </div>
     </section>
@@ -4256,7 +4105,7 @@ function clientId(): string {
 
 const ADVANCED_TAB_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.advancedTab;
 // The TMux/TUI console moved to the Code hero; stale saved tabs fall back to the overview dashboard.
-const ADVANCED_TABS = ['overview', 'console', 'run', 'observe', 'operate'];
+const ADVANCED_TABS = ['overview', 'models', 'console', 'run', 'observe', 'operate'];
 
 function normalizeAdvancedTab(value: unknown): string {
   return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : 'overview';
@@ -4399,8 +4248,8 @@ function AdvancedOverview({ onOpenOperate }: { onOpenOperate: () => void }) {
           </div>
         </div>
         <div className="advancedOverviewFacts" aria-label="Advanced workspace summary">
-          <span><b>6</b> primary workspaces</span>
-          <span><b>5</b> advanced tabs</span>
+          <span><b>4</b> primary workspaces</span>
+          <span><b>6</b> advanced tabs</span>
         </div>
       </article>
       <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={onOpenOperate} />
@@ -4437,6 +4286,7 @@ export function AdvancedPage() {
         {ADVANCED_TABS.map((item) => <button className={tab === item ? 'active' : ''} key={item} type="button" onClick={() => setTab(item)}>{item}</button>)}
       </div>
       {tab === 'overview' ? <AdvancedOverview onOpenOperate={openOperateTab} /> : null}
+      {tab === 'models' ? <ModelsPage /> : null}
       <Suspense fallback={<AdvancedLoading label={tab} />}>
         {tab === 'console' || tab === 'run' || tab === 'observe' || tab === 'operate' ? (
           <AdvancedThemeProvider>
@@ -4497,7 +4347,7 @@ export function HomeSummary({ models }: { models: ModelCard[] }) {
         )) : <span><b>Unknown</b>0</span>}
       </div>
       <div className="homeModelMiniStack">
-        {models.slice(0, 3).map((model) => <ModelMiniCard key={model.id} model={model} />)}
+        {models.slice(0, 3).map((model) => <ModelIdentityCard key={model.id} model={model} size="small" />)}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelsPage, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
+import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelDetailHost, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
 import { CostControlPayload, getCostControl, getSpeechStatus, getWhatsNew, overrideCostControl, updateCostControlThresholds } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
@@ -16,14 +16,36 @@ type NavItem = {
   description: string;
 };
 
+// Workspace registry: every reachable workspace (hash routing, saved state, quick switcher).
 const navItems: NavItem[] = [
   { key: 'chat', label: 'Chat', icon: 'actions/call-start-symbolic.svg', description: 'Autonomous command center' },
   { key: 'code', label: 'Code', icon: 'apps/utilities-terminal-symbolic.svg', description: 'Terminal, sessions, screenshots' },
   { key: 'research', label: 'Research', icon: 'actions/edit-find-symbolic.svg', description: 'Search and evidence' },
   { key: 'create', label: 'Create', icon: 'actions/document-new-symbolic.svg', description: 'Image creation studio' },
-  { key: 'models', label: 'Models', icon: 'categories/applications-science-symbolic.svg', description: 'LLM showcase' },
+  { key: 'models', label: 'Models', icon: 'categories/applications-science-symbolic.svg', description: 'LLM showcase and health grades' },
   { key: 'advanced', label: 'Advanced', icon: 'actions/document-properties-symbolic.svg', description: 'Owner/admin tools' }
 ];
+
+// Drawer primary nav: Advanced (and Models, now an Advanced tab) are reached via Settings.
+const DRAWER_NAV_KEYS = ['chat', 'code', 'research', 'create'] as const;
+const drawerItems: NavItem[] = navItems.filter((item) => (DRAWER_NAV_KEYS as readonly string[]).includes(item.key));
+
+const ADVANCED_TAB_SESSION_KEY = 'matts-v2-advanced-tab';
+
+/**
+ * Models now lives inside Advanced. Resolve legacy keys by writing the target
+ * Advanced tab to sessionStorage BEFORE the workspace activates — AdvancedPage
+ * reads it at mount, so this is race-free where the tab-change event is not.
+ */
+function resolveWorkspaceKey(key: string): string {
+  if (key !== 'models') return key;
+  try {
+    window.sessionStorage.setItem(ADVANCED_TAB_SESSION_KEY, 'models');
+  } catch {
+    // Advanced still opens on its remembered tab when storage is unavailable.
+  }
+  return 'advanced';
+}
 
 const platformBranding = getPlatformBranding();
 const QUICK_SWITCHER_RECENTS_KEY = 'matts-v2-quick-switcher-recents';
@@ -51,7 +73,7 @@ const DEFAULT_AUTH_PROMPT: AuthPromptState = {
 function activeFromHash(): string {
   if (typeof window === 'undefined') return navItems[0].key;
   const key = window.location.hash.replace(/^#\/?/, '').split(/[/?&]/)[0].toLowerCase();
-  return navItems.some((item) => item.key === key) ? key : navItems[0].key;
+  return navItems.some((item) => item.key === key) ? resolveWorkspaceKey(key) : navItems[0].key;
 }
 
 function navItemForKey(key: string): NavItem | undefined {
@@ -395,9 +417,10 @@ export default function App() {
     }
   };
   const activate = (key: string) => {
-    recordRecentWorkspace(key);
-    setActive(key);
-    const nextHash = `#${key}`;
+    const resolved = resolveWorkspaceKey(key);
+    recordRecentWorkspace(resolved);
+    setActive(resolved);
+    const nextHash = `#${resolved}`;
     if (window.location.hash !== nextHash) window.history.pushState(null, '', nextHash);
   };
   const activateFromDrawer = (key: string) => {
@@ -582,8 +605,9 @@ export default function App() {
       setSavedStateVersion((value) => value + 1);
       setWorkspaceResetVersion((value) => value + 1);
       setSavedStateStatus('State imported');
-      setActive(snapshot.active_workspace);
-      const nextHash = `#${snapshot.active_workspace}`;
+      const restoredWorkspace = resolveWorkspaceKey(snapshot.active_workspace);
+      setActive(restoredWorkspace);
+      const nextHash = `#${restoredWorkspace}`;
       if (window.location.hash !== nextHash) window.history.pushState(null, '', nextHash);
       closeQuickSwitcher();
     } catch {
@@ -838,7 +862,7 @@ export default function App() {
             </button>
           </div>
           <nav className="drawerNav" aria-label="Primary">
-            {navItems.map((item) => (
+            {drawerItems.map((item) => (
               <button
                 key={item.key}
                 ref={(node) => { drawerNavRefs.current[item.key] = node; }}
@@ -878,9 +902,9 @@ export default function App() {
         {active === 'code' ? <CodePage key={`code-${workspaceResetVersion}`} /> : null}
         {active === 'research' ? <ResearchPage key={`research-${workspaceResetVersion}`} /> : null}
         {active === 'create' ? <CreatePage key={`create-${workspaceResetVersion}`} /> : null}
-        {active === 'models' ? <ModelsPage key={`models-${workspaceResetVersion}`} /> : null}
         {active === 'advanced' ? <AdvancedPage key={`advanced-${workspaceResetVersion}`} /> : null}
       </main>
+      <ModelDetailHost />
     </div>
   );
 }

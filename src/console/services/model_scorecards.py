@@ -3,6 +3,41 @@ import datetime
 import time
 
 
+def median_latency_ms(sorted_latencies):
+    """Nearest-rank median (p50) of an ascending latency list, or None when empty."""
+    if not sorted_latencies:
+        return None
+    return sorted_latencies[min(len(sorted_latencies) - 1, int(len(sorted_latencies) * 0.5))]
+
+
+def health_grade(success_rate, p50_latency_ms):
+    """Map recent success rate and median latency onto an A-D health grade.
+
+    Thresholds: A needs success >= 0.99 with p50 <= 1500ms, B needs success
+    >= 0.97 with p50 <= 3000ms, C holds when either success >= 0.90 or p50
+    <= 10000ms still passes, and everything else is D. A missing latency
+    never fails a latency check while a missing success rate never passes a
+    success check, so the function is total and never raises. Module-level on
+    purpose: the v2 showcase service imports it without instantiating
+    ModelScorecardService.
+    """
+    try:
+        success = None if success_rate is None else float(success_rate)
+    except (TypeError, ValueError):
+        success = None
+    try:
+        p50 = None if p50_latency_ms is None else float(p50_latency_ms)
+    except (TypeError, ValueError):
+        p50 = None
+    if success is not None and success >= 0.99 and (p50 is None or p50 <= 1500):
+        return "A"
+    if success is not None and success >= 0.97 and (p50 is None or p50 <= 3000):
+        return "B"
+    if (success is not None and success >= 0.90) or p50 is None or p50 <= 10000:
+        return "C"
+    return "D"
+
+
 class ModelScorecardService:
     """Build per-model quality and operations scorecards."""
 
@@ -73,6 +108,7 @@ class ModelScorecardService:
             item["cost_usd"] = round(item["cost_usd"], 8)
             item["error_rate"] = round(item["errors"] / item["requests"], 4) if item["requests"] else None
             item["avg_latency_ms"] = int(sum(latencies) / len(latencies)) if latencies else None
+            item["p50_latency_ms"] = median_latency_ms(latencies)
             item["p95_latency_ms"] = latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))] if latencies else None
             successes = max(0, item["requests"] - item["errors"])
             item["cost_per_success_usd"] = round(item["cost_usd"] / successes, 8) if successes else None
@@ -127,7 +163,7 @@ class ModelScorecardService:
             "max_output_tokens": int(model.get("max_output_tokens") or 0),
             "tool_support": bool(model.get("tool_support")),
             "pricing": pricing,
-            "trace": trace_metrics or {"requests": 0, "errors": 0, "error_rate": None, "avg_latency_ms": None, "p95_latency_ms": None, "cost_per_success_usd": None},
+            "trace": trace_metrics or {"requests": 0, "errors": 0, "error_rate": None, "avg_latency_ms": None, "p50_latency_ms": None, "p95_latency_ms": None, "cost_per_success_usd": None},
             "eval": eval_metrics or {"runs": 0, "requests": 0, "pass_rate": None, "failure_rate": None, "avg_latency_ms": None},
             "usage": {"local_cost_usd": round(float(local_usage_usd or 0.0), 8)},
             "score": score,

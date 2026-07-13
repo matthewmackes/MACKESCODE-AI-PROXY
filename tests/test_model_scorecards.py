@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from src.console.services.model_scorecards import ModelScorecardService
+from src.console.services.model_scorecards import ModelScorecardService, health_grade, median_latency_ms
 
 
 class ModelScorecardServiceTests(unittest.TestCase):
@@ -38,6 +38,44 @@ class ModelScorecardServiceTests(unittest.TestCase):
         self.assertEqual(card["usage"]["local_cost_usd"], 0.4)
         self.assertEqual(card["confidence"], "measured")
         self.assertGreater(card["score"], 0)
+
+    def test_trace_metrics_emit_p50_latency(self):
+        metrics = self.service().trace_metrics([
+            {"timestamp": 1.0, "status": "success", "routed_model": "model-a", "latency_ms": 300},
+            {"timestamp": 2.0, "status": "success", "routed_model": "model-a", "latency_ms": 100},
+            {"timestamp": 3.0, "status": "error", "routed_model": "model-a", "latency_ms": 200},
+            {"timestamp": 4.0, "status": "success", "routed_model": "model-b", "latency_ms": 100},
+            {"timestamp": 5.0, "status": "success", "routed_model": "model-b", "latency_ms": 400},
+            {"timestamp": 6.0, "status": "success", "routed_model": "model-c"},
+        ])
+
+        self.assertEqual(metrics["model-a"]["p50_latency_ms"], 200)
+        self.assertEqual(metrics["model-b"]["p50_latency_ms"], 400)
+        self.assertIsNone(metrics["model-c"]["p50_latency_ms"])
+        self.assertIsNone(median_latency_ms([]))
+
+    def test_scorecards_default_trace_shape_includes_p50(self):
+        payload = self.service().payload(days=30)
+
+        self.assertIsNone(payload["by_model"]["model-b"]["trace"]["p50_latency_ms"])
+        self.assertIn("p95_latency_ms", payload["by_model"]["model-b"]["trace"])
+
+    def test_health_grade_maps_success_and_latency_boundaries(self):
+        self.assertEqual(health_grade(1.0, 900), "A")
+        self.assertEqual(health_grade(0.99, 1500), "A")
+        self.assertEqual(health_grade(1.0, None), "A")
+        self.assertEqual(health_grade(0.99, 1501), "B")
+        self.assertEqual(health_grade(0.9899, 900), "B")
+        self.assertEqual(health_grade(0.97, 3000), "B")
+        self.assertEqual(health_grade(0.97, 3001), "C")
+        self.assertEqual(health_grade(0.9699, 900), "C")
+        self.assertEqual(health_grade(0.95, 50000), "C")
+        self.assertEqual(health_grade(0.5, 10000), "C")
+        self.assertEqual(health_grade(None, None), "C")
+        self.assertEqual(health_grade(0.89, 10001), "D")
+        self.assertEqual(health_grade(0.0, 99999), "D")
+        self.assertEqual(health_grade(None, 10001), "D")
+        self.assertEqual(health_grade("bad", 10001), "D")
 
     def test_scorecards_mark_stale_and_unavailable_samples(self):
         now = datetime.datetime(2026, 7, 9, tzinfo=datetime.timezone.utc).timestamp()

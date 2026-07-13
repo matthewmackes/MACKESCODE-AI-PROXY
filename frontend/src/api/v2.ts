@@ -64,6 +64,13 @@ export type ModelCard = {
     }>;
   };
   nation_palette: { accent: string; secondary: string; surface: string; text: string; name: string };
+  health?: {
+    grade: string | null;
+    success_rate: number | null;
+    p50_latency_ms: number | null;
+    requests: number;
+    measured: boolean;
+  };
 };
 
 export type ModelsPayload = {

@@ -21,3 +21,7 @@ export function timestampLabel(value: unknown): string {
   const seconds = Number(value);
   return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toLocaleString() : 'n/a';
 }
+
+export function readableStatus(value: string | undefined): string {
+  return String(value || 'unknown').replace(/_/g, ' ');
+}

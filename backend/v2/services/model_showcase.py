@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+from backend.v2.services.legacy_console import LegacyConsoleAdapter
 from src.console.services.model_registry import ModelRegistryService
+from src.console.services.model_scorecards import health_grade, median_latency_ms
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
@@ -84,14 +87,144 @@ DIGITALOCEAN_LLM_LINKS = [
 ]
 
 
+HEALTH_TRACE_LIMIT = 2000
+HEALTH_CACHE_TTL_SECONDS = 15.0
+UNMEASURED_HEALTH: dict[str, Any] = {"grade": None, "success_rate": None, "p50_latency_ms": None, "requests": 0, "measured": False}
+
+# Single shared adapter so the default health path reuses one lazily loaded
+# legacy console module instead of adding another image-studio exec per
+# ModelShowcaseService instance (chat, models, code, and create each build one).
+_HEALTH_LEGACY_ADAPTER = LegacyConsoleAdapter()
+
+
+class _HealthIndex:
+    """Aggregate recent trace telemetry into per-model health grades.
+
+    Mirrors the ``usage.py`` TTL cache pattern: the cached index is keyed on
+    the trace file's ``(path, st_mtime_ns, st_size, limit)`` signature so a
+    trace append invalidates it immediately, while the TTL only bounds how
+    long a stale-but-identical read is retained. A lock keeps the shared
+    module-level instance safe across request threads, and missing or
+    unreadable trace data never raises; it just yields an empty index so
+    every model reports as unmeasured.
+    """
+
+    def __init__(
+        self,
+        read_traces: Callable[..., Any] | None = None,
+        trace_file: Callable[[], Any] | None = None,
+        clock: Callable[[], float] | None = None,
+        ttl_seconds: float = HEALTH_CACHE_TTL_SECONDS,
+        limit: int = HEALTH_TRACE_LIMIT,
+    ) -> None:
+        self.read_traces = read_traces
+        self.trace_file = trace_file
+        self.clock = clock or time.time
+        self.ttl_seconds = ttl_seconds
+        self.limit = limit
+        self._lock = threading.Lock()
+        self._cached_signature: Any = None
+        self._cached_index: dict[str, dict[str, Any]] | None = None
+        self._expires_at = 0.0
+
+    def health_for(self, model_id: str) -> dict[str, Any]:
+        entry = self.index().get(str(model_id or ""))
+        return dict(entry) if entry else dict(UNMEASURED_HEALTH)
+
+    def index(self) -> dict[str, dict[str, Any]]:
+        now = self.clock()
+        signature = self._signature()
+        with self._lock:
+            if self._cached_index is not None and self._cached_signature == signature and now < self._expires_at:
+                return self._cached_index
+        index = self._build_index()
+        with self._lock:
+            self._cached_signature = signature
+            self._cached_index = index
+            self._expires_at = now + self.ttl_seconds
+        return index
+
+    def _resolve_trace_file(self) -> Path | None:
+        try:
+            if self.trace_file is not None:
+                return Path(self.trace_file())
+            if self.read_traces is not None:
+                return None
+            trace_file = getattr(_HEALTH_LEGACY_ADAPTER.module(), "trace_file", None)
+            return Path(trace_file()) if callable(trace_file) else None
+        except Exception:
+            return None
+
+    def _signature(self) -> tuple[Any, ...]:
+        path = self._resolve_trace_file()
+        if path is None:
+            return ("unresolved", None, None, self.limit)
+        try:
+            stat = path.stat()
+        except OSError:
+            return (str(path), None, None, self.limit)
+        return (str(path), stat.st_mtime_ns, stat.st_size, self.limit)
+
+    def _read_rows(self) -> list[dict[str, Any]]:
+        try:
+            read_traces = self.read_traces or getattr(_HEALTH_LEGACY_ADAPTER.module(), "read_traces", None)
+            rows = read_traces(limit=self.limit) if callable(read_traces) else []
+        except Exception:
+            return []
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+    def _build_index(self) -> dict[str, dict[str, Any]]:
+        aggregates: dict[str, dict[str, Any]] = {}
+        for row in self._read_rows():
+            is_error = str(row.get("status") or "") == "error"
+            try:
+                latency = int(row.get("latency_ms"))
+            except (TypeError, ValueError):
+                latency = 0
+            for model_id in {str(key) for key in (row.get("routed_model"), row.get("requested_model")) if key}:
+                item = aggregates.setdefault(model_id, {"requests": 0, "errors": 0, "latencies": []})
+                item["requests"] += 1
+                item["errors"] += 1 if is_error else 0
+                if latency:
+                    item["latencies"].append(latency)
+        index: dict[str, dict[str, Any]] = {}
+        for model_id, item in aggregates.items():
+            success_rate = round((item["requests"] - item["errors"]) / item["requests"], 4) if item["requests"] else None
+            p50 = median_latency_ms(sorted(item["latencies"]))
+            index[model_id] = {
+                "grade": health_grade(success_rate, p50),
+                "success_rate": success_rate,
+                "p50_latency_ms": p50,
+                "requests": item["requests"],
+                "measured": True,
+            }
+        return index
+
+
+# Shared index so every default-constructed showcase service (one per v2 api
+# module) reuses one cached aggregation of the same trace file.
+_HEALTH_INDEX = _HealthIndex()
+
+
 class ModelShowcaseService:
     """Build Carbon-friendly model and startup discovery payloads."""
 
-    def __init__(self, model_config: Path | None = None, model_access_state: Path | None = None, clock: Any | None = None) -> None:
+    def __init__(
+        self,
+        model_config: Path | None = None,
+        model_access_state: Path | None = None,
+        clock: Any | None = None,
+        read_traces: Callable[..., Any] | None = None,
+        trace_file: Callable[[], Any] | None = None,
+    ) -> None:
         self.model_config = model_config or Path(os.environ.get("MATTS_MODEL_CONFIG_FILE", DEFAULT_MODEL_CONFIG))
         self.model_access_state = model_access_state or Path(os.environ.get("MATTS_MODEL_ACCESS_STATE_FILE", DEFAULT_MODEL_ACCESS_STATE))
         self.clock = clock or time.time
         self.registry = ModelRegistryService([], MODEL_TYPES, float(os.environ.get("MATTS_AUTO_ENABLE_MAX_USD", "0.45")))
+        if read_traces is None and trace_file is None:
+            self.health_index = _HEALTH_INDEX
+        else:
+            self.health_index = _HealthIndex(read_traces=read_traces, trace_file=trace_file, clock=self.clock)
 
     def registry_status(self) -> dict[str, Any]:
         return self.registry.load_with_status(self.model_config, include_disabled=True, access_state=self.access_state())
@@ -199,6 +332,7 @@ class ModelShowcaseService:
             "serverless": bool(model.get("serverless")),
             "pricing_source": model.get("pricing_source") or "",
             "last_error": model.get("last_error") or "",
+            "health": self.health_index.health_for(str(model.get("id") or "")),
         }
 
     def payload(self) -> dict[str, Any]:

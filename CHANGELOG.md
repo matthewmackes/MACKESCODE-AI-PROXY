@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Unified every LLM representation onto one Brand-hero identity card (Big and
+  Small sizes): provider accent stripe, faint brand tint, accent-tinted logo
+  tile, "by Provider · nation" identity, facts chips, and a measured Health
+  letter grade (A–D from per-model success rate and p50 latency, TTL-cached on
+  all V2 model payloads). Cards click through to a global model-detail dialog,
+  carry Compare / Use in Chat / Favorite actions (shared cross-surface
+  favorites store), and degrade Big→Small on narrow viewports. Applies to the
+  Models grid (spotlight banner retired), What's New, Advanced Overview,
+  compare-tray headers, Chat contacts (click selects; ⓘ opens detail), chat
+  message headers, and all model dropdowns.
+- Moved the Models workspace into Advanced as a tab and removed Advanced from
+  the drawer's primary nav (Chat/Code/Research/Create remain); Advanced is
+  reached via the Settings button, the quick switcher, and the existing
+  `#advanced`/`#models` URLs, which keep working via race-free redirects.
+- Design decided by a 25-question operator survey recorded in MAIN-WORKLIST
+  V2-081.
+
 - Fixed dark-mode rendering of the What's New modal: alert cards now sit on
   dark layers with readable text instead of a pastel-to-white gradient, panel
   borders follow the theme token instead of a hardcoded light gray, jump-strip
