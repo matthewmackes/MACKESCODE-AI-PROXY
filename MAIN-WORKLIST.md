@@ -10457,6 +10457,194 @@ development worklist does not pretend they are locally closable.
 
 ---
 
+### Task ID: INT-168
+**Title:** Harden image persistence against provider-supplied URLs
+**Status:** TODO
+**Priority:** P2
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Platform review P2 (2026-07-11), verified still live on 2026-07-12: `LocalPersistenceService.save_image_item` (`src/console/services/persistence.py:47`) fetches whatever URL the upstream image response contains via bare `urlopen(item["url"], timeout=240)` with no scheme allowlist, no size cap, and no content-type validation. urllib supports `file://`, so a malicious or compromised provider response becomes local file read / internal SSRF, with the fetched bytes persisted into the served images directory. The service is wired into V2 through `image-studio.py`.
+
+**Implementation Steps:**
+1. Allowlist `https` (and optionally the known provider host); reject `file://` and other schemes before fetching.
+2. Cap the response size and validate content-type before persisting; prefer the `b64_json` path when both are present.
+3. Add unit tests for rejected schemes, oversize responses, and the happy path.
+4. Update `SECURITY.md`/threat-model notes per the governance rule for security-surface changes.
+
+**Completion Criteria:**
+- [ ] Non-https image URLs are rejected with a clear error
+- [ ] Response size and content-type are validated before writing
+- [ ] Tests cover rejection and happy paths
+- [ ] Security docs updated
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: INT-169
+**Title:** Move default proxy logs out of world-readable /tmp
+**Status:** TODO
+**Priority:** P2
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Platform review P2 (2026-07-11), verified still live on 2026-07-12: `claude-DO.sh:21` defaults `log_file` to `/tmp/matts-value-set-proxy.jsonl`, and the nohup/setsid fallbacks plus `matts-image` redirect to fixed `/tmp` names. GOVERNANCE's runtime-state lock places runtime state under `$HOME/.cache/matts-value-set/`; fixed-name world-readable `/tmp` files expose routing/usage metadata to every local user and are a symlink-clobber hazard (the launcher explicitly supports sudo/root).
+
+**Implementation Steps:**
+1. Default the proxy log and stdout/stderr fallback paths to `$HOME/.cache/matts-value-set/` in `claude-DO.sh` and `matts-image`, keeping `MATTS_VALUE_SET_LOG_FILE` as the override.
+2. Update `CLAUDE.md`/README debugging docs that reference the `/tmp` path.
+3. Verify the launcher and proxy start cleanly with the new defaults (`--doctor`, smoke launch).
+
+**Completion Criteria:**
+- [ ] No fixed `/tmp` log paths remain as defaults in launchers
+- [ ] Env override still works; docs match
+- [ ] Launcher verification evidence recorded
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: INT-170
+**Title:** Keep sensitive operational metadata out of git-tracked models.json
+**Status:** TODO
+**Priority:** P2
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Platform review P2 (2026-07-11), still undecided as of 2026-07-12 (no entry in `docs/DECISIONS.md`): the key audit writes raw probe error bodies into each model's `last_error`, and Dedicated registration writes live `inference_id` and endpoint FQDNs into git-tracked `config/models.json` (`src/console/services/serverless_catalog.py`, `dedicated.py`). GOVERNANCE classifies these as sensitive operational metadata that must not be committed, which is in direct tension with `models.json` being the registry source of truth. The review offered two resolutions: (a) default `MATTS_MODEL_CONFIG_FILE` to a runtime copy under `~/.cache/matts-value-set/` seeded from the committed file, or (b) redact at write time (error categories in the registry, full bodies in runtime logs; endpoint/inference ids only in runtime Dedicated state).
+
+**Implementation Steps:**
+1. Record the chosen resolution in `docs/DECISIONS.md` (operator input if direction is unclear).
+2. Implement the chosen path with tests proving committed-file cleanliness after audit and Dedicated registration.
+3. Update GOVERNANCE/source-of-truth docs if the registry file layout changes.
+
+**Completion Criteria:**
+- [ ] Decision recorded in `docs/DECISIONS.md`
+- [ ] Key audit and Dedicated registration no longer place sensitive metadata in a git-tracked file
+- [ ] Tests and docs updated
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: INT-171
+**Title:** Retention for unbounded runtime JSONL logs
+**Status:** TODO
+**Priority:** P3
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Remaining thread from the platform review's performance findings: hot-path re-parsing was fixed (incremental usage aggregator, tail reads), but `usage.jsonl`, `traces.jsonl`, and the proxy request log still grow without bound. Long-running operator hosts eventually pay disk and startup costs, and there is no pruning or rotation policy.
+
+**Implementation Steps:**
+1. Add size- or age-based rotation/pruning for usage, trace, and proxy JSONL files, preserving whatever window budget enforcement and analytics need.
+2. Ensure budget/cost aggregation remains correct across rotation boundaries (tests).
+3. Document the retention policy and any operator knobs.
+
+**Completion Criteria:**
+- [ ] Runtime JSONL files have bounded growth with a documented policy
+- [ ] Budget and analytics correctness covered by tests across rotation
+- [ ] Docs updated
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: V2-076
+**Title:** Vendor IBM Plex webfonts locally
+**Status:** TODO
+**Priority:** P2
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Follow-up recorded in V2-072: font loading is now async and non-blocking, but the IBM Plex Sans/Mono families still load from the Google Fonts CDN — an external dependency in a private-operator tool that renders fallback fonts when offline. Registry network access is available on this host (proven during V2-075's dependency install), so the woff2 files can now be vendored.
+
+**Implementation Steps:**
+1. Vendor the required IBM Plex Sans/Mono weights (400/500/600/700 + italics used by the UI) as woff2 under `frontend/public/fonts/` with license attribution (OFL).
+2. Author `@font-face` rules with `font-display: swap` and remove the Google Fonts links from `index.html`.
+3. Confirm bundle/audit gates and browser smoke pass, and the packaged install ships the fonts.
+
+**Completion Criteria:**
+- [ ] No external font host referenced anywhere in the built frontend
+- [ ] IBM Plex renders offline; license attribution included
+- [ ] Build, bundle boundary, audit, and required V2 browser smoke pass
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: V2-077
+**Title:** Consolidate Console polling intervals
+**Status:** TODO
+**Priority:** P3
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Survey item deferred from the 2026-07-12 polish run: the Console workspace runs three concurrent refetch intervals (two at 5s, one at 10s) while mounted. Polling correctly stops when the workspace unmounts, but the concurrent cadence triples steady-state load for one view.
+
+**Implementation Steps:**
+1. Consolidate the Console queries onto a single overview poll (or a shared interval) without losing tmux/session freshness where an operator is actively controlling a session.
+2. Keep or add browser-smoke coverage proving the Console still refreshes session state.
+
+**Completion Criteria:**
+- [ ] Console steady-state polling reduced to one cadence (documented exceptions allowed for active control)
+- [ ] Required V2 browser smoke passes
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: V2-078
+**Title:** Decide dark-theme treatment for remaining brand-light islands
+**Status:** TODO
+**Priority:** P3
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Deferred judgment calls from the V2-071 dark-mode sweep: model showcase/spotlight cards keep light pastel `nation_palette.surface` backgrounds in dark mode (brand identity), `.modelInspectorFacts div` / `.artworkFacts div` / `.artworkSources` remain translucent-white tiles over accent gradients, and `.lexisResultDetail` keeps its deliberate cream (`#fffaf6`). Each needs a keep-as-brand vs darken decision; Create's over-wallpaper glass is already decided (keep).
+
+**Implementation Steps:**
+1. Review each surface rendered in dark mode (screenshot evidence) and decide keep vs darken per surface, recording the outcome in this task.
+2. Apply dark tokens/overrides for any surface decided to darken; leave decided-brand surfaces documented as intentional.
+
+**Completion Criteria:**
+- [ ] Every listed surface has a recorded decision with rendered evidence
+- [ ] Applied changes pass the style gates and required V2 browser smoke
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
+### Task ID: V2-079
+**Title:** Gate Observe metrics on the error path
+**Status:** TODO
+**Priority:** P3
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Noted during V2-073/074 implementation: ObservePage now gates its initial load, but when the observe query errors, zero-valued metric cards still render beneath the error alert, presenting $0.00 totals as if real. The error alert should replace the metric grid the same way the loading state does.
+
+**Implementation Steps:**
+1. Render the error alert in place of (not above) the metric cards when `observe.error` is set and no data exists.
+2. Keep partial-data behavior sensible when a refetch fails after a successful load.
+
+**Completion Criteria:**
+- [ ] No zero-value metric cards render on a failed initial load
+- [ ] Required V2 browser smoke passes
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2 polish backlog (V2-071..V2-075) appended 2026-07-12.*
+*Last updated by: Claude; planning leftovers promoted to INT-168..INT-171 and V2-076..V2-079 on 2026-07-12.*
 *Timestamp: 2026-07-12*
