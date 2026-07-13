@@ -42,7 +42,7 @@ DEFAULT_CONSOLE_CONFIG = {
         "auth_token_file": "console-auth-token",
         "cost_file": ".cache/matts-value-set/usage.jsonl",
         "budget_file": ".cache/matts-value-set/budgets.json",
-        "proxy_log_file": "/tmp/matts-value-set-proxy.jsonl",
+        "proxy_log_file": ".cache/matts-value-set/proxy.jsonl",
     },
     "rate_limits": {"enabled": False},
 }

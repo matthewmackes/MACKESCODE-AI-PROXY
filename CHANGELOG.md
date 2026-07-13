@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Model lists now lead with favorites and collapse the rest: Chat contacts show
+  an always-visible Pinned strip (starred models plus the active conversation)
+  over a collapsed "All contacts (N · M online)" drawer that is online-first,
+  search-auto-expanding, and collapsed on every load; model dropdowns are
+  favorites-first card listboxes with a filter and a "More models" expander; and
+  the Models grid leads with favorite cards behind an "All models" expander.
+- Replaced the per-model national background tint on identity cards with the
+  provider's official brand hue (stripe, logo tile, and faint card tint all
+  derive from simple-icons brand hex data) and added a square national flag
+  badge (flag-icons, MIT) on each logo tile, with a globe badge when the
+  training nation is unknown.
+- Self-hosted the IBM Plex Sans/Mono webfonts (bundled woff2 via @fontsource),
+  removing the last Google Fonts CDN dependency so the console renders its
+  intended typography fully offline.
+- Hardened runtime-state handling: provider-supplied image URLs are fetched
+  https-only with size and content-type validation; default proxy/console log
+  paths moved out of world-readable /tmp into `~/.cache/matts-value-set/`;
+  the model registry no longer records raw probe error bodies or live Dedicated
+  endpoint/inference identifiers (categorized/redacted, full detail kept in
+  runtime state); and runtime JSONL logs (usage/traces/proxy) now rotate with a
+  bounded single-generation gzip archive.
+- Consolidated the Console workspace's three concurrent poll intervals into one
+  shared cadence (5s while actively controlling a session, 15s idle), and the
+  Observability summary now shows only the error alert on a failed initial load
+  instead of fabricated zero-value metric cards.
+
 - Unified every LLM representation onto one Brand-hero identity card (Big and
   Small sizes): provider accent stripe, faint brand tint, accent-tinted logo
   tile, "by Provider · nation" identity, facts chips, and a measured Health

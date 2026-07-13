@@ -41,3 +41,12 @@ sample count adjust the score. Models with no samples score `0` and show
 
 Scorecards are advisory. Gateway policy and explicit operator model selection
 remain the source of truth for routing decisions.
+
+## Health Letter Grade
+
+The scorecard module also defines `health_grade`, the A-D letter grade shown
+on every unified model identity card in V2. The grade uses only recent trace
+success rate and p50 latency, is cached briefly by the V2 showcase service,
+and shows `Health —` for unmeasured models. It is a quick routing-health
+signal, not a replacement for the fuller 0-100 score above. See
+`docs/unified-model-card.md`.

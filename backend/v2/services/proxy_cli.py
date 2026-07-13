@@ -18,7 +18,7 @@ DEFAULT_MODEL_CONFIG_FILE = PROJECT_DIR / "config" / "models.json"
 DEFAULT_MODEL_ACCESS_STATE_FILE = Path.home() / ".cache" / "matts-value-set" / "studio" / "model-access-state.json"
 DEFAULT_COST_FILE = Path.home() / ".cache" / "matts-value-set" / "usage.jsonl"
 DEFAULT_BUDGET_FILE = Path.home() / ".cache" / "matts-value-set" / "budgets.json"
-DEFAULT_LOG_FILE = Path("/tmp/matts-value-set-proxy.jsonl")
+DEFAULT_LOG_FILE = Path.home() / ".cache" / "matts-value-set" / "proxy.jsonl"
 
 
 @dataclass(frozen=True)

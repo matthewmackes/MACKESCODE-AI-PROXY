@@ -30,6 +30,8 @@ def default_items(include_secrets=False):
         ("auth_sessions", env_path("MATTS_AUTH_SESSION_FILE", app_dir / "auth-sessions.json")),
         ("serverless_catalog_cache", env_path("MATTS_SERVERLESS_CATALOG_CACHE_FILE", app_dir / "serverless-model-catalog.json")),
         ("model_access_state", env_path("MATTS_MODEL_ACCESS_STATE_FILE", app_dir / "model-access-state.json")),
+        # Probe forensics log lives next to the access-state file (ADR-0005).
+        ("model_access_probes", env_path("MATTS_MODEL_ACCESS_STATE_FILE", app_dir / "model-access-state.json").with_name("model-access-probes.jsonl")),
         ("model_access_drift", env_path("MATTS_MODEL_ACCESS_DRIFT_FILE", app_dir / "model-access-drift.json")),
         ("trace_log", env_path("MATTS_TRACE_FILE", app_dir / "traces.jsonl")),
         ("tmux_registry", env_path("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir / "tmux-sessions.json")),

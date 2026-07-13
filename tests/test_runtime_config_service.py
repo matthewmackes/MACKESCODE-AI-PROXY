@@ -24,7 +24,7 @@ class RuntimeConfigServiceTests(unittest.TestCase):
             self.assertEqual(app_dir.name, "studio")
             self.assertTrue((app_dir / "images").is_dir())
             self.assertEqual(service.token_file(), Path(tmp) / ".mcnf-do-model-access-token")
-            self.assertEqual(service.log_file(), Path("/tmp/matts-value-set-proxy.jsonl"))
+            self.assertEqual(service.log_file(), Path(tmp) / ".cache/matts-value-set/proxy.jsonl")
 
     def test_runtime_paths_can_come_from_console_config(self):
         with tempfile.TemporaryDirectory() as tmp:

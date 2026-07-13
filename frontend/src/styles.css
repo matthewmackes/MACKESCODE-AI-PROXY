@@ -4010,7 +4010,7 @@ button {
   min-height: 82px;
   align-content: center;
   padding: 12px;
-  background: rgba(255, 255, 255, .86);
+  background: var(--cds-layer-01);
 }
 
 .modelInspectorFacts strong {
@@ -4110,7 +4110,7 @@ button {
 
 .artworkFacts div,
 .artworkSources {
-  background: rgba(255, 255, 255, .9);
+  background: var(--cds-layer-01);
 }
 
 .artworkFacts div {
@@ -4811,12 +4811,153 @@ html[data-theme="dark"] .quickSwitcherRecents button .carbonIcon {
   cursor: inherit;
 }
 
+.mdlFlagBadge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--cds-layer-01);
+  border-radius: 3px;
+  background: var(--cds-layer-01);
+}
+
+.mdlFlagBadge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mdlFlagGlobe {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.mdlCard.big .mdlFlagBadge {
+  width: 20px;
+  height: 20px;
+  right: -6px;
+  bottom: -6px;
+}
+
+.mdlSelectClear {
+  position: absolute;
+  top: 26px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cds-text-secondary);
+}
+
+.mdlSelectClear .carbonIcon {
+  width: 11px;
+  height: 11px;
+  filter: none;
+}
+
+html[data-theme="dark"] .mdlSelectClear .carbonIcon {
+  filter: invert(1);
+}
+
+.mdlSelectFilter {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 3px;
+  background: var(--cds-field);
+  color: var(--cds-text);
+  font: inherit;
+}
+
+.mdlSelectMore {
+  min-height: 34px;
+  border: 1px dashed var(--cds-border-subtle);
+  border-radius: 3px;
+  background: var(--cds-layer-02);
+  color: var(--cds-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mdlSelectMore:hover,
+.mdlSelectMore:focus-visible {
+  border-color: var(--cds-blue);
+  color: var(--cds-text);
+}
+
+.icqPinnedHint {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--cds-text-secondary);
+  font-size: 12px;
+}
+
+.icqDrawerHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-top: 1px solid var(--cds-border-subtle);
+  border-bottom: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer-02);
+  color: var(--cds-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icqDrawerChevron {
+  display: inline-block;
+  transition: transform .15s ease;
+}
+
+.icqDrawerHeader.open .icqDrawerChevron {
+  transform: rotate(90deg);
+}
+
+.icqContactDrawer {
+  display: grid;
+  animation: icqDrawerOpen .15s ease;
+}
+
+@keyframes icqDrawerOpen {
+  from { opacity: .4; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modelGridMore {
+  justify-self: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icqDrawerChevron {
+    transition: none;
+  }
+
+  .icqContactDrawer {
+    animation: none;
+  }
+}
+
 .mdlCard.big .mdlCardBody {
   gap: 14px;
   padding: 16px;
 }
 
 .mdlCardLogo {
+  position: relative;
   display: grid;
   place-items: center;
   width: 36px;

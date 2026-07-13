@@ -126,6 +126,82 @@ class ServerlessCatalogService:
         path.chmod(0o600)
         return payload
 
+    # Registry error hygiene (ADR-0005 / GOVERNANCE): model entries, the
+    # access-state overlay, and drift events only ever carry a short error
+    # category, never a raw upstream response body. Raw bodies are sensitive
+    # operational metadata and must never be reachable from the git-tracked
+    # registry; full probe forensics go to the runtime probe log instead.
+    probe_error_category_max_chars = 64
+
+    def probe_error_category(self, ok, status, detail=""):
+        """Collapse a probe outcome into a short, non-sensitive category string.
+
+        Derived only from the HTTP status and the exception/reason text (used to
+        tell timeouts and connection failures apart from the URLError path,
+        which reports status 502). Always <= 64 chars, never a raw body.
+        """
+        if ok:
+            return ""
+        try:
+            code = int(status or 0)
+        except (TypeError, ValueError):
+            code = 0
+        if code == 401:
+            category = "http_401_unauthorized"
+        elif code == 403:
+            category = "http_403_forbidden"
+        elif code == 429:
+            category = "http_429_rate_limited"
+        else:
+            text = str(detail or "").lower()
+            if "timed out" in text or "timeout" in text:
+                category = "timeout"
+            elif any(marker in text for marker in ("connection", "refused", "unreachable", "getaddrinfo", "name or service", "offline", "errno")):
+                category = "connection_error"
+            elif 500 <= code <= 599:
+                category = "http_5xx"
+            elif 400 <= code <= 499:
+                category = "http_4xx"
+            else:
+                category = "invalid_response"
+        return category[: self.probe_error_category_max_chars]
+
+    def model_access_probe_log_path(self):
+        """Runtime JSONL log holding full probe forensics, resolved next to the
+        model-access-state file (GOVERNANCE runtime-state boundary: lives under
+        the cache/studio dir, never in a git-tracked file)."""
+        return self.model_access_state_path().with_name("model-access-probes.jsonl")
+
+    def record_probe_detail(self, model_id, ok, status, detail, category, source="audit", key_fingerprint=""):
+        """Append the full probe outcome — including the raw, truncated upstream
+        body — to the runtime probe log. Registry entries and access state only
+        get the short category; this log is where an operator inspects the
+        actual upstream response."""
+        try:
+            code = int(status or 0)
+        except (TypeError, ValueError):
+            code = 0
+        row = {
+            "ts": float(self.clock()),
+            "source": str(source or ""),
+            "model_id": str(model_id or ""),
+            "ok": bool(ok),
+            "status": code,
+            "category": str(category or ""),
+            "detail": str(detail or "")[:1000],
+            "key_fingerprint": str(key_fingerprint or ""),
+        }
+        try:
+            path = self.model_access_probe_log_path()
+            existed = path.exists()
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+            if not existed:
+                path.chmod(0o600)
+        except OSError:
+            pass
+        return row
+
     def load_access_drift_state(self):
         path = self.model_access_drift_path()
         if not path.exists():
@@ -406,18 +482,24 @@ class ServerlessCatalogService:
         disabled = 0
         outcomes = []
         probe = self.probe_serverless_text_model_func or self.probe_serverless_text_model
+        key_fingerprint = self.active_model_access_key_info().get("fingerprint") or ""
         for model in models:
             if not model.get("serverless") or model.get("type") != "text":
                 continue
             checked += 1
             ok, status, detail = probe(model["id"])
+            # Redact at write time (ADR-0005): only the derived category may
+            # reach registry entries or access/drift state; the raw body goes to
+            # the runtime probe log.
+            category = self.probe_error_category(ok, status, detail)
+            self.record_probe_detail(model["id"], ok, status, detail, category, source="catalog_sync", key_fingerprint=key_fingerprint)
             row = {
                 "id": model["id"],
                 "display_name": model.get("display_name") or model["id"],
                 "owned_by": model.get("owned_by") or "",
                 "pricing": model.get("pricing") or {},
                 "status": int(status),
-                "error": detail,
+                "error": category,
             }
             if ok:
                 model["access_status"] = "ok"
@@ -426,7 +508,7 @@ class ServerlessCatalogService:
                 outcomes.append(row)
                 continue
             model["access_status"] = "forbidden" if int(status) in {401, 403} else ("rate_limited" if int(status) == 429 else "probe_failed")
-            model["last_error"] = detail
+            model["last_error"] = category
             row["access_status"] = model["access_status"]
             outcomes.append(row)
             disabled += 1
@@ -441,11 +523,17 @@ class ServerlessCatalogService:
         blocked = []
         skipped = []
         probe = self.probe_serverless_text_model_func or self.probe_serverless_text_model
+        key_fingerprint = self.active_model_access_key_info().get("fingerprint") or ""
         for model in models:
             if not model.get("serverless") or model.get("type") != "text":
                 continue
             checked += 1
             ok, status, detail = probe(model["id"])
+            # Redact at write time (ADR-0005): the audit stores only the derived
+            # error category in model/access state; the raw upstream body lands
+            # in the runtime probe log for forensics.
+            category = self.probe_error_category(ok, status, detail)
+            self.record_probe_detail(model["id"], ok, status, detail, category, source="audit", key_fingerprint=key_fingerprint)
             row = {
                 "id": model["id"],
                 "display_name": model.get("display_name") or model["id"],
@@ -461,9 +549,9 @@ class ServerlessCatalogService:
                 allowed.append(row)
                 continue
             model["access_status"] = access_status
-            model["last_error"] = detail
+            model["last_error"] = category
             row["access_status"] = access_status
-            row["error"] = detail
+            row["error"] = category
             if int(status) in {401, 403}:
                 blocked.append(row)
             else:
@@ -489,6 +577,7 @@ class ServerlessCatalogService:
             "image_model_options": self.model_options("image", include_disabled=True),
             "model_metadata": self.model_metadata_map(),
             "proxy_sync": sync,
+            "probe_log_file": str(self.model_access_probe_log_path()),
             "note": "DigitalOcean does not expose the selected-model scope for a secret key through the serverless runtime API; this audit verifies access by probing each serverless text model.",
         }
 

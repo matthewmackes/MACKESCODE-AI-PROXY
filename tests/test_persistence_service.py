@@ -1,14 +1,42 @@
 import base64
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from src.console.services import persistence
 from src.console.services.persistence import LocalPersistenceService
 
 
 class FixedUuid:
     hex = "abcdef1234567890"
+
+
+class FakeHeaders:
+    def __init__(self, content_type):
+        self._content_type = content_type
+
+    def get_content_type(self):
+        return self._content_type
+
+
+class FakeUrlResponse:
+    """Minimal stand-in for the object returned by urllib.request.urlopen."""
+
+    def __init__(self, body, content_type="image/png"):
+        self._buffer = io.BytesIO(body)
+        self.headers = FakeHeaders(content_type)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def read(self, amt=None):
+        return self._buffer.read(amt)
 
 
 class LocalPersistenceServiceTests(unittest.TestCase):
@@ -50,6 +78,98 @@ class LocalPersistenceServiceTests(unittest.TestCase):
 
         self.assertEqual(path.name, "img-1.png")
         self.assertEqual(data, b"image-bytes")
+
+    def test_save_image_item_rejects_file_url_without_fetching(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch("src.console.services.persistence.urlopen") as fake_urlopen:
+                with self.assertRaisesRegex(ValueError, "only https"):
+                    service.save_image_item({"url": "file:///etc/passwd"}, "img-file")
+            leftovers = list((Path(tmp) / "images").iterdir())
+
+        self.assertFalse(fake_urlopen.called)
+        self.assertEqual(leftovers, [])
+
+    def test_save_image_item_rejects_http_and_other_schemes(self):
+        urls = (
+            "http://169.254.169.254/latest/meta-data",
+            "ftp://host/image.png",
+            "data:image/png;base64,AAAA",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch("src.console.services.persistence.urlopen") as fake_urlopen:
+                for url in urls:
+                    with self.assertRaisesRegex(ValueError, "only https"):
+                        service.save_image_item({"url": url}, "img-bad")
+
+        self.assertFalse(fake_urlopen.called)
+
+    def test_save_image_item_rejects_oversize_response(self):
+        body = b"x" * (persistence.MAX_IMAGE_DOWNLOAD_BYTES + 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch(
+                "src.console.services.persistence.urlopen",
+                return_value=FakeUrlResponse(body, "image/png"),
+            ):
+                with self.assertRaisesRegex(ValueError, "exceeded"):
+                    service.save_image_item({"url": "https://provider.example/big.png"}, "img-big")
+            leftovers = list((Path(tmp) / "images").iterdir())
+
+        self.assertEqual(leftovers, [])
+
+    def test_save_image_item_rejects_non_image_content_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch(
+                "src.console.services.persistence.urlopen",
+                return_value=FakeUrlResponse(b"<html>nope</html>", "text/html"),
+            ):
+                with self.assertRaisesRegex(ValueError, "non-image content-type"):
+                    service.save_image_item({"url": "https://provider.example/page"}, "img-html")
+            leftovers = list((Path(tmp) / "images").iterdir())
+
+        self.assertEqual(leftovers, [])
+
+    def test_save_image_item_accepts_https_image_response(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch(
+                "src.console.services.persistence.urlopen",
+                return_value=FakeUrlResponse(b"png-bytes", "image/png"),
+            ) as fake_urlopen:
+                path = service.save_image_item({"url": "https://provider.example/img.png"}, "img-https")
+            data = path.read_bytes()
+
+        self.assertEqual(fake_urlopen.call_args[0][0], "https://provider.example/img.png")
+        self.assertEqual(path.name, "img-https.png")
+        self.assertEqual(data, b"png-bytes")
+
+    def test_save_image_item_defaults_extension_to_png_for_unknown_image_type(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch(
+                "src.console.services.persistence.urlopen",
+                return_value=FakeUrlResponse(b"mystery-bytes", "image/x-mde-nonexistent"),
+            ):
+                path = service.save_image_item({"url": "https://provider.example/mystery"}, "img-x")
+
+        self.assertEqual(path.name, "img-x.png")
+
+    def test_save_image_item_prefers_b64_json_over_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service = self.service(tmp)
+            with patch("src.console.services.persistence.urlopen") as fake_urlopen:
+                path = service.save_image_item({
+                    "b64_json": base64.b64encode(b"inline-bytes").decode("ascii"),
+                    "url": "file:///etc/passwd",
+                }, "img-both")
+            data = path.read_bytes()
+
+        self.assertFalse(fake_urlopen.called)
+        self.assertEqual(path.name, "img-both.png")
+        self.assertEqual(data, b"inline-bytes")
 
     def test_chat_cost_estimates_tokens_and_cost(self):
         with tempfile.TemporaryDirectory() as tmp:

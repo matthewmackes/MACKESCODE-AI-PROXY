@@ -4,7 +4,32 @@ import json
 import mimetypes
 import time
 import uuid
+from urllib.parse import urlparse
 from urllib.request import urlopen
+
+MAX_IMAGE_DOWNLOAD_BYTES = 25 * 1024 * 1024
+
+
+def _fetch_https_image(url):
+    """Fetch a provider-supplied image URL with scheme, size, and content-type checks."""
+    scheme = urlparse(url).scheme.lower()
+    if scheme != "https":
+        raise ValueError(
+            "image url scheme %r is not allowed; only https image urls are fetched" % scheme
+        )
+    with urlopen(url, timeout=240) as resp:
+        content_type = resp.headers.get_content_type()
+        if not str(content_type or "").lower().startswith("image/"):
+            raise ValueError(
+                "image url returned non-image content-type %r" % content_type
+            )
+        data = resp.read(MAX_IMAGE_DOWNLOAD_BYTES + 1)
+        if len(data) > MAX_IMAGE_DOWNLOAD_BYTES:
+            raise ValueError(
+                "image url response exceeded the %d byte download limit" % MAX_IMAGE_DOWNLOAD_BYTES
+            )
+        ext = mimetypes.guess_extension(content_type) or ".png"
+    return data, ext
 
 
 class LocalPersistenceService:
@@ -44,9 +69,7 @@ class LocalPersistenceService:
             data = base64.b64decode(item["b64_json"])
             ext = ".png"
         elif item.get("url"):
-            with urlopen(item["url"], timeout=240) as resp:
-                data = resp.read()
-                ext = mimetypes.guess_extension(resp.headers.get_content_type()) or ".png"
+            data, ext = _fetch_https_image(item["url"])
         else:
             raise ValueError("image response did not include b64_json or url")
         out = image_dir / ("%s%s" % (image_id, ext))

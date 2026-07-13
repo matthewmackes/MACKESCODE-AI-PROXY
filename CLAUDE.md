@@ -51,8 +51,9 @@ The most important locks:
   - Code workspace for Claude Code/tmux sessions, the TMux/TUI console, terminal command history, and image review
   - Research workspace for source-backed search, citations, and multi-model synthesis
   - Create workspace for image generation only
-  - Models workspace for registry health, pricing, access state, and model hero cards
-  - Advanced workspaces for Console, Run, Observe, and Operate workflows
+  - Advanced workspaces for the Models tab (registry health grades, pricing, access state, unified model identity cards) plus Console, Run, Observe, and Operate workflows
+- Drawer primary nav is Chat/Code/Research/Create; Advanced (including Models) opens via the drawer Settings button, the Ctrl/Cmd+K quick switcher, or `#advanced`/`#models` URLs
+- Every LLM surface renders the unified `ModelIdentityCard` with shared favorites and a measured Health grade; see `docs/unified-model-card.md`
 - Manages tmux sessions for persistent Claude Code instances through the V2 API
 - Authentication via generated token in `~/.cache/matts-value-set/studio/console-auth-token`
 - `image-studio.py` remains the service-adapter composition module imported by V2; it is not the supported standalone V1 UI.
@@ -67,7 +68,7 @@ The most important locks:
 
 ## Available Models
 
-Available models are loaded from `config/models.json`, overlaid with runtime model-access audit state from `$HOME/.cache/matts-value-set/studio/model-access-state.json`, filtered by enabled state and access status, and exposed consistently through `./claude-DO.sh --list-models`, `/v1/models`, Code/Create selectors, Console LLM Management, and model hero cards. `config/default-models.json` is only the bootstrap fallback.
+Available models are loaded from `config/models.json`, overlaid with runtime model-access audit state from `$HOME/.cache/matts-value-set/studio/model-access-state.json`, filtered by enabled state and access status, and exposed consistently through `./claude-DO.sh --list-models`, `/v1/models`, Code/Create selectors, Console LLM Management, and the unified model identity cards and detail dialogs. `config/default-models.json` is only the bootstrap fallback.
 
 Use Console > LLM Management > key audit to verify which Serverless text models the configured key can access. Forbidden, rate-limited, probe-failed, disabled, and Dedicated-offline states are visible in model metadata and selector labels without writing key-specific audit results into `config/models.json`.
 
@@ -106,7 +107,10 @@ curl -X POST "http://127.0.0.1:18081/v1/messages" \
 curl -s "http://127.0.0.1:18081/v1/claude-do/capabilities" | python3 -m json.tool
 
 # View recent logs
-tail -f /tmp/matts-value-set-proxy.jsonl
+tail -f ~/.cache/matts-value-set/proxy.jsonl
+
+# Proxy stdout/stderr when started without tmux (setsid/nohup fallback)
+tail -f ~/.cache/matts-value-set/proxy-stdout.log
 
 # Inspect routing proof in the GUI
 # Create > chat message > Show Detail

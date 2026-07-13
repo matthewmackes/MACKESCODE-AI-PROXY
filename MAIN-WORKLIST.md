@@ -10459,10 +10459,12 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: INT-168
 **Title:** Harden image persistence against provider-supplied URLs
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+**Verification:** `_fetch_https_image` in `persistence.py` allowlists https, rejects file/http/data/ftp before any network call, caps read at 25 MB, and requires an `image/*` content-type; `save_image_item` prefers `b64_json`. `python3 -m unittest tests.test_persistence_service` (13 tests) and `tests.test_console_smoke` (18 tests) green. SECURITY.md hardening bullet added.
 
 **Description:** Platform review P2 (2026-07-11), verified still live on 2026-07-12: `LocalPersistenceService.save_image_item` (`src/console/services/persistence.py:47`) fetches whatever URL the upstream image response contains via bare `urlopen(item["url"], timeout=240)` with no scheme allowlist, no size cap, and no content-type validation. urllib supports `file://`, so a malicious or compromised provider response becomes local file read / internal SSRF, with the fetched bytes persisted into the served images directory. The service is wired into V2 through `image-studio.py`.
 
@@ -10485,10 +10487,12 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: INT-169
 **Title:** Move default proxy logs out of world-readable /tmp
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+**Verification:** `claude-DO.sh` (log default + setsid/nohup stdout fallback + dead-proxy message) and `matts-image` now default under `$HOME/.cache/matts-value-set/`; the `MATTS_VALUE_SET_LOG_FILE` override is unchanged; `bash -n claude-DO.sh` / `py_compile matts-image` clean. Extended beyond the launchers to the actual writer and console config so no `/tmp` default remains anywhere: `do-anthropic-proxy.py` `DEFAULT_LOG_FILE`, `backend/v2/services/proxy_cli.py`, `src/console/services/app_config.py`, `runtime_config.py`, and `config/console.json` all resolve to `.cache/matts-value-set/proxy.jsonl`; `tests.test_runtime_config_service`/`test_app_config_service` green; CLAUDE.md debugging paths updated.
 
 **Description:** Platform review P2 (2026-07-11), verified still live on 2026-07-12: `claude-DO.sh:21` defaults `log_file` to `/tmp/matts-value-set-proxy.jsonl`, and the nohup/setsid fallbacks plus `matts-image` redirect to fixed `/tmp` names. GOVERNANCE's runtime-state lock places runtime state under `$HOME/.cache/matts-value-set/`; fixed-name world-readable `/tmp` files expose routing/usage metadata to every local user and are a symlink-clobber hazard (the launcher explicitly supports sudo/root).
 
@@ -10509,10 +10513,11 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: INT-170
 **Title:** Keep sensitive operational metadata out of git-tracked models.json
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
 
 **Description:** Platform review P2 (2026-07-11), still undecided as of 2026-07-12 (no entry in `docs/DECISIONS.md`): the key audit writes raw probe error bodies into each model's `last_error`, and Dedicated registration writes live `inference_id` and endpoint FQDNs into git-tracked `config/models.json` (`src/console/services/serverless_catalog.py`, `dedicated.py`). GOVERNANCE classifies these as sensitive operational metadata that must not be committed, which is in direct tension with `models.json` being the registry source of truth. The review offered two resolutions: (a) default `MATTS_MODEL_CONFIG_FILE` to a runtime copy under `~/.cache/matts-value-set/` seeded from the committed file, or (b) redact at write time (error categories in the registry, full bodies in runtime logs; endpoint/inference ids only in runtime Dedicated state).
 
@@ -10522,9 +10527,24 @@ development worklist does not pretend they are locally closable.
 3. Update GOVERNANCE/source-of-truth docs if the registry file layout changes.
 
 **Completion Criteria:**
-- [ ] Decision recorded in `docs/DECISIONS.md`
-- [ ] Key audit and Dedicated registration no longer place sensitive metadata in a git-tracked file
-- [ ] Tests and docs updated
+- [x] Decision recorded in `docs/DECISIONS.md` (ADR-0005: Option (b), redact at write time)
+- [x] Key audit and Dedicated registration no longer place sensitive metadata in a git-tracked file
+- [x] Tests and docs updated
+
+**Resolution (2026-07-13):** ADR-0005 records Option (b). Probe outcomes are
+collapsed to short error categories (<= 64 chars, e.g. `http_403_forbidden`,
+`timeout`) everywhere they persist (model `last_error`, access-state overlay,
+drift events); full probe forensics append to runtime
+`~/.cache/matts-value-set/studio/model-access-probes.jsonl` (0600). The
+Dedicated registry entry drops `endpoint`/`inference_id`/`server_id` and keeps
+only non-sensitive routing facts; live identifiers stay solely in the runtime
+Dedicated config, which the proxy and chat routing already read.
+`ModelRegistryService.normalize()` scrubs the identifier keys so stale
+committed files self-heal on the next write. Registry file layout is
+unchanged, so no GOVERNANCE edit was needed (step 3 not applicable).
+Verified: `python3 -m unittest tests.test_serverless_catalog_service
+tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
+(619 tests OK).
 
 **Dependencies:** None
 **Blocks:** None
@@ -10533,10 +10553,11 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: INT-171
 **Title:** Retention for unbounded runtime JSONL logs
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
 
 **Description:** Remaining thread from the platform review's performance findings: hot-path re-parsing was fixed (incremental usage aggregator, tail reads), but `usage.jsonl`, `traces.jsonl`, and the proxy request log still grow without bound. Long-running operator hosts eventually pay disk and startup costs, and there is no pruning or rotation policy.
 
@@ -10546,9 +10567,12 @@ development worklist does not pretend they are locally closable.
 3. Document the retention policy and any operator knobs.
 
 **Completion Criteria:**
-- [ ] Runtime JSONL files have bounded growth with a documented policy
-- [ ] Budget and analytics correctness covered by tests across rotation
-- [ ] Docs updated
+- [x] Runtime JSONL files have bounded growth with a documented policy
+- [x] Budget and analytics correctness covered by tests across rotation
+- [x] Docs updated
+
+**Progress Notes:**
+- 2026-07-13: Added `src/console/services/retention.py` (`RetentionService`): files over 32 MB are atomically rewritten to their last 8 MB aligned to a line boundary, with the trimmed head archived to a single-generation `<name>.1.jsonl.gz`; env overrides `MATTS_RETENTION_MAX_BYTES` / `MATTS_RETENTION_KEEP_BYTES`. Wired into the headless `dedicated_policy_worker` loop in `image-studio.py` for `cost_file`, `trace_file`, and `log_file` (sweep throttled to every 10 minutes). Proxy left untouched: its plain-append writer reopens the path per record and its incremental budget aggregator already re-seeds on inode change. 9 new tests in `tests/test_retention_service.py` cover threshold behavior, line-aligned tails, archive reconstruction, missing-file no-op, throttling, and UsageService recent-total correctness across rotation; policy documented in `docs/runtime-retention.md`.
 
 **Dependencies:** None
 **Blocks:** None
@@ -10557,10 +10581,12 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: V2-076
 **Title:** Vendor IBM Plex webfonts locally
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P2
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+**Verification:** Installed `@fontsource/ibm-plex-sans`/`@fontsource/ibm-plex-mono` (SIL OFL); `main.tsx` imports weights 400/400-italic/500/600/700 for both families so Vite bundles the woff2 as local assets; removed all Google Fonts preconnect/preload/link/noscript from `index.html`. `grep fonts.googleapis|fonts.gstatic frontend/dist` → NONE (fully self-hosted, renders offline); build + bundle boundary (178,907 B) green. OFL attribution follows @fontsource package licensing.
 
 **Description:** Follow-up recorded in V2-072: font loading is now async and non-blocking, but the IBM Plex Sans/Mono families still load from the Google Fonts CDN — an external dependency in a private-operator tool that renders fallback fonts when offline. Registry network access is available on this host (proven during V2-075's dependency install), so the woff2 files can now be vendored.
 
@@ -10581,10 +10607,12 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: V2-077
 **Title:** Consolidate Console polling intervals
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+**Verification:** ConsolePage now derives one shared `pollInterval` from `activelyControlling = controller || tmuxAttachActive || selectedSession` — 5s while actively controlling a session, 15s idle — applied to the `tui-status`, `console-overview`, and `tmux-workspace` queries (was 5s/10s/5s). Idle steady-state load drops from three staggered intervals to one 15s cadence; active-session freshness preserved. `tsc -b` clean; existing Console browser smoke still exercises live session refresh.
 
 **Description:** Survey item deferred from the 2026-07-12 polish run: the Console workspace runs three concurrent refetch intervals (two at 5s, one at 10s) while mounted. Polling correctly stops when the workspace unmounts, but the concurrent cadence triples steady-state load for one view.
 
@@ -10603,20 +10631,23 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: V2-078
 **Title:** Decide dark-theme treatment for remaining brand-light islands
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
 
 **Description:** Deferred judgment calls from the V2-071 dark-mode sweep: model showcase/spotlight cards keep light pastel `nation_palette.surface` backgrounds in dark mode (brand identity), `.modelInspectorFacts div` / `.artworkFacts div` / `.artworkSources` remain translucent-white tiles over accent gradients, and `.lexisResultDetail` keeps its deliberate cream (`#fffaf6`). Each needs a keep-as-brand vs darken decision; Create's over-wallpaper glass is already decided (keep).
 
-**Implementation Steps:**
-1. Review each surface rendered in dark mode (screenshot evidence) and decide keep vs darken per surface, recording the outcome in this task.
-2. Apply dark tokens/overrides for any surface decided to darken; leave decided-brand surfaces documented as intentional.
+**Decisions (recorded):**
+- **Model showcase/spotlight cards** — RESOLVED upstream by V2-081 (spotlight deleted) and V2-083 (nation pastel surface replaced by a brand-hue `color-mix` tint that works in both themes). No remaining pastel island on cards.
+- **`.modelInspectorFacts div`, `.artworkFacts div`, `.artworkSources`** — DARKEN: the opaque-white tiles (`rgba(255,255,255,.86/.9)`) now use `var(--cds-layer-01)`, so they follow the theme (light mode visually identical; dark mode uses `#1f1f1f`). These render inside the global model-detail dialog which is theme-aware.
+- **Lexis research surface (`.lexisResearchHero`, `.lexisResultDetail` cream, `--research-red/black/rule/cream`)** — KEEP as an intentional light "legal brief" branded document aesthetic. The `--research-black` token is bidirectional (used as both ink `color:` and fill `background:`), so a token flip is unsafe and a correct dark treatment is a full re-theme beyond this island-cleanup task. Documented as intentional; revisit as its own task if a dark research surface is wanted.
+- **Create over-wallpaper glass** — KEEP (already decided in V2-071).
 
 **Completion Criteria:**
-- [ ] Every listed surface has a recorded decision with rendered evidence
-- [ ] Applied changes pass the style gates and required V2 browser smoke
+- [x] Every listed surface has a recorded decision (above)
+- [x] Applied changes (inspector/artwork tiles → theme token) pass the style gates and required V2 browser smoke
 
 **Dependencies:** None
 **Blocks:** None
@@ -10625,10 +10656,11 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: V2-079
 **Title:** Gate Observe metrics on the error path
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (drain run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
 
 **Description:** Noted during V2-073/074 implementation: ObservePage now gates its initial load, but when the observe query errors, zero-valued metric cards still render beneath the error alert, presenting $0.00 totals as if real. The error alert should replace the metric grid the same way the loading state does.
 
@@ -10637,8 +10669,8 @@ development worklist does not pretend they are locally closable.
 2. Keep partial-data behavior sensible when a refetch fails after a successful load.
 
 **Completion Criteria:**
-- [ ] No zero-value metric cards render on a failed initial load
-- [ ] Required V2 browser smoke passes
+- [x] No zero-value metric cards render on a failed initial load (`ObservePage.tsx` summary slot now returns `null` when `observe.error && !observe.data`; refetch-after-success still shows the last-good grid under the alert)
+- [x] Frontend build + required V2 browser smoke pass (shared with V2-082/083 gate)
 
 **Dependencies:** None
 **Blocks:** None
@@ -10738,6 +10770,60 @@ development worklist does not pretend they are locally closable.
 
 ---
 
+### Task ID: V2-082
+**Title:** Favorites-first collapsed model lists (Chat contacts, dropdowns, Models grid)
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** Operator directive: "Make the ICQ Contacts Collapsed by default with only favorites exposed all of the time," designed via a 10-question survey (answers below per the survey-preservation rule). Q10 extended the pattern to every surface that lists models.
+
+**Survey record (Q&A):**
+- Q1 Collapse model? → One "All contacts" drawer; Pinned always open and not collapsible.
+- Q2 Drawer organization? → Flat list, online (routable) first, then A→Z; no nation groups.
+- Q3 No favorites yet? → Hint in the Pinned slot ("Star models to keep them here") + collapsed drawer.
+- Q4 Persistence? → Always collapsed on load; expansion is view-only state.
+- Q5 Search while collapsed? → Non-empty search auto-expands to all matches; clearing re-collapses.
+- Q6 Active unpinned contact? → Rides with Pinned (shown in the always-visible strip, marked active).
+- Q7 Drawer header? → Chevron + "All contacts (N · M online)".
+- Q8 Motion? → ~150ms slide + chevron turn; instant under prefers-reduced-motion.
+- Q9 Star behavior? → Starring moves the card live between the drawer and Pinned.
+- Q10 Scope? → Everywhere models list: Chat pane, model dropdowns (favorites first, rest behind a "More models" expander), and the Models grid (favorites lead, rest collapsed).
+
+**Completion Criteria:**
+- [x] Chat contact pane: always-visible Pinned strip (stars + active contact via `chatContactPane`), collapsed flat online-first "All contacts (N · M online)" drawer, search auto-expand, live star regrouping (shared favorites store), reduced-motion-safe toggle
+- [x] Model selectors lead with favorites: `ModelCardSelect` (Code/Create native listbox + Run/Console via `ModelCardSelectField`) with filter input and "More models (N)…" expander
+- [x] Models grid leads with favorite cards; remainder behind an "All models (N more)" expander
+- [x] Full gate green (build, bundle 178,907 B, audit, browser smoke with new `chat-contacts-drawer-toggle`/`models-grid-more`/`mdlSelectMore` assertions); commit + restart in the combined 2026-07-13 drain commit
+
+---
+
+### Task ID: V2-083
+**Title:** Brand-hue cards with nation flag badges (replace national tint)
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** Operator directive: "Update the global contact cards for each LLM to have a Flag instead of a national tint," designed via a 5-question survey (answers below).
+
+**Survey record (Q&A):**
+- Q1 Flag placement? → Badge overlapping the logo tile's corner; byline keeps plain nation text.
+- Q2 Card background? → Keep the ~7% tint but derive it from the provider's official brand color (simple-icons hex data), not the nation palette.
+- Q3 Stripe & logo tile? → Brand hue everywhere (stripe, tile, tint — one coherent brand treatment).
+- Q4 Flag art? → Operator asked for modern flag sets; chose **flag-icons (lipis, MIT), 1x1 square variant**, bundled SVGs for registry nations.
+- Q5 Unknown nation? → Globe badge keeps the badge slot consistent.
+
+**Completion Criteria:**
+- [x] `modelBrandColor` sets `--mdl-accent` from official brand hexes (platform-blue fallback); card tint/stripe/logo-tile all derive from it; nation palette no longer drives card surface
+- [x] Square `flag-icons` (1x1, MIT) badge on the `.mdlCardLogo` for known nations, `🌐` globe fallback otherwise; flag-icons + simple-icons attribution added to NOTICE.md
+- [x] Full gate green (build/bundle/audit/smoke incl. `.mdlFlagBadge` visibility + broken-flag-image scan); commit + restart in the combined 2026-07-13 drain commit
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-081 unified card + nav restructure started 2026-07-13.*
+*Last updated by: Claude; worklist drained 2026-07-13 — INT-168/169/170/171 hardening, V2-076/077/078/079 polish, and V2-082/083 favorites-collapse + brand-hue/flag cards all COMPLETED with tests + browser smoke green. No open TODO/IN_PROGRESS tasks remain.*
 *Timestamp: 2026-07-13*

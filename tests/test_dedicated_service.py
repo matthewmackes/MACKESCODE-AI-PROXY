@@ -575,8 +575,40 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
 
         self.assertEqual(len(registry), 1)
         self.assertTrue(entry["enabled"])
-        self.assertEqual(entry["dedicated"]["server_id"], "server-1")
         self.assertEqual(entry["pricing"]["hourly"], 2.59)
+        self.assertTrue(entry["dedicated"]["managed"])
+        self.assertEqual(entry["dedicated"]["state"], "active")
+        # ADR-0005: live identifiers never reach the git-tracked registry entry.
+        self.assertNotIn("endpoint", entry)
+        self.assertNotIn("inference_id", entry)
+        self.assertNotIn("server_id", entry["dedicated"])
+        self.assertNotIn("endpoint", entry["dedicated"])
+        self.assertNotIn("server-1", json.dumps(registry))
+        self.assertNotIn("ready.example.com", json.dumps(registry))
+
+    def test_registry_entry_omits_identifiers_that_stay_in_runtime_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, registry = self.service(tmp)
+            cfg = service.save_config(dict(
+                DEFAULT_CONFIG,
+                state="active",
+                inference_id="server-9",
+                public_endpoint_fqdn="live.example.com",
+                private_endpoint_fqdn="private.example.internal",
+                access_token="secret-token",
+                price_per_hour=2.0,
+            ))
+            service.register_model(cfg)
+            registry_text = json.dumps(registry)
+            runtime_text = (Path(tmp) / "dedicated.json").read_text(encoding="utf-8")
+            runtime_cfg = service.load_config()
+
+        for sensitive in ("server-9", "live.example.com", "private.example.internal", "secret-token"):
+            self.assertNotIn(sensitive, registry_text)
+        # Readers resolve the identifiers from runtime state, not the registry.
+        self.assertIn("server-9", runtime_text)
+        self.assertEqual(runtime_cfg["inference_id"], "server-9")
+        self.assertEqual(service.endpoint(runtime_cfg), "https://live.example.com")
 
     def test_not_ready_payload_is_human_friendly_and_includes_lifecycle(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -612,7 +644,13 @@ class DedicatedInferenceServiceTests(unittest.TestCase):
 
         self.assertEqual(payload["dedicated"]["state"], "active")
         self.assertEqual(cfg["access_token"], "runtime-token")
-        self.assertEqual(registry[0]["dedicated"]["server_id"], "server-1")
+        # The registry entry keeps only non-sensitive routing facts; the live
+        # server id stays in the runtime config (ADR-0005).
+        self.assertTrue(registry[0]["dedicated"]["managed"])
+        self.assertEqual(registry[0]["dedicated"]["state"], "active")
+        self.assertNotIn("server_id", registry[0]["dedicated"])
+        self.assertNotIn("server-1", json.dumps(registry))
+        self.assertEqual(cfg["inference_id"], "server-1")
         self.assertTrue(any(call[0].endswith("/tokens") for call in calls))
 
 

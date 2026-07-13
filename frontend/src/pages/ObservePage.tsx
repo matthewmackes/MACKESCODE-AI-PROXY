@@ -84,7 +84,7 @@ export default function ObservePage() {
       {observe.error ? <Alert type="error" showIcon message={errorText(observe.error)} /> : null}
       {observe.isLoading ? (
         <Alert type="info" showIcon message="Loading observability data" />
-      ) : (
+      ) : observe.error && !payload ? null : (
         <Space wrap data-testid="observe-summary">
           <Card className="metricCard">
             <Typography.Text type="secondary">Last 24h</Typography.Text>

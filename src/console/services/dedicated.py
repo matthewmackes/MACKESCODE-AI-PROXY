@@ -615,9 +615,17 @@ class DedicatedInferenceService:
         }
 
     def model_entry(self, cfg, enabled=None):
+        """Build the global registry entry for the Dedicated model.
+
+        The model registry (config/models.json) is a git-tracked file, so this
+        entry carries only non-sensitive routing facts (ADR-0005 / GOVERNANCE:
+        endpoint FQDNs, inference ids, and raw DigitalOcean payloads are
+        sensitive operational metadata). The live identifiers stay solely in the
+        runtime Dedicated config under the cache dir — save_config() — which is
+        what chat routing and the proxy already read; nothing may resolve the
+        endpoint or server id from the registry entry."""
         hourly = float(cfg.get("price_per_hour") or 0)
-        endpoint = self.endpoint(cfg)
-        active = cfg.get("state") == "active" and bool(endpoint)
+        active = cfg.get("state") == "active" and bool(self.endpoint(cfg))
         if enabled is None:
             enabled = active
         return {
@@ -630,17 +638,13 @@ class DedicatedInferenceService:
             "pricing": {"input": 0, "output": 0, "hourly": hourly},
             "context_window": int(cfg.get("context_window") or 0),
             "state": cfg.get("state") or "not_configured",
-            "endpoint": endpoint,
-            "inference_id": cfg.get("inference_id") or "",
             "dedicated": {
                 "managed": True,
-                "server_id": cfg.get("inference_id") or "",
                 "state": cfg.get("state") or "not_configured",
                 "region": cfg.get("region") or "",
                 "model_slug": cfg.get("model_slug") or "",
                 "accelerator_slug": cfg.get("accelerator_slug") or "",
                 "scale": int(cfg.get("scale") or 1),
-                "endpoint": endpoint,
                 "hourly_usd": hourly,
             },
         }

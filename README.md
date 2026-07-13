@@ -58,6 +58,7 @@ release-readiness documents:
 - `docs/cost-anomaly-detection.md` - local cost spike detection, attribution, and response workflow
 - `docs/agent-execution-graphs.md` - AgentBoard execution graph sources, confidence levels, and privacy notes
 - `docs/model-scorecards.md` - model scorecard sources, scoring, and confidence levels
+- `docs/unified-model-card.md` - unified model identity card anatomy, Health grades, favorites, and detail dialog
 - `docs/eval-gates.md` - eval-on-change gates, evidence matching, and override semantics
 - `docs/review-queue.md` - human review queue triggers, lifecycle, and promotions
 - `docs/replay.md` - trace and saved-chat replay targets, diffs, and redaction limits
@@ -156,8 +157,7 @@ Start with the workspace that matches the job:
 - Use **Code** for Claude Code/tmux sessions, terminal command history, per-event packets, and screenshot review.
 - Use **Research** when an answer needs search, citations, images, examples, maps, Wikipedia, technical docs, DigitalOcean references, and multiple fast analyst models.
 - Use **Create** for image generation, image model selection, output metadata, and image history reuse.
-- Use **Models** to inspect route health, access, pricing, visual identity, and newly discovered LLMs.
-- Use **Advanced** for Console, Run, Observe, Operate, drift, release, and rollback operations.
+- Use **Advanced** for the Models tab plus Console, Run, Observe, Operate, drift, release, and rollback operations. The drawer nav stays Chat/Code/Research/Create; open Advanced from the drawer's Settings button, the Ctrl/Command+K quick switcher, or `#advanced` / `#models` URLs.
 
 V2 workspaces:
 
@@ -165,10 +165,9 @@ V2 workspaces:
 - **Code** - Claude Code/tmux session launch, the TMux/TUI console, terminal input, command output history, per-event copy packets, Code Brief export, and screenshot/image review. Use Ctrl/Command+Enter to send terminal input; paste, drop, or attach PNG/JPEG/WebP/GIF images so a selected model can inspect UI, terminal, or code screenshots.
 - **Research** - Bing-style search line with Enter-to-search, custom engine selection, at least two search engines per run, required source packs, three low-cost fast analyst LLMs, and a fourth coordinator LLM. Evidence includes search results, image sources, examples, mapping coordinates, Wikipedia, technical documentation, DigitalOcean LLM references, and local RAG when enabled. Research briefs and individual source packets are copyable.
 - **Create** - image-only generation studio with image model selection, generated asset rendering, output metadata, Ctrl/Command+Enter submit, and image history restore/copy packets.
-- **Models** - LLM showcase with route status, pricing, access state, training-nation color palette, company artwork when configured, model comparison, discovery, and a startup **Whats New** modal with DigitalOcean LLM links.
-- **Advanced** - operational surfaces for Console, Run, Observe, and Operate. Terminal and tmux/TUI controls belong in Code.
+- **Advanced** - operational surfaces for Models, Console, Run, Observe, and Operate. The Models tab is the LLM showcase: route status, pricing, access state, measured Health grades, brand identity and flags, model comparison, discovery, and a startup **Whats New** modal with DigitalOcean LLM links. Terminal and tmux/TUI controls belong in Code.
 
-Model cards should remain a showcase for the available LLMs. When model metadata includes public company artwork or brand URLs, V2 displays that artwork with tracked source notes; otherwise it falls back to local brand marks or generated initials. Nation palettes are based on the model training nation, so USA, China, and other model families stay visually distinct.
+Model cards should remain a showcase for the available LLMs. Every surface renders one unified model identity card — brand accent, national-flag badge, status/cost/context facts, a measured Health letter grade (A-D from recent trace success rate and p50 latency), and a favorite star — and clicking a card opens the shared model-detail dialog (`docs/unified-model-card.md`). Favorites lead every list: Chat keeps a Pinned contact strip over a collapsed all-contacts drawer, dropdowns tuck non-favorites behind a "More models" expander, and the Models grid leads with favorite cards. When model metadata includes public company artwork or brand URLs, V2 displays that artwork with tracked source notes; otherwise it falls back to local brand marks or generated initials. Nation palettes are based on the model training nation, so USA, China, and other model families stay visually distinct.
 
 Copy/export behavior is intentionally broad: Chat transcripts, Research briefs, Research source packets, Code Briefs, per-event Code output packets, Create history packets, model details, and operational reports are designed to move cleanly into tickets, reviews, docs, or follow-up prompts.
 
@@ -211,7 +210,7 @@ The console includes:
 - model access drift alerts for allowed-to-forbidden, rate-limited, probe-failed, removed, and restored Serverless models
 - Serverless and Dedicated Inference lifecycle controls with build, health, budget, idle teardown, and fallback routing feedback
 
-Create workspace behavior is documented in `docs/create-experience.md`. V2 Run workspace behavior is documented in `docs/run-experience.md`. Rich model detail cards are documented in `docs/model-hero-cards.md`.
+Create workspace behavior is documented in `docs/create-experience.md`. V2 Run workspace behavior is documented in `docs/run-experience.md`. The unified model identity card and favorites behavior are documented in `docs/unified-model-card.md`; rich model detail content is documented in `docs/model-hero-cards.md`.
 
 Stable Diffusion is also available through the one-shot helper:
 

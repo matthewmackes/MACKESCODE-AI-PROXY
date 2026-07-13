@@ -731,24 +731,34 @@ function chatPresence(model?: ModelCard): { label: string; tone: 'online' | 'awa
   return { label: readableStatus(model.access_status), tone: 'offline' };
 }
 
-function chatContactGroups(models: ModelCard[], favorites: string[], filter: string): Array<{ label: string; models: ModelCard[]; pinned?: boolean }> {
+type ChatContactPane = {
+  pinned: ModelCard[];
+  drawer: ModelCard[];
+  totalCount: number;
+  onlineCount: number;
+};
+
+function chatContactPane(models: ModelCard[], favorites: string[], activeId: string, filter: string): ChatContactPane {
   const favoriteSet = new Set(favorites);
   const query = filter.trim().toLowerCase();
-  const visible = models
-    .filter((model) => !query || chatContactSearchText(model).includes(query))
-    .sort((left, right) => left.display_name.localeCompare(right.display_name));
-  const groups: Array<{ label: string; models: ModelCard[]; pinned?: boolean }> = [];
-  const pinned = visible.filter((model) => favoriteSet.has(model.id));
-  if (pinned.length) groups.push({ label: 'Pinned', models: pinned, pinned: true });
-  const byNation = new Map<string, ModelCard[]>();
-  visible.filter((model) => !favoriteSet.has(model.id)).forEach((model) => {
-    const nation = model.training_nation || 'Unknown';
-    byNation.set(nation, [...(byNation.get(nation) || []), model]);
-  });
-  Array.from(byNation.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .forEach(([label, rows]) => groups.push({ label, models: rows }));
-  return groups;
+  const visible = models.filter((model) => !query || chatContactSearchText(model).includes(query));
+  // The active contact rides with the pinned strip even when unstarred (V2-082 Q6).
+  const pinned = visible
+    .filter((model) => favoriteSet.has(model.id) || model.id === activeId)
+    .sort((left, right) =>
+      Number(favoriteSet.has(right.id)) - Number(favoriteSet.has(left.id))
+      || left.display_name.localeCompare(right.display_name));
+  const drawer = visible
+    .filter((model) => !favoriteSet.has(model.id) && model.id !== activeId)
+    .sort((left, right) =>
+      Number(right.route_enabled) - Number(left.route_enabled)
+      || left.display_name.localeCompare(right.display_name));
+  return {
+    pinned,
+    drawer,
+    totalCount: models.length,
+    onlineCount: models.filter((model) => model.route_enabled).length,
+  };
 }
 
 
@@ -2540,7 +2550,9 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
       ? chat.data?.default_model || ''
       : models[0]?.id || '';
   const selectedModelCard = models.find((item) => item.id === selectedModel) || models[0];
-  const contactGroups = useMemo(() => chatContactGroups(models, favoriteIds, contactFilter), [contactFilter, favoriteIds, models]);
+  const [contactsDrawerOpen, setContactsDrawerOpen] = useState(false);
+  const contactPane = useMemo(() => chatContactPane(models, favoriteIds, selectedModel, contactFilter), [contactFilter, favoriteIds, models, selectedModel]);
+  const contactsDrawerExpanded = contactsDrawerOpen || Boolean(contactFilter.trim());
   const activePresence = chatPresence(selectedModelCard);
   const canUseChat = chatCapabilities.data?.capabilities['chat.use']?.allowed === true;
   const chatUseDenied = Boolean(chatCapabilities.data && !canUseChat);
@@ -2922,24 +2934,48 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
             <input value={contactFilter} onChange={(event) => setContactFilter(event.target.value)} placeholder="Find LLM contact" />
           </label>
           <div className="icqContactGroups">
-            {contactGroups.length ? contactGroups.map((group) => (
-              <section className="icqContactGroup" key={group.label}>
-                <div className="icqGroupHeader">
-                  <span>{group.label}</span>
-                  <strong>{group.models.length}</strong>
-                </div>
-                {group.models.map((contact) => (
+            <section className="icqContactGroup icqPinnedGroup" key="pinned">
+              <div className="icqGroupHeader">
+                <span>⭐ Pinned</span>
+                <strong>{contactPane.pinned.length}</strong>
+              </div>
+              {contactPane.pinned.length ? contactPane.pinned.map((contact) => (
+                <ModelIdentityCard
+                  key={`pinned-${contact.id}`}
+                  model={contact}
+                  size="small"
+                  onPrimary={(target) => selectContact(target.id)}
+                  active={contact.id === selectedModel}
+                  testId="chat-contact-card"
+                />
+              )) : (
+                <p className="icqPinnedHint">☆ Star models to keep them here.</p>
+              )}
+            </section>
+            <button
+              type="button"
+              className={`icqDrawerHeader ${contactsDrawerExpanded ? 'open' : ''}`}
+              aria-expanded={contactsDrawerExpanded}
+              data-testid="chat-contacts-drawer-toggle"
+              onClick={() => setContactsDrawerOpen((current) => !current)}
+            >
+              <span className="icqDrawerChevron" aria-hidden="true">▸</span>
+              All contacts ({contactPane.totalCount} · {contactPane.onlineCount} online)
+            </button>
+            <section className={`icqContactDrawer ${contactsDrawerExpanded ? 'open' : ''}`} aria-hidden={!contactsDrawerExpanded}>
+              {contactsDrawerExpanded ? (
+                contactPane.drawer.length ? contactPane.drawer.map((contact) => (
                   <ModelIdentityCard
-                    key={`${group.label}-${contact.id}`}
+                    key={`drawer-${contact.id}`}
                     model={contact}
                     size="small"
                     onPrimary={(target) => selectContact(target.id)}
                     active={contact.id === selectedModel}
                     testId="chat-contact-card"
                   />
-                ))}
-              </section>
-            )) : <div className="emptyState">No contacts match this search.</div>}
+                )) : <div className="emptyState">No contacts match this search.</div>
+              ) : null}
+            </section>
           </div>
         </aside>
         <main className="icqChatWindow">
@@ -3999,6 +4035,8 @@ export function ModelsPage() {
   const queryClient = useQueryClient();
   const models = useQuery({ queryKey: ['models'], queryFn: getModels });
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew });
+  const { favorites } = useModelFavorites();
+  const [gridExpanded, setGridExpanded] = useState(false);
   const restoredShowcase = useMemo(loadModelsShowcaseState, []);
   const [filter, setFilter] = useState(restoredShowcase.filter);
   const [statusFilter, setStatusFilter] = useState(restoredShowcase.statusFilter);
@@ -4081,20 +4119,37 @@ export function ModelsPage() {
       {inspectedModel ? <ModelInspector model={inspectedModel} /> : null}
       <ModelCompareTray models={compareModels} onRemove={(id) => setCompareIds((current) => current.filter((item) => item !== id))} onClear={() => setCompareIds([])} />
       {!models.isLoading && !models.error && !cards.length ? <StatusPanel title="No models match this filter" detail={filter ? `No model matched "${filter}".` : 'The registry did not return any model cards.'} /> : null}
-      <div className="modelGrid">
-        {cards.map((model) => (
-          <ModelIdentityCard
-            key={model.id}
-            model={model}
-            size="big"
-            onOpenDetail={(target) => setInspectedModelId(target.id)}
-            compared={compareIds.includes(model.id)}
-            onCompareToggle={(target) => toggleCompare(target.id)}
-            onUseInChat={openModelInChat}
-            testId="model-showcase-card"
-          />
-        ))}
-      </div>
+      {(() => {
+        const favoriteSet = new Set(favorites);
+        const favoriteCards = cards.filter((model) => favoriteSet.has(model.id));
+        // Favorites lead; without any (or while filtering) the full grid shows (V2-082 Q10).
+        const collapsedGrid = favoriteCards.length > 0 && !gridExpanded && !filter.trim();
+        const visibleCards = collapsedGrid ? favoriteCards : cards;
+        const hiddenCount = cards.length - visibleCards.length;
+        return (
+          <>
+            <div className="modelGrid">
+              {visibleCards.map((model) => (
+                <ModelIdentityCard
+                  key={model.id}
+                  model={model}
+                  size="big"
+                  onOpenDetail={(target) => setInspectedModelId(target.id)}
+                  compared={compareIds.includes(model.id)}
+                  onCompareToggle={(target) => toggleCompare(target.id)}
+                  onUseInChat={openModelInChat}
+                  testId="model-showcase-card"
+                />
+              ))}
+            </div>
+            {collapsedGrid && hiddenCount > 0 ? (
+              <button type="button" className="secondaryButton modelGridMore" data-testid="models-grid-more" onClick={() => setGridExpanded(true)}>
+                All models ({hiddenCount} more)
+              </button>
+            ) : null}
+          </>
+        );
+      })()}
     </section>
   );
 }

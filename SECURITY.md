@@ -62,6 +62,7 @@ Treat these as sensitive:
 - Dedicated Inference publishable template: `config/dedicated-inference.example.json`
 - Active model registry schema: `schema_version` `1`
 - Audit log: `$HOME/.cache/matts-value-set/studio/audit.jsonl`
+- Provider-supplied image URLs: fetched only over `https` (`file://`, `http://`, and other schemes are rejected), capped at 25 MB, and persisted only when the response content-type is `image/*`
 
 The repository should contain schemas, defaults, and examples. Runtime state belongs under `$HOME/.cache/matts-value-set/` or an explicit operator-provided path. Do not commit live cloud resource metadata, endpoint credentials, generated auth tokens, traces, usage logs, wallpaper cache files, or tmux session registries.
 

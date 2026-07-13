@@ -169,6 +169,113 @@ class ServerlessCatalogServiceTests(unittest.TestCase):
         self.assertEqual(models[1]["access_status"], "forbidden")
         self.assertFalse(models[1]["enabled"])
 
+    def test_probe_error_category_maps_status_and_exception_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _, _ = self.service(tmp)
+            raw_body = '{"error": "Key sk-do-8f3e is not entitled to model", "request_id": "req-abc123"}'
+            cases = [
+                ((True, 200, ""), ""),
+                ((False, 401, raw_body), "http_401_unauthorized"),
+                ((False, 403, raw_body), "http_403_forbidden"),
+                ((False, 429, raw_body), "http_429_rate_limited"),
+                ((False, 502, "The read operation timed out"), "timeout"),
+                ((False, 502, "<urlopen error [Errno 111] Connection refused>"), "connection_error"),
+                ((False, 502, "offline"), "connection_error"),
+                ((False, 500, "<html>Internal Server Error</html>"), "http_5xx"),
+                ((False, 404, "no such model"), "http_4xx"),
+                ((False, 0, "unparseable garbage"), "invalid_response"),
+            ]
+            for (ok, status, detail), expected in cases:
+                category = service.probe_error_category(ok, status, detail)
+                self.assertEqual(category, expected, msg=repr((ok, status, detail)))
+                self.assertLessEqual(len(category), 64)
+                self.assertNotIn("sk-do-8f3e", category)
+
+    def test_audit_redacts_probe_bodies_into_categories_and_logs_forensics(self):
+        catalog_holder = {"payload": {"ok": False, "payload": {"data": []}, "error": "skip"}}
+        raw_bodies = {
+            "forbidden": '{"error": "Key sk-do-8f3e cannot access this model", "request_id": "req-abc123"}',
+            "rate": '{"error": "slow down please", "request_id": "req-999"}',
+            "offline": "<urlopen error [Errno 111] Connection refused>",
+            "slow": "The read operation timed out",
+        }
+
+        def probe(model_id):
+            if model_id == "forbidden":
+                return False, 403, raw_bodies["forbidden"]
+            if model_id == "rate":
+                return False, 429, raw_bodies["rate"]
+            if model_id == "offline":
+                return False, 502, raw_bodies["offline"]
+            if model_id == "slow":
+                return False, 502, raw_bodies["slow"]
+            return True, 200, ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            service, state, root = self.service(
+                tmp,
+                env={"MODEL_ACCESS_KEY": "stable-token"},
+                serverless_catalog_payload=lambda force=False: catalog_holder["payload"],
+                probe_serverless_text_model=probe,
+            )
+            state["models"] = [
+                {"id": model_id, "type": "text", "enabled": True, "serverless": True, "pricing": {"input": 0.1, "output": 0.2}}
+                for model_id in ("forbidden", "rate", "offline", "slow", "allowed")
+            ]
+            payload = service.audit_model_access_key()
+            access_state_text = (root / "model-access-state.json").read_text(encoding="utf-8")
+            drift_text = (root / "model-access-drift.json").read_text(encoding="utf-8")
+            access_models = json.loads(access_state_text)["models"]
+            probe_log = root / "model-access-probes.jsonl"
+            probe_rows = [json.loads(line) for line in probe_log.read_text(encoding="utf-8").splitlines()]
+            consumer_text = json.dumps(state["models"]) + json.dumps(payload["blocked"]) + json.dumps(payload["skipped"])
+
+        # Everywhere a probe outcome is persisted, last_error is a short category.
+        self.assertEqual(access_models["forbidden"]["last_error"], "http_403_forbidden")
+        self.assertEqual(access_models["rate"]["last_error"], "http_429_rate_limited")
+        self.assertEqual(access_models["offline"]["last_error"], "connection_error")
+        self.assertEqual(access_models["slow"]["last_error"], "timeout")
+        self.assertEqual(access_models["allowed"]["last_error"], "")
+        for record in access_models.values():
+            self.assertLessEqual(len(record["last_error"]), 64)
+        # No raw body substring reaches access state, drift state, or the rows
+        # registry consumers see; forensics live only in the runtime probe log.
+        for raw in ("sk-do-8f3e", "req-abc123", "req-999", "slow down", "Connection refused", "timed out"):
+            self.assertNotIn(raw, access_state_text)
+            self.assertNotIn(raw, drift_text)
+            self.assertNotIn(raw, consumer_text)
+        self.assertEqual(payload["probe_log_file"], str(probe_log))
+        self.assertEqual(len(probe_rows), 5)
+        by_model = {row["model_id"]: row for row in probe_rows}
+        self.assertEqual(by_model["forbidden"]["detail"], raw_bodies["forbidden"])
+        self.assertEqual(by_model["forbidden"]["status"], 403)
+        self.assertEqual(by_model["forbidden"]["category"], "http_403_forbidden")
+        self.assertEqual(by_model["forbidden"]["source"], "audit")
+        self.assertEqual(by_model["slow"]["detail"], raw_bodies["slow"])
+        self.assertTrue(by_model["allowed"]["ok"])
+        self.assertTrue(all(row["ts"] == 1000.0 for row in probe_rows))
+        self.assertTrue(all(row["key_fingerprint"] for row in probe_rows))
+
+    def test_validate_access_writes_categories_and_catalog_sync_probe_log(self):
+        raw_body = '{"error": "denied", "request_id": "req-777"}'
+        with tempfile.TemporaryDirectory() as tmp:
+            service, _, root = self.service(
+                tmp,
+                probe_serverless_text_model=lambda model_id: (model_id == "cheap", 200 if model_id == "cheap" else 403, "" if model_id == "cheap" else raw_body),
+            )
+            models = [
+                service.serverless_registry_entry({"id": "cheap", "pricing": {"input": 0.01, "output": 0.02}}),
+                service.serverless_registry_entry({"id": "expensive"}),
+            ]
+            service.validate_serverless_access(models)
+            probe_rows = [json.loads(line) for line in (root / "model-access-probes.jsonl").read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(models[1]["last_error"], "http_403_forbidden")
+        self.assertNotIn("req-777", json.dumps(models))
+        self.assertEqual([row["source"] for row in probe_rows], ["catalog_sync", "catalog_sync"])
+        self.assertEqual(probe_rows[1]["detail"], raw_body)
+        self.assertEqual(probe_rows[1]["category"], "http_403_forbidden")
+
     def test_sync_catalog_adds_removes_preserves_dedicated_and_refreshes(self):
         catalog = {
             "ok": True,

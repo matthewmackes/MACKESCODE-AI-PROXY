@@ -84,6 +84,7 @@ from src.console.services.reporting_integration import ReportingIntegrationServi
 from src.console.services.replay import ReplayService
 from src.console.services.repository_context import GitHubContextConnector, RepositoryContextService
 from src.console.services.release_candidate import ReleaseCandidateService
+from src.console.services.retention import RetentionService
 from src.console.services.review_queue import ReviewQueueService
 from src.console.services.runtime_config import RuntimeConfigService
 from src.console.services.rollback_wizard import RollbackWizardService
@@ -1090,7 +1091,16 @@ def reconcile_dedicated_lifecycle():
     return dedicated_service().reconcile()
 
 
+def retention_service():
+    # usage.jsonl, traces.jsonl, and the proxy request log are the three
+    # append-per-request runtime files with unbounded growth. The proxy is
+    # covered from the console side: its plain-append writer reopens the path
+    # on every record and its budget aggregator re-seeds on inode change.
+    return RetentionService(targets=(cost_file, trace_file, log_file), clock=time.time)
+
+
 def dedicated_policy_worker(interval=30):
+    retention = retention_service()
     while True:
         try:
             # Refresh live DigitalOcean state AND apply policy headlessly, so idle
@@ -1099,6 +1109,13 @@ def dedicated_policy_worker(interval=30):
             reconcile_dedicated_lifecycle()
         except Exception as exc:
             append_dedicated_event("policy_worker", "Dedicated policy worker failed", "error", {"error": str(exc)})
+        try:
+            # Bounded-growth rotation for runtime JSONL logs. The service
+            # self-throttles (default: one sweep per 10 minutes), so this is a
+            # cheap timestamp check on most ticks.
+            retention.maintain()
+        except Exception as exc:
+            append_dedicated_event("policy_worker", "Runtime log retention sweep failed", "error", {"error": str(exc)})
         time.sleep(interval)
 
 

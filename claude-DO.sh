@@ -18,7 +18,8 @@ proxy_host="${MATTS_VALUE_SET_PROXY_HOST:-127.0.0.1}"
 proxy_port="${MATTS_VALUE_SET_PROXY_PORT:-18081}"
 cost_file="${MATTS_VALUE_SET_COST_FILE:-$home_dir/.cache/matts-value-set/usage.jsonl}"
 budget_file="${MATTS_VALUE_SET_BUDGET_FILE:-$home_dir/.cache/matts-value-set/budgets.json}"
-log_file="${MATTS_VALUE_SET_LOG_FILE:-/tmp/matts-value-set-proxy.jsonl}"
+log_file="${MATTS_VALUE_SET_LOG_FILE:-$home_dir/.cache/matts-value-set/proxy.jsonl}"
+proxy_stdout_log="$home_dir/.cache/matts-value-set/proxy-stdout.log"
 tmux_session="${MATTS_VALUE_SET_TMUX_SESSION:-matts-value-set-proxy}"
 
 model="${MATTS_VALUE_SET_MODEL:-deepseek-3.2}"
@@ -250,7 +251,7 @@ PY
 fi
 
 umask 077
-mkdir -p "$(dirname -- "$token_file")" "$(dirname -- "$cost_file")" "$(dirname -- "$budget_file")"
+mkdir -p "$(dirname -- "$token_file")" "$(dirname -- "$cost_file")" "$(dirname -- "$budget_file")" "$(dirname -- "$log_file")" "$(dirname -- "$proxy_stdout_log")"
 if [[ -n "$access_key" ]]; then
   printf '%s\n' "$access_key" >"$token_file"
 elif [[ ! -s "$token_file" ]]; then
@@ -337,9 +338,9 @@ start_proxy() {
       tmux kill-session -t "$tmux_session" 2>/dev/null || true
       tmux new-session -d -s "$tmux_session" "$tmux_cmd"
     elif command -v setsid >/dev/null 2>&1; then
-      setsid -f "${proxy_cmd[@]}" >/tmp/matts-value-set-proxy.log 2>&1
+      setsid -f "${proxy_cmd[@]}" >"$proxy_stdout_log" 2>&1
     else
-      nohup "${proxy_cmd[@]}" >/tmp/matts-value-set-proxy.log 2>&1 &
+      nohup "${proxy_cmd[@]}" >"$proxy_stdout_log" 2>&1 &
     fi
     for _ in {1..50}; do
       proxy_is_listening 2>/dev/null && break
@@ -514,7 +515,7 @@ fi
 
 if ! proxy_is_listening 2>/dev/null; then
   echo "ERROR: proxy is not listening on ${proxy_host}:${proxy_port}; not launching Claude Code against a dead proxy." >&2
-  echo "       Inspect the proxy log (tmux session '${tmux_session}' or /tmp/matts-value-set-proxy.log) and retry, or run: $0 --doctor" >&2
+  echo "       Inspect the proxy log (tmux session '${tmux_session}' or ${proxy_stdout_log}) and retry, or run: $0 --doctor" >&2
   exit 1
 fi
 

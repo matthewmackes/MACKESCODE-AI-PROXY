@@ -103,3 +103,58 @@ Do not edit old entries except to fix typos. Supersede them with a newer entry.
   at 55.53% coverage before porting. The V2-main port must pass the current
   release gate before push. The packaged-install fix needs a real root install
   acceptance test — recorded in `docs/NEEDS-OPERATOR.md`.
+
+## ADR-0005 - Redact Sensitive Operational Metadata At Registry Write Time (2026-07-13)
+
+- **Symptom:** Platform review P2 (2026-07-11), tracked as INT-170: the model
+  access key audit wrote raw probe error bodies (up to ~1000 chars of upstream
+  HTTP response) into each model's `last_error`, and Dedicated registration
+  wrote the live `inference_id` plus public/private endpoint FQDNs into the
+  registry entry (top-level `inference_id` survived `normalize()`, and the
+  nested `dedicated.server_id`/`dedicated.endpoint` were preserved wholesale
+  into git-tracked `config/models.json`). GOVERNANCE classifies endpoint FQDNs,
+  inference ids, raw DigitalOcean payloads, and model-access audit results as
+  sensitive operational metadata that must never be committed — in direct
+  tension with `config/models.json` being the registry source of truth. The
+  review offered (a) defaulting `MATTS_MODEL_CONFIG_FILE` to a runtime copy
+  seeded from the committed file, or (b) redacting at write time.
+- **Decision:** Option (b) — redact at write time. The committed registry
+  stores only non-sensitive summaries; full detail stays in runtime state under
+  `$HOME/.cache/matts-value-set/`:
+  - Probe failures are collapsed to a short error category (`http_403_forbidden`,
+    `http_429_rate_limited`, `timeout`, `connection_error`, `http_5xx`,
+    `http_4xx`, `http_401_unauthorized`, `invalid_response`; always <= 64 chars,
+    derived only from the status/exception) everywhere a probe outcome is
+    persisted or overlaid: model `last_error`, the access-state file, and drift
+    events. `last_error` remains a plain string, so registry consumers keep
+    working. Full probe forensics (ts, model id, status, category, truncated raw
+    body, key fingerprint) append to the runtime JSONL
+    `.../studio/model-access-probes.jsonl` (0600), resolved next to the
+    model-access-state file.
+  - The Dedicated registry entry keeps only non-sensitive routing facts
+    (`dedicated.managed/state/region/model_slug/accelerator_slug/scale/hourly_usd`);
+    `endpoint`, `inference_id`, and `server_id` are dropped. The live
+    identifiers already live solely in the runtime Dedicated config
+    (`dedicated-inference.json` under the cache dir, `MATTS_DEDICATED_CONFIG_FILE`),
+    which chat routing and the proxy (`_dedicated_route`) already read —
+    referenced, not duplicated.
+  - `ModelRegistryService.normalize()` no longer carries `inference_id` and
+    scrubs identifier keys from a nested `dedicated` dict, so a stale committed
+    registry self-heals on its next load/save cycle.
+  - Option (a) was rejected: forking the registry into a runtime copy leaves
+    the committed seed stale and creates a second source of truth, reopening
+    the source-of-truth lock.
+- **Affected files:** `src/console/services/serverless_catalog.py`,
+  `src/console/services/dedicated.py`, `src/console/services/model_registry.py`,
+  `tests/test_serverless_catalog_service.py`, `tests/test_dedicated_service.py`.
+- **Consequences:** The committed `config/models.json` is identifier-free and
+  raw-body-free by construction, not just by the save-time strip; probe
+  forensics live in the runtime JSONL (bounded-growth policy for runtime JSONLs
+  is INT-171). Operators inspect full probe bodies via
+  `~/.cache/matts-value-set/studio/model-access-probes.jsonl` (path also
+  surfaced in the key-audit payload as `probe_log_file`).
+- **Verification:** Unit tests assert the audit writes categorized
+  `last_error` with no raw-body substring anywhere in registry or access/drift
+  state, that full probe detail lands in the runtime JSONL, and that
+  `register_model` entries contain no `endpoint`/`inference_id`/`server_id`
+  keys while routing still resolves identifiers from runtime state.

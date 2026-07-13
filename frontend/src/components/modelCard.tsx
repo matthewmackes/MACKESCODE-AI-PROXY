@@ -1,4 +1,13 @@
 import { CSSProperties, KeyboardEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import cnFlag from 'flag-icons/flags/1x1/cn.svg';
+import usFlag from 'flag-icons/flags/1x1/us.svg';
+import frFlag from 'flag-icons/flags/1x1/fr.svg';
+import ilFlag from 'flag-icons/flags/1x1/il.svg';
+import gbFlag from 'flag-icons/flags/1x1/gb.svg';
+import jpFlag from 'flag-icons/flags/1x1/jp.svg';
+import krFlag from 'flag-icons/flags/1x1/kr.svg';
+import deFlag from 'flag-icons/flags/1x1/de.svg';
+import caFlag from 'flag-icons/flags/1x1/ca.svg';
 import type { ModelCard } from '../api/v2';
 import { useModelFavorites } from '../favorites';
 import { readableStatus } from '../utils/format';
@@ -38,28 +47,34 @@ function modelLogoInitials(model: ModelCard): string {
   return (letters || 'AI').toUpperCase();
 }
 
-type LocalBrandMark = { key: string; label: string; short: string };
+type LocalBrandMark = { key: string; label: string; short: string; color?: string };
 
+// Brand colors are the official simple-icons hex values (OpenAI/Microsoft are
+// well-known brand colors); marks without one fall back to the platform blue.
 const LOCAL_BRAND_MARKS: Record<string, LocalBrandMark> = {
-  alibaba: { key: 'alibaba', label: 'Alibaba Cloud', short: 'ALI' },
-  anthropic: { key: 'anthropic', label: 'Anthropic', short: 'ANT' },
+  alibaba: { key: 'alibaba', label: 'Alibaba Cloud', short: 'ALI', color: '#FF6A00' },
+  anthropic: { key: 'anthropic', label: 'Anthropic', short: 'ANT', color: '#191919' },
   arcee: { key: 'arcee', label: 'Arcee AI', short: 'ARC' },
   baai: { key: 'baai', label: 'BAAI', short: 'BAAI' },
   blackforest: { key: 'blackforest', label: 'Black Forest Labs', short: 'BFL' },
-  deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS' },
-  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO' },
-  google: { key: 'google', label: 'Google', short: 'G' },
-  meta: { key: 'meta', label: 'Meta', short: 'META' },
-  microsoft: { key: 'microsoft', label: 'Microsoft', short: 'MS' },
-  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI' },
-  mistral: { key: 'mistral', label: 'Mistral AI', short: 'M' },
-  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI' },
-  nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV' },
-  openai: { key: 'openai', label: 'OpenAI', short: 'OAI' },
+  deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS', color: '#5786FE' },
+  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO', color: '#0080FF' },
+  google: { key: 'google', label: 'Google', short: 'G', color: '#4285F4' },
+  meta: { key: 'meta', label: 'Meta', short: 'META', color: '#0467DF' },
+  microsoft: { key: 'microsoft', label: 'Microsoft', short: 'MS', color: '#0078D4' },
+  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI', color: '#E73562' },
+  mistral: { key: 'mistral', label: 'Mistral AI', short: 'M', color: '#FA520F' },
+  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI', color: '#000000' },
+  nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV', color: '#76B900' },
+  openai: { key: 'openai', label: 'OpenAI', short: 'OAI', color: '#10A37F' },
   stability: { key: 'stability', label: 'Stability AI', short: 'SD' },
-  xiaomi: { key: 'xiaomi', label: 'Xiaomi', short: 'MI' },
+  xiaomi: { key: 'xiaomi', label: 'Xiaomi', short: 'MI', color: '#FF6900' },
   zhipu: { key: 'zhipu', label: 'Zhipu AI', short: 'GLM' },
 };
+
+export function modelBrandColor(model: ModelCard): string {
+  return localBrandMark(model)?.color || '#0f62fe';
+}
 
 const LOCAL_BRAND_MATCHERS: Array<[string, string[]]> = [
   ['anthropic', ['anthropic', 'claude']],
@@ -147,21 +162,31 @@ export function ModelLogo({ model, size }: { model: ModelCard; size?: 'large' | 
   );
 }
 
-const NATION_FLAGS: Record<string, string> = {
-  'china': '🇨🇳',
-  'united states': '🇺🇸',
-  'usa': '🇺🇸',
-  'france': '🇫🇷',
-  'israel': '🇮🇱',
-  'united kingdom': '🇬🇧',
-  'japan': '🇯🇵',
-  'south korea': '🇰🇷',
-  'germany': '🇩🇪',
-  'canada': '🇨🇦',
+const NATION_FLAG_ASSETS: Record<string, string> = {
+  'china': cnFlag,
+  'united states': usFlag,
+  'usa': usFlag,
+  'france': frFlag,
+  'israel': ilFlag,
+  'united kingdom': gbFlag,
+  'japan': jpFlag,
+  'south korea': krFlag,
+  'germany': deFlag,
+  'canada': caFlag,
 };
 
-function nationFlag(nation: string | undefined): string {
-  return NATION_FLAGS[String(nation || '').trim().toLowerCase()] || '';
+function nationFlagAsset(nation: string | undefined): string | undefined {
+  return NATION_FLAG_ASSETS[String(nation || '').trim().toLowerCase()];
+}
+
+function FlagBadge({ nation }: { nation: string | undefined }) {
+  const asset = nationFlagAsset(nation);
+  const label = String(nation || '').trim() || 'Unknown training nation';
+  return (
+    <span className="mdlFlagBadge" title={label} aria-label={`Training nation: ${label}`}>
+      {asset ? <img src={asset} alt="" /> : <span className="mdlFlagGlobe" aria-hidden="true">🌐</span>}
+    </span>
+  );
 }
 
 export function useNarrowViewport(maxWidth = 620): boolean {
@@ -238,8 +263,7 @@ export function ModelIdentityCard({
   const effectiveSize = size === 'big' && narrow ? 'small' : size;
   const { favorites, toggleFavorite } = useModelFavorites();
   const favorite = favorites.includes(model.id);
-  const accent = model.nation_palette?.accent || '#0f62fe';
-  const flag = nationFlag(model.training_nation);
+  const accent = modelBrandColor(model);
   const detailAction = onOpenDetail || openModelDetail;
   const bodyAction = onPrimary || detailAction;
   const infoGlyphNeeded = interactive && Boolean(onPrimary);
@@ -262,13 +286,16 @@ export function ModelIdentityCard({
         onClick={() => bodyAction?.(model)}
         ariaLabel={onPrimary ? `Open conversation with ${model.display_name}` : `Inspect ${model.display_name}`}
       >
-        <span className="mdlCardLogo"><ModelLogo model={model} size={effectiveSize === 'big' ? 'large' : undefined} /></span>
+        <span className="mdlCardLogo">
+          <ModelLogo model={model} size={effectiveSize === 'big' ? 'large' : undefined} />
+          <FlagBadge nation={model.training_nation} />
+        </span>
         <span className="mdlCardIdentity">
           <strong className="mdlCardName">
             {model.display_name}
             {model.is_new ? <span className="mdlCardSparkle" title="New in the last 7 days" aria-label="New model">✨</span> : null}
           </strong>
-          <small className="mdlCardByline">by {model.company || model.provider || 'Unknown'}{model.training_nation ? <> · {flag ? `${flag} ` : ''}{model.training_nation}</> : null}</small>
+          <small className="mdlCardByline">by {model.company || model.provider || 'Unknown'}{model.training_nation ? <> · {model.training_nation}</> : null}</small>
           {effectiveSize === 'big' && model.use_case ? <span className="mdlCardBlurb">{model.use_case}</span> : null}
           <span className="mdlCardFacts">
             {facts.filter(Boolean).map((fact, index) => (
@@ -323,22 +350,40 @@ export function ModelIdentityCard({
   );
 }
 
-export function ModelCardSelect({ models, value, onChange, label = 'Model' }: { models: ModelCard[]; value: string; onChange: (value: string) => void; label?: string }) {
+export function ModelCardSelect({ models, value, onChange, label = 'Model', allowClear = false }: { models: ModelCard[]; value: string; onChange: (value: string) => void; label?: string; allowClear?: boolean }) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [optionFilter, setOptionFilter] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const { favorites } = useModelFavorites();
-  const ordered = [...models].sort((left, right) => Number(favorites.includes(right.id)) - Number(favorites.includes(left.id)));
-  const selected = models.find((model) => model.id === value) || models[0];
+  const query = optionFilter.trim().toLowerCase();
+  const matching = query
+    ? models.filter((model) => `${model.display_name} ${model.company} ${model.id}`.toLowerCase().includes(query))
+    : models;
+  const ordered = [...matching].sort((left, right) =>
+    Number(favorites.includes(right.id)) - Number(favorites.includes(left.id))
+    || Number(right.route_enabled) - Number(left.route_enabled)
+    || left.display_name.localeCompare(right.display_name));
+  const favoriteCount = ordered.filter((model) => favorites.includes(model.id)).length;
+  // Favorites lead; the rest stays behind the More-models expander (V2-082 Q10)
+  // unless searching, expanded, or there is nothing pinned to lead with.
+  const collapsed = !query && !expanded && favoriteCount > 0;
+  const visible = collapsed ? ordered.slice(0, favoriteCount) : ordered;
+  const hiddenCount = ordered.length - visible.length;
+  const selected = models.find((model) => model.id === value);
   useEffect(() => {
-    if (!open) return;
-    setHighlighted(Math.max(0, ordered.findIndex((model) => model.id === (selected?.id || value))));
+    if (!open) {
+      setExpanded(false);
+      setOptionFilter('');
+      return;
+    }
+    setHighlighted(0);
     const onDocPointer = (event: Event) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', onDocPointer);
     return () => document.removeEventListener('mousedown', onDocPointer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const choose = (model: ModelCard) => {
     onChange(model.id);
@@ -357,13 +402,13 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model' }: { 
       }
       setHighlighted((index) => {
         const delta = event.key === 'ArrowDown' ? 1 : -1;
-        return (index + delta + ordered.length) % ordered.length;
+        return visible.length ? (index + delta + visible.length) % visible.length : 0;
       });
       return;
     }
     if ((event.key === 'Enter' || event.key === ' ') && open) {
       event.preventDefault();
-      const target = ordered[highlighted];
+      const target = visible[highlighted];
       if (target) choose(target);
     }
   };
@@ -385,9 +430,27 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model' }: { 
           </>
         ) : 'Select model'}
       </button>
+      {allowClear && value ? (
+        <button
+          type="button"
+          className="mdlSelectClear"
+          aria-label={`Clear ${label}`}
+          title="Clear selection"
+          onClick={() => onChange('')}
+        >
+          <CarbonIcon path="actions/window-close-symbolic.svg" label="Clear" />
+        </button>
+      ) : null}
       {open ? (
         <div className="mdlSelectPopover" role="listbox" aria-label={`${label} options`}>
-          {ordered.map((model, index) => (
+          <input
+            className="mdlSelectFilter"
+            value={optionFilter}
+            onChange={(event) => setOptionFilter(event.target.value)}
+            placeholder="Filter models"
+            aria-label={`Filter ${label} options`}
+          />
+          {visible.map((model, index) => (
             <div
               key={model.id}
               role="option"
@@ -398,6 +461,12 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model' }: { 
               <ModelIdentityCard model={model} size="small" onPrimary={choose} testId="model-select-option" />
             </div>
           ))}
+          {collapsed && hiddenCount > 0 ? (
+            <button type="button" className="mdlSelectMore" onClick={() => setExpanded(true)}>
+              More models ({hiddenCount})…
+            </button>
+          ) : null}
+          {!visible.length ? <div className="emptyState">No model matches.</div> : null}
         </div>
       ) : null}
     </div>

@@ -29,7 +29,7 @@ from src.console.services.streaming_metrics import StreamingMetricsService
 DEFAULT_DO_BASE_URL = "https://inference.do-ai.run"
 DEFAULT_MODEL = "deepseek-3.2"
 DEFAULT_COST_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/usage.jsonl")
-DEFAULT_LOG_FILE = "/tmp/matts-value-set-proxy.jsonl"
+DEFAULT_LOG_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/proxy.jsonl")
 DEFAULT_TRACE_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/studio/traces.jsonl")
 DEFAULT_BUDGET_FILE = os.path.join(os.path.expanduser("~"), ".cache/matts-value-set/budgets.json")
 DEFAULT_GATEWAY_POLICY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "gateway-policy.json")

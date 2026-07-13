@@ -1324,19 +1324,34 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".icqContactPane")).to_be_visible()
         expect(page.locator(".icqChatWindow")).to_be_visible()
         contact_cards = page.locator('.icqContactPane [data-testid="chat-contact-card"]')
+        expect(page.locator(".icqContactGroups")).to_contain_text("Pinned")
+        drawer_toggle = page.get_by_test_id("chat-contacts-drawer-toggle")
+        expect(drawer_toggle).to_be_visible()
+        expect(drawer_toggle).to_have_attribute("aria-expanded", "false")
+        expect(drawer_toggle).to_contain_text("online")
         expect(contact_cards.first).to_be_visible()
+        # V2-083: every model identity card carries a training-nation flag badge on its logo tile.
+        expect(contact_cards.first.locator(".mdlFlagBadge")).to_be_visible()
         expect(page.locator('.icqContactPane .mdlCard.active')).to_be_visible()
+        collapsed_count = contact_cards.count()
         first_contact_name = contact_cards.first.locator(".mdlCardName").inner_text().replace("✨", "").strip()
         page.locator(".icqContactSearch input").fill(first_contact_name)
+        expect(drawer_toggle).to_have_attribute("aria-expanded", "true")
         expect(contact_cards.first).to_contain_text(first_contact_name)
         page.locator(".icqContactSearch input").fill("")
+        expect(drawer_toggle).to_have_attribute("aria-expanded", "false")
+        drawer_toggle.click()
+        expect(drawer_toggle).to_have_attribute("aria-expanded", "true")
+        assert contact_cards.count() >= collapsed_count
         if contact_cards.count() > 1:
             second_contact = contact_cards.nth(1)
             second_contact_name = second_contact.locator(".mdlCardName").inner_text().replace("✨", "").strip()
             second_contact.locator(".mdlCardBody").click()
             expect(page.locator(".icqChatTitle")).to_contain_text(second_contact_name)
-            contact_cards.nth(1).locator(".mdlCardStar").click()
-            expect(page.locator(".icqContactGroups")).to_contain_text("Pinned")
+            page.locator('.icqContactPane .mdlCard.active .mdlCardStar').click()
+            expect(page.locator(".icqPinnedGroup")).to_contain_text(second_contact_name)
+        drawer_toggle.click()
+        expect(drawer_toggle).to_have_attribute("aria-expanded", "false")
         page.get_by_role("button", name="Dark", exact=True).click()
         expect(page.locator(".chatHero")).to_have_class(re.compile("chatThemeDark"))
         page.get_by_role("button", name="Light", exact=True).click()
@@ -1480,6 +1495,21 @@ def run_browser_smoke(base_url: str) -> None:
 
         navigate_shell(page, "code")
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
+        # V2-082 Q10: the Code model picker is a custom listbox; favorites lead and the rest
+        # stays behind a More-models expander. Close via the trigger (its keydown owns Escape).
+        code_model_trigger = page.locator(".mdlSelectTrigger").first
+        expect(code_model_trigger).to_be_visible()
+        code_model_trigger.click()
+        expect(page.locator(".mdlSelectPopover")).to_be_visible()
+        expect(page.locator(".mdlSelectFilter")).to_be_visible()
+        code_select_favorites = json.loads(page.evaluate("window.localStorage.getItem('matts-v2-model-favorites') || '[]'"))
+        if code_select_favorites:
+            select_more = page.locator(".mdlSelectMore")
+            expect(select_more).to_be_visible()
+            select_more.click()
+            expect(select_more).to_have_count(0)
+        code_model_trigger.click()
+        expect(page.locator(".mdlSelectPopover")).to_have_count(0)
         expect(page.locator(".codeOutputConsole").get_by_role("button", name="Copy Brief")).to_be_disabled()
         expect(page.locator(".codeOutputConsole").get_by_role("button", name="Download Brief")).to_be_disabled()
         image_path = Path(tempfile.gettempdir()) / "v2-smoke-image.png"
@@ -1771,6 +1801,20 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelMetric")).to_have_count(4)
         showcase_cards = page.locator('[data-testid="model-showcase-card"]')
         expect(showcase_cards.first).to_be_visible()
+        # V2-083: showcase cards carry the flag badge, and no bundled flag image may render broken.
+        expect(showcase_cards.first.locator(".mdlFlagBadge")).to_be_visible()
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('.mdlFlagBadge img')].every((img) => img.complete)",
+            timeout=5000,
+        )
+        broken_flag_sources = page.locator(".mdlFlagBadge img").evaluate_all(
+            """
+            (imgs) => imgs
+              .filter((img) => img.complete && img.naturalWidth === 0)
+              .map((img) => img.currentSrc || img.getAttribute('src') || 'unknown')
+            """
+        )
+        assert broken_flag_sources == [], "models grid rendered broken flag badges: %s" % broken_flag_sources
         expect(showcase_cards.first).to_contain_text("Health")
         expect(page.locator(".modelInspector")).to_be_visible()
         expect(page.locator(".modelInspector")).to_contain_text("Model Inspector")
@@ -1828,6 +1872,23 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Artwork Sources")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Bundled SVG")
         expect(page.locator(".modelArtworkGallery")).to_contain_text("Simple Icons")
+        # V2-082 Q10: with a favorite pinned and no search filter, the grid collapses to
+        # favorites behind an "All models" expander. Guarded: the chat block only stars a
+        # model when more than one contact exists.
+        model_favorites = json.loads(page.evaluate("window.localStorage.getItem('matts-v2-model-favorites') || '[]'"))
+        if model_favorites:
+            page.locator(".modelControls .searchLine input").fill("")
+            grid_more = page.get_by_test_id("models-grid-more")
+            expect(grid_more).to_be_visible()
+            expect(grid_more).to_contain_text("All models")
+            collapsed_grid_count = showcase_cards.count()
+            grid_more.click()
+            expect(grid_more).to_have_count(0)
+            expanded_grid_count = showcase_cards.count()
+            assert expanded_grid_count > collapsed_grid_count, (
+                "expanding the favorites-collapsed grid did not reveal more model cards: %s -> %s"
+                % (collapsed_grid_count, expanded_grid_count)
+            )
         page.locator(".modelControls .searchLine input").fill("zzzz-no-model-match")
         expect(page.get_by_text("No models match this filter")).to_be_visible()
 

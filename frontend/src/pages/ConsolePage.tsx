@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography } from 'antd';
-import type { SelectProps } from 'antd';
 import 'antd/dist/reset.css';
 import {
   acquireConsoleTuiControl,
@@ -31,7 +30,7 @@ import {
 import { getModels, ModelCard } from '../api/v2';
 import TmuxTerminal from '../components/TmuxTerminal';
 import TuiTerminal from '../components/TuiTerminal';
-import { ModelIdentityCard } from '../components/modelCard';
+import { ModelCardSelect } from '../components/modelCard';
 import { apiEndpointUrl } from '../api/auth';
 import { errorText } from '../utils/errors';
 import { money } from '../utils/format';
@@ -79,6 +78,14 @@ function terminalUrl(name: string, workspace?: TmuxWorkspacePayload): string {
   return url.toString();
 }
 
+function ModelCardSelectField({ testId, models, allowClear = false, value = '', onChange = () => undefined }: { testId: string; models: ModelCard[]; allowClear?: boolean; value?: string; onChange?: (value: string) => void }) {
+  return (
+    <div data-testid={testId}>
+      <ModelCardSelect models={models} value={value} onChange={onChange} label="" allowClear={allowClear} />
+    </div>
+  );
+}
+
 export default function ConsolePage() {
   const queryClient = useQueryClient();
   const client = useMemo(clientId, []);
@@ -96,21 +103,22 @@ export default function ConsolePage() {
   const [commandDispatchResult, setCommandDispatchResult] = useState('');
   const [controlError, setControlError] = useState('');
   const [sessionActionError, setSessionActionError] = useState('');
+  // One shared Console cadence (V2-077): poll fast only while the operator is
+  // actively controlling a session; back off to 15s when idle so three
+  // concurrent 5s/10s intervals don't triple steady-state load.
+  const activelyControlling = controller || tmuxAttachActive || Boolean(selectedSession);
+  const pollInterval = activelyControlling ? 5000 : 15000;
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
-  const status = useQuery({ queryKey: ['tui-status'], queryFn: getConsoleTuiStatus, refetchInterval: 5000 });
-  const overview = useQuery({ queryKey: ['console-overview'], queryFn: getConsoleOverview, refetchInterval: 10000 });
-  const tmuxWorkspace = useQuery({ queryKey: ['tmux-workspace'], queryFn: getTmuxWorkspace, refetchInterval: 5000 });
+  const status = useQuery({ queryKey: ['tui-status'], queryFn: getConsoleTuiStatus, refetchInterval: pollInterval });
+  const overview = useQuery({ queryKey: ['console-overview'], queryFn: getConsoleOverview, refetchInterval: pollInterval });
+  const tmuxWorkspace = useQuery({ queryKey: ['tmux-workspace'], queryFn: getTmuxWorkspace, refetchInterval: pollInterval });
   const commands = useQuery({ queryKey: ['console-commands', commandQuery, selectedSession], queryFn: () => getConsoleCommands(commandQuery, { session: selectedSession }), retry: false });
   const defaults = useQuery({ queryKey: ['code-session-defaults'], queryFn: getCodeSessionDefaults });
   const modelsCatalog = useQuery({ queryKey: ['models'], queryFn: getModels });
   const runWorkspace = useQuery({ queryKey: ['run-workspace'], queryFn: getRunWorkspace });
   const canControlTui = capabilities.data?.capabilities['tui.control']?.allowed ?? false;
   const canControlTmux = capabilities.data?.capabilities['tmux.control']?.allowed ?? false;
-  const cardById = useMemo(() => new Map<string, ModelCard>((modelsCatalog.data?.models || []).map((model) => [model.id, model])), [modelsCatalog.data?.models]);
-  const renderModelOption: SelectProps['optionRender'] = (option) => {
-    const model = cardById.get(String(option.value ?? ''));
-    return model ? <ModelIdentityCard model={model} size="small" showFavorite={false} interactive={false} testId="model-select-option" /> : option.label;
-  };
+  const launcherModels = useMemo(() => (modelsCatalog.data?.models || []).filter((model: ModelCard) => model.type === 'text' && model.route_enabled), [modelsCatalog.data?.models]);
   const errors = Object.entries(overview.data?.errors ?? {});
   const summary = overview.data?.summary;
   const sessions = overview.data?.sessions ?? [];
@@ -528,13 +536,7 @@ export default function ConsolePage() {
                   <Input data-testid="code-session-project" />
                 </Form.Item>
                 <Form.Item name="model" label="Model">
-                  <Select
-                    data-testid="code-session-model"
-                    style={{ minWidth: 220 }}
-                    popupMatchSelectWidth={false}
-                    optionRender={renderModelOption}
-                    options={(defaults.data?.text_models ?? []).map((model) => ({ value: model, label: model }))}
-                  />
+                  <ModelCardSelectField testId="code-session-model" models={launcherModels} />
                 </Form.Item>
                 <Form.Item name="profile" label="Profile">
                   <Select

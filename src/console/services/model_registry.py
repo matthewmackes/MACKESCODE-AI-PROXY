@@ -108,10 +108,19 @@ class ModelRegistryService:
             "context_window": int(item.get("context_window") or 0),
         }
         if isinstance(item.get("dedicated"), dict):
-            normalized["dedicated"] = item["dedicated"]
+            # ADR-0005: live Dedicated identifiers (server/inference ids and
+            # endpoint FQDNs) are sensitive operational metadata that belongs in
+            # runtime state, never in the git-tracked registry. Scrubbing here
+            # keeps them out of every load AND self-heals stale committed
+            # entries on the next save (save() normalizes before writing).
+            normalized["dedicated"] = {
+                key: value
+                for key, value in item["dedicated"].items()
+                if str(key).lower() not in {"server_id", "inference_id", "endpoint", "public_endpoint_fqdn", "private_endpoint_fqdn", "access_token"}
+            }
         if isinstance(item.get("deprecation"), dict):
             normalized["deprecation"] = item["deprecation"]
-        for key in ("state", "inference_id", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error", "last_checked_at", "access_http_status", "key_fingerprint", "replacement_model", "superseded_by"):
+        for key in ("state", "serverless", "owned_by", "created", "max_output_tokens", "pricing_source", "auto_managed", "access_status", "last_error", "last_checked_at", "access_http_status", "key_fingerprint", "replacement_model", "superseded_by"):
             if item.get(key):
                 normalized[key] = item[key]
         return normalized

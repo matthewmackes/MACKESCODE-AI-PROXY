@@ -112,7 +112,7 @@ class RuntimeConfigService:
         return self.configured_path("budget_file", ".cache/matts-value-set/budgets.json", "MATTS_VALUE_SET_BUDGET_FILE", self.home_dir())
 
     def log_file(self):
-        return self.configured_path("proxy_log_file", "/tmp/matts-value-set-proxy.jsonl", "MATTS_VALUE_SET_LOG_FILE", self.home_dir())
+        return self.configured_path("proxy_log_file", ".cache/matts-value-set/proxy.jsonl", "MATTS_VALUE_SET_LOG_FILE", self.home_dir())
 
     def digitalocean_token_file(self):
         return Path(self.env.get("DIGITALOCEAN_TOKEN_FILE", self.home_dir() / ".config/digitalocean/token"))

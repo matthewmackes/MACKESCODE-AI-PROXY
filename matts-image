@@ -86,7 +86,7 @@ def start_proxy_if_needed():
         "--budget-file",
         os.environ.get("MATTS_VALUE_SET_BUDGET_FILE", str(home_dir() / ".cache/matts-value-set/budgets.json")),
         "--log-file",
-        os.environ.get("MATTS_VALUE_SET_LOG_FILE", "/tmp/matts-value-set-proxy.jsonl"),
+        os.environ.get("MATTS_VALUE_SET_LOG_FILE", str(home_dir() / ".cache/matts-value-set/proxy.jsonl")),
     ]
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     for _ in range(50):

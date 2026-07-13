@@ -17,14 +17,9 @@ Model hero cards give operators a richer view of each LLM without creating a sec
 
 ## UI
 
-Info buttons appear in:
+Hero card data is the content of the V2 model-detail dialog. Every LLM surface renders the unified `ModelIdentityCard` (see `docs/unified-model-card.md`); clicking a card body — or the ⓘ info glyph on click-to-select surfaces such as Chat contacts and model dropdowns — opens one global detail dialog (`ModelDetailHost`). Chat assistant replies embed the same small card, so clicking it opens the same dialog.
 
-- chat assistant replies
-- model selector cards
-- image model selector cards
-- Console Serverless model cards
-
-Each modal includes cost, origin, provider identity, access state, deployment mode, best-fit use cases, strengths, watch-outs, and similar models from the active registry.
+Each dialog includes cost, origin, provider identity, access state, deployment mode, best-fit use cases, strengths, watch-outs, and similar models from the active registry, alongside the measured Health grade carried on the model payload.
 
 ## Updating Descriptions
 
