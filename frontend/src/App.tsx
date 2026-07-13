@@ -6,6 +6,7 @@ import { CostControlPayload, getCostControl, getSpeechStatus, getWhatsNew, overr
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
 import { applyThemeMode, resolveInitialThemeMode, useThemeMode } from './theme';
+import { copyText, downloadTextFile, timestampSlug } from './utils/delivery';
 import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS, voicePresetById } from './voicePreferences';
 
 type NavItem = {
@@ -141,38 +142,6 @@ function parseSavedWorkspaceSnapshot(text: string): SavedWorkspaceSnapshot | nul
   } catch {
     return null;
   }
-}
-
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Plain-HTTP remote browser sessions can block clipboard access.
-    }
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', 'true');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
-}
-
-function downloadText(filename: string, text: string, type: string): void {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 function shouldTriggerFatalDiagnostic(): boolean {
@@ -593,7 +562,7 @@ export default function App() {
   const downloadSavedWorkspaceState = () => {
     const text = savedWorkspaceSnapshotText();
     if (!text) return;
-    downloadText(`mde-llm-proxy-workspace-state-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`, text, 'application/json;charset=utf-8');
+    downloadTextFile(`mde-llm-proxy-workspace-state-${timestampSlug()}.json`, text, 'application/json;charset=utf-8');
     setSavedStateStatus('State downloaded');
   };
   const importSavedWorkspaceState = async (event: ChangeEvent<HTMLInputElement>) => {

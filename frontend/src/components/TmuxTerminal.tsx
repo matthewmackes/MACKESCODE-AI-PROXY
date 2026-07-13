@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { apiWebSocketUrl } from '../api/auth';
 import type { TmuxWorkspacePayload } from '../api/generated/v2Client';
@@ -61,15 +62,40 @@ export default function TmuxTerminal({ active, canControl, sessionName, workspac
       fontSize: 13,
       theme: terminalTheme
     });
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
     terminal.open(hostRef.current);
     terminal.writeln(`Attaching to tmux session: ${sessionName}`);
     terminalRef.current = terminal;
 
     const socket = new WebSocket(url);
     socketRef.current = socket;
+    const sendPtySize = () => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ resize: { rows: terminal.rows, cols: terminal.cols } }));
+    };
+    const fitToHost = () => {
+      const host = hostRef.current;
+      if (!host || !host.clientWidth || !host.clientHeight) return;
+      const before = `${terminal.cols}x${terminal.rows}`;
+      try {
+        fitAddon.fit();
+      } catch {
+        return;
+      }
+      if (`${terminal.cols}x${terminal.rows}` !== before) sendPtySize();
+    };
+    fitToHost();
+    let fitFrame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      window.cancelAnimationFrame(fitFrame);
+      fitFrame = window.requestAnimationFrame(fitToHost);
+    });
+    resizeObserver.observe(hostRef.current);
     socket.onopen = () => {
       setConnected(true);
       setStatusText('Attached');
+      sendPtySize();
     };
     socket.onerror = () => {
       setStatusText('Attach failed');
@@ -107,6 +133,8 @@ export default function TmuxTerminal({ active, canControl, sessionName, workspac
     });
 
     return () => {
+      window.cancelAnimationFrame(fitFrame);
+      resizeObserver.disconnect();
       socket.close();
       terminal.dispose();
       socketRef.current = null;

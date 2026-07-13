@@ -4,7 +4,6 @@ import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography
 import 'antd/dist/reset.css';
 import {
   acquireConsoleTuiControl,
-  captureCodeSession,
   ConsoleCommand,
   CodeSessionStartPayload,
   dispatchConsoleCommand,
@@ -22,11 +21,9 @@ import {
   renameTmuxSession,
   releaseConsoleTuiControl,
   captureTmuxSession,
-  sendCodeSessionInput,
   sendTmuxKey,
   sendTmuxText,
   startCodeSession,
-  stopCodeSession,
   stopTmuxSession,
   TmuxWorkspacePayload
 } from '../api/generated/v2Client';
@@ -34,6 +31,7 @@ import TmuxTerminal from '../components/TmuxTerminal';
 import TuiTerminal from '../components/TuiTerminal';
 import { apiEndpointUrl } from '../api/auth';
 import { errorText } from '../utils/errors';
+import { money } from '../utils/format';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
 
@@ -46,11 +44,6 @@ function valueText(value: unknown, fallback = 'n/a'): string {
   if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString() : fallback;
   if (typeof value === 'boolean') return value ? 'yes' : 'no';
   return String(value);
-}
-
-function money(value: unknown): string {
-  const amount = typeof value === 'number' ? value : Number(value || 0);
-  return Number.isFinite(amount) ? `$${amount.toFixed(4)}` : '$0.0000';
 }
 
 function jsonObject(value: string): Record<string, unknown> | null {
@@ -100,7 +93,6 @@ export default function ConsolePage() {
   const [commandDispatchResult, setCommandDispatchResult] = useState('');
   const [controlError, setControlError] = useState('');
   const [sessionActionError, setSessionActionError] = useState('');
-  const [codeSessionActionError, setCodeSessionActionError] = useState('');
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const status = useQuery({ queryKey: ['tui-status'], queryFn: getConsoleTuiStatus, refetchInterval: 5000 });
   const overview = useQuery({ queryKey: ['console-overview'], queryFn: getConsoleOverview, refetchInterval: 10000 });
@@ -162,14 +154,6 @@ export default function ConsolePage() {
       queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
     }
   });
-  const captureSession = useMutation({
-    mutationFn: (name: string) => captureCodeSession(name),
-    onSuccess: (payload) => {
-      setCodeSessionActionError('');
-      setSessionScreen(payload.screen || '');
-    },
-    onError: (error) => setCodeSessionActionError(errorText(error))
-  });
   const captureTmux = useMutation({
     mutationFn: (name: string) => captureTmuxSession(name),
     onSuccess: (payload) => {
@@ -177,15 +161,6 @@ export default function ConsolePage() {
       setSessionScreen(payload.screen || '');
     },
     onError: (error) => setSessionActionError(errorText(error))
-  });
-  const sendSessionInput = useMutation({
-    mutationFn: () => sendCodeSessionInput(selectedSession, sessionInput, true),
-    onSuccess: () => {
-      setCodeSessionActionError('');
-      setSessionInput('');
-      setTimeout(() => selectedSession && captureSession.mutate(selectedSession), 250);
-    },
-    onError: (error) => setCodeSessionActionError(errorText(error))
   });
   const sendTmuxInput = useMutation({
     mutationFn: (enter: boolean) => sendTmuxText(selectedSession, sessionInput, enter),
@@ -215,18 +190,6 @@ export default function ConsolePage() {
       queryClient.invalidateQueries({ queryKey: ['console-overview'] });
     },
     onError: (error) => setSessionActionError(errorText(error))
-  });
-  const stopSession = useMutation({
-    mutationFn: (name: string) => stopCodeSession(name),
-    onSuccess: () => {
-      setCodeSessionActionError('');
-      setSelectedSession('');
-      setSessionRename('');
-      setSessionScreen('');
-      queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
-    },
-    onError: (error) => setCodeSessionActionError(errorText(error))
   });
   const stopTmux = useMutation({
     mutationFn: (name: string) => stopTmuxSession(name),
@@ -666,28 +629,9 @@ export default function ConsolePage() {
               ) : null}
             </Space>
           </Form>
-          {codeSessionActionError ? <Alert type="error" showIcon message={codeSessionActionError} /> : null}
-          <Space wrap>
-            <Select
-              data-testid="code-session-selector"
-              value={selectedSession || undefined}
-              placeholder="Select session"
-              style={{ minWidth: 240 }}
-              onChange={(name) => {
-                setSelectedSession(name);
-                setSessionRename(name);
-                captureSession.mutate(name);
-              }}
-              options={tmuxSessions.map((session) => ({ value: valueText(session.name), label: valueText(session.display_name || session.name) }))}
-            />
-            <Button data-testid="code-session-capture" disabled={!selectedSession || !canControlTmux} loading={captureSession.isPending} onClick={() => captureSession.mutate(selectedSession)}>Capture</Button>
-            <Button danger disabled={!selectedSession || !canControlTmux} loading={stopSession.isPending} onClick={() => stopSession.mutate(selectedSession)}>Stop</Button>
-          </Space>
-          <Space.Compact block>
-            <Input value={sessionInput} onChange={(event) => setSessionInput(event.target.value)} disabled={!selectedSession || !canControlTmux} placeholder="Send input to selected tmux session" />
-            <Button data-testid="code-session-send" disabled={!selectedSession || !sessionInput || !canControlTmux} loading={sendSessionInput.isPending} onClick={() => sendSessionInput.mutate()}>Send</Button>
-          </Space.Compact>
-          <pre className="sessionScreen" data-testid="code-session-screen">{sessionScreen || 'No captured screen.'}</pre>
+          <Typography.Text type="secondary">
+            Started sessions are selected automatically in the TMux control dock above for capture, input, rename, attach, and stop.
+          </Typography.Text>
         </Space>
       </Card>
       <Card title="Operational State" data-testid="console-operational-state">

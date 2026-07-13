@@ -6,19 +6,12 @@ import { getMeCapabilities } from '../api/generated/v2Client';
 import { acknowledgeOperateConfigDrift, getOnboarding, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, overrideCostControl, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, seedOnboardingModelTemplates, testOperateAutomation, updateCostControlThresholds, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
 import type { OnboardingPayload } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
-
-function list(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? value.filter((row) => row && typeof row === 'object') as Array<Record<string, unknown>> : [];
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
+import { listValue, money, numberValue, recordValue } from '../utils/format';
 
 function rows(payload: unknown, ...keys: string[]): Array<Record<string, unknown>> {
-  const source = record(payload);
+  const source = recordValue(payload);
   for (const key of keys) {
-    const value = list(source[key]);
+    const value = listValue(source[key]);
     if (value.length) return value;
   }
   return [];
@@ -30,17 +23,6 @@ function valueText(value: unknown, fallback = ''): string {
 
 function boolText(value: unknown): string {
   return value === true ? 'yes' : value === false ? 'no' : 'n/a';
-}
-
-function numberValue(value: unknown, fallback = 0): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function money(value: unknown): string {
-  const amount = numberValue(value, 0);
-  const places = amount > 0 && amount < 0.01 ? 4 : 2;
-  return `$${amount.toFixed(places)}`;
 }
 
 function paymentStatusColor(value: unknown): string {
@@ -60,11 +42,11 @@ function driftSnapshotText(snapshot: Record<string, unknown>): string {
 }
 
 function driftRollbackParts(item: Record<string, unknown>): { backupItem: string; restoreAvailable: boolean; restoreCommand: string } {
-  const current = record(item.current);
-  const baseline = record(item.baseline);
-  const rollback = record(item.rollback);
-  const currentRollback = record(current.rollback);
-  const baselineRollback = record(baseline.rollback);
+  const current = recordValue(item.current);
+  const baseline = recordValue(item.baseline);
+  const rollback = recordValue(item.rollback);
+  const currentRollback = recordValue(current.rollback);
+  const baselineRollback = recordValue(baseline.rollback);
   const backupItem = valueText(rollback.backup_item || currentRollback.backup_item || baselineRollback.backup_item, 'none');
   const restoreCommand = valueText(rollback.restore_command || currentRollback.restore_command || baselineRollback.restore_command);
   return { backupItem, restoreAvailable: Boolean(restoreCommand), restoreCommand };
@@ -116,9 +98,9 @@ function OnboardingTemplateGallery({
         {seedError ? <Alert type="error" showIcon message={seedError} /> : null}
         <div className="onboardingTemplateGrid" data-testid="operate-onboarding-template-gallery">
           {items.map((item) => {
-            const model = record(item.model);
-            const template = record(item.template);
-            const preview = record(item.preview);
+            const model = recordValue(item.model);
+            const template = recordValue(item.template);
+            const preview = recordValue(item.preview);
             const key = valueText(template.id || model.id || model.display_name);
             const rendered = valueText(preview.rendered || template.body);
             const variables = Array.isArray(preview.variables) ? preview.variables.map((variable) => valueText(variable)).filter(Boolean) : [];
@@ -223,11 +205,11 @@ function operatorHandoffBriefMarkdown(operatorHandoff: Record<string, unknown>, 
 }
 
 function configDriftItemMarkdown(item: Record<string, unknown>, index?: number): string {
-  const current = record(item.current);
-  const baseline = record(item.baseline);
-  const rollback = record(item.rollback);
-  const currentRollback = record(current.rollback);
-  const baselineRollback = record(baseline.rollback);
+  const current = recordValue(item.current);
+  const baseline = recordValue(item.baseline);
+  const rollback = recordValue(item.rollback);
+  const currentRollback = recordValue(current.rollback);
+  const baselineRollback = recordValue(baseline.rollback);
   const rollbackNote = valueText(rollback.note || currentRollback.note || baselineRollback.note, 'Compare the current item to the baseline before changing release status.');
   const rollbackParts = driftRollbackParts(item);
   const restoreCommand = valueText(rollbackParts.restoreCommand, 'No direct restore command registered.');
@@ -368,7 +350,7 @@ export default function OperatePage() {
   const reviewUpdateMutation = useMutation({
     mutationFn: (id: string) => updateOperateReview({ id, status: 'approved', notes: 'Approved from v2 Operate.' }),
     onSuccess: (result) => {
-      setReviewResult(record(result.review));
+      setReviewResult(recordValue(result.review));
       operate.refetch();
     }
   });
@@ -443,16 +425,16 @@ export default function OperatePage() {
   const canEditCostControl = capabilities.data?.capabilities['cost_control.edit']?.allowed ?? false;
   const canOverrideCostControl = capabilities.data?.capabilities['cost_control.override']?.allowed ?? false;
   const payload = operate.data;
-  const summary = record(payload?.summary);
+  const summary = recordValue(payload?.summary);
   const releaseChecks = rows(payload?.release_candidate, 'checks');
-  const operatorHandoff = record(record(payload?.release_candidate).operator_handoff);
-  const operatorHandoffItems = list(operatorHandoff.items);
+  const operatorHandoff = recordValue(recordValue(payload?.release_candidate).operator_handoff);
+  const operatorHandoffItems = listValue(operatorHandoff.items);
   const hasOperatorHandoff = operatorHandoffItems.length > 0;
   const handoffBrief = operatorHandoffBriefMarkdown(operatorHandoff, operatorHandoffItems);
   const reviews = rows(payload?.reviews, 'reviews', 'items');
   const rollbackTargets = rows(payload?.rollback, 'targets', 'archives');
-  const configDrift = record(payload?.config_drift);
-  const configDriftSummary = record(configDrift.summary);
+  const configDrift = recordValue(payload?.config_drift);
+  const configDriftSummary = recordValue(configDrift.summary);
   const activeDriftItems = rows(configDrift, 'drift', 'drifts');
   const monitoredConfigItems = rows(configDrift, 'items');
   const driftItems = activeDriftItems.length ? activeDriftItems : monitoredConfigItems;
@@ -464,24 +446,24 @@ export default function OperatePage() {
   const highRiskConfirmationReady = !requiresHighRiskConfirmation || highRiskDriftConfirmed;
   const driftBrief = configDriftBriefMarkdown(configDriftSummary, activeDriftItems);
   const driftReasonReady = Boolean(driftReason.trim());
-  const automation = record(payload?.automation);
-  const automationRules = rows(automation, 'rules').length ? rows(automation, 'rules') : rows(record(automation.config), 'rules');
+  const automation = recordValue(payload?.automation);
+  const automationRules = rows(automation, 'rules').length ? rows(automation, 'rules') : rows(recordValue(automation.config), 'rules');
   const ciFindings = rows(payload?.ci_triage, 'findings', 'checks');
   const modelDeprecations = rows(payload?.model_deprecations, 'deprecated_models', 'items', 'models', 'deprecations');
-  const evalGate = record(payload?.eval_gates);
-  const offlineMode = record(payload?.offline_mode);
-  const costControl = record(payload?.cost_control);
-  const costCosts = record(costControl.costs);
-  const costThreshold = record(costControl.threshold);
-  const costPause = record(costControl.pause);
-  const costProvider = record(costControl.provider);
-  const paymentReview = record(costControl.payment_review);
-  const paymentItems = list(paymentReview.items);
+  const evalGate = recordValue(payload?.eval_gates);
+  const offlineMode = recordValue(payload?.offline_mode);
+  const costControl = recordValue(payload?.cost_control);
+  const costCosts = recordValue(costControl.costs);
+  const costThreshold = recordValue(costControl.threshold);
+  const costPause = recordValue(costControl.pause);
+  const costProvider = recordValue(costControl.provider);
+  const paymentReview = recordValue(costControl.payment_review);
+  const paymentItems = listValue(paymentReview.items);
   const costStatus = valueText(costControl.status, 'unknown');
   const monthlyThreshold = numberValue(costThreshold.monthly_threshold_usd, 0);
   const monthlyCost = numberValue(costCosts.monthly_total_usd, 0);
   const monthlyPercent = numberValue(costThreshold.percent, 0);
-  const providerSource = valueText(costProvider.monthly_source || record(costCosts.sources).monthly, 'local_estimate');
+  const providerSource = valueText(costProvider.monthly_source || recordValue(costCosts.sources).monthly, 'local_estimate');
   const providerLabel = providerSource === 'provider_billing_api' ? 'Provider billing' : 'Local estimate';
   useEffect(() => {
     setHandoffBriefStatus(hasOperatorHandoff ? 'Brief Ready' : 'No handoff');
@@ -640,11 +622,11 @@ export default function OperatePage() {
             </div>
             <div>
               <span>Dedicated</span>
-              <strong>{money(record(record(costCosts.categories).dedicated_instances).monthly_usd)}</strong>
+              <strong>{money(recordValue(recordValue(costCosts.categories).dedicated_instances).monthly_usd)}</strong>
             </div>
             <div>
               <span>LLM Service</span>
-              <strong>{money(record(record(costCosts.categories).llm_service).monthly_usd)}</strong>
+              <strong>{money(recordValue(recordValue(costCosts.categories).llm_service).monthly_usd)}</strong>
             </div>
           </div>
           <Space.Compact>
@@ -866,8 +848,8 @@ export default function OperatePage() {
           <Space wrap>
             <Tag>{valueText(evalGate.surface, 'gateway_policy')}</Tag>
             <Tag color={evalGate.allowed === false ? 'red' : 'green'}>{valueText(evalGate.decision, 'unknown')}</Tag>
-            <Tag>{list(evalGate.recommended_datasets).length} datasets</Tag>
-            <Tag>{list(evalGate.evidence).length} evidence</Tag>
+            <Tag>{listValue(evalGate.recommended_datasets).length} datasets</Tag>
+            <Tag>{listValue(evalGate.evidence).length} evidence</Tag>
           </Space>
           <Input.TextArea data-testid="operate-eval-dataset-json" value={datasetJson} onChange={(event) => setDatasetJson(event.target.value)} autoSize={{ minRows: 3, maxRows: 8 }} />
           <Space wrap>
@@ -893,8 +875,8 @@ export default function OperatePage() {
           {rollbackPreviewMutation.error ? <Alert type="error" showIcon message={errorText(rollbackPreviewMutation.error)} /> : null}
           {acknowledgeDriftMutation.error ? <Alert type="error" showIcon message={errorText(acknowledgeDriftMutation.error)} /> : null}
           {markBaselineMutation.error ? <Alert type="error" showIcon message={errorText(markBaselineMutation.error)} /> : null}
-          {rollbackPreview ? <Alert data-testid="operate-rollback-preview-result" type="info" showIcon message="Rollback preview ready" description={`${valueText(record(rollbackPreview.summary).will_restore, '0')} items will restore`} /> : null}
-          {driftActionResult ? <Alert data-testid="operate-config-drift-action-result" type="success" showIcon message={valueText(driftActionResult.action) === 'baseline' ? 'Config drift baseline marked' : 'Config drift acknowledged'} description={valueText(record(driftActionResult.summary).state || driftActionResult.baseline_file || 'Operate payload refreshed.')} /> : null}
+          {rollbackPreview ? <Alert data-testid="operate-rollback-preview-result" type="info" showIcon message="Rollback preview ready" description={`${valueText(recordValue(rollbackPreview.summary).will_restore, '0')} items will restore`} /> : null}
+          {driftActionResult ? <Alert data-testid="operate-config-drift-action-result" type="success" showIcon message={valueText(driftActionResult.action) === 'baseline' ? 'Config drift baseline marked' : 'Config drift acknowledged'} description={valueText(recordValue(driftActionResult.summary).state || driftActionResult.baseline_file || 'Operate payload refreshed.')} /> : null}
           <div className="operatorHandoffBriefDock" data-testid="operate-config-drift-brief">
             <span>{driftBriefStatus}</span>
             <Button disabled={!showingActiveDrift} onClick={() => void copyDriftBrief()}>Copy Drift Brief</Button>
@@ -974,7 +956,7 @@ export default function OperatePage() {
           />
           {rollbackPreview ? (
             <>
-              <Typography.Text type="secondary">Rollback preview: {valueText(record(rollbackPreview.summary).will_restore, '0')} items will restore</Typography.Text>
+              <Typography.Text type="secondary">Rollback preview: {valueText(recordValue(rollbackPreview.summary).will_restore, '0')} items will restore</Typography.Text>
               <details>
                 <summary>Raw payload</summary>
                 <pre className="templatePreview">{JSON.stringify(rollbackPreview, null, 2)}</pre>
@@ -990,9 +972,9 @@ export default function OperatePage() {
               { title: 'Status', render: (_value, row) => valueText(row.status, showingActiveDrift ? 'changed' : 'monitored') },
               { title: 'Risk', render: (_value, row) => <Tag color={riskColor(row.risk || row.severity)}>{valueText(row.risk || row.severity, 'unknown')}</Tag> },
               { title: 'Acknowledged', render: (_value, row) => boolText(row.acknowledged) },
-              { title: 'Path', render: (_value, row) => <code>{valueText(row.path || record(row.current).path, 'n/a')}</code> },
-              { title: 'Current Evidence', render: (_value, row) => <code>{driftSnapshotText(record(row.current))}</code> },
-              { title: 'Baseline Evidence', render: (_value, row) => <code>{driftSnapshotText(record(row.baseline))}</code> },
+              { title: 'Path', render: (_value, row) => <code>{valueText(row.path || recordValue(row.current).path, 'n/a')}</code> },
+              { title: 'Current Evidence', render: (_value, row) => <code>{driftSnapshotText(recordValue(row.current))}</code> },
+              { title: 'Baseline Evidence', render: (_value, row) => <code>{driftSnapshotText(recordValue(row.baseline))}</code> },
               {
                 title: 'Rollback Readiness',
                 render: (_value, row) => {
@@ -1019,7 +1001,7 @@ export default function OperatePage() {
                   );
                 }
               },
-              { title: 'Rollback', render: (_value, row) => valueText(record(row.rollback).note || record(record(row.current).rollback).note, 'Review baseline before changing runtime state.') }
+              { title: 'Rollback', render: (_value, row) => valueText(recordValue(row.rollback).note || recordValue(recordValue(row.current).rollback).note, 'Review baseline before changing runtime state.') }
             ]}
             scroll={{ x: true }}
           />
@@ -1045,21 +1027,21 @@ export default function OperatePage() {
               </details>
             </>
           ) : null}
-          {ciLaunch ? <Alert data-testid="operate-ci-launch-result" type="success" showIcon message="CI launch patch ready" description={valueText(record(ciLaunch.launch_patch).print_prompt_append || ciLaunch.reference, 'launch ready')} /> : null}
+          {ciLaunch ? <Alert data-testid="operate-ci-launch-result" type="success" showIcon message="CI launch patch ready" description={valueText(recordValue(ciLaunch.launch_patch).print_prompt_append || ciLaunch.reference, 'launch ready')} /> : null}
           <Space wrap>
             <Button data-testid="operate-repository-preview" disabled={!canImportRepository} loading={repositoryPreviewMutation.isPending} onClick={() => repositoryPreviewMutation.mutate()}>Repository Preview</Button>
             <Button data-testid="operate-repository-import" disabled={!canImportRepository} loading={repositoryImportMutation.isPending} onClick={() => repositoryImportMutation.mutate()}>Import Context</Button>
           </Space>
           {repositoryPreview ? (
             <>
-              <Typography.Text type="secondary">Repository context preview ready · {valueText(repositoryPreview.reference || record(repositoryPreview.preview).reference, ciReference)}</Typography.Text>
+              <Typography.Text type="secondary">Repository context preview ready · {valueText(repositoryPreview.reference || recordValue(repositoryPreview.preview).reference, ciReference)}</Typography.Text>
               <details>
                 <summary>Raw payload</summary>
                 <pre data-testid="operate-repository-preview-result" className="templatePreview">{JSON.stringify(repositoryPreview, null, 2)}</pre>
               </details>
             </>
           ) : null}
-          {repositoryImport ? <Alert data-testid="operate-repository-import-result" type="success" showIcon message="Repository context imported" description={valueText(record(repositoryImport.launch_patch).print_prompt_append || record(repositoryImport.preview).reference, 'import ready')} /> : null}
+          {repositoryImport ? <Alert data-testid="operate-repository-import-result" type="success" showIcon message="Repository context imported" description={valueText(recordValue(repositoryImport.launch_patch).print_prompt_append || recordValue(repositoryImport.preview).reference, 'import ready')} /> : null}
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name, String(index))}
             dataSource={automationRules}
@@ -1071,7 +1053,7 @@ export default function OperatePage() {
                 title: 'Trigger',
                 dataIndex: 'trigger',
                 render: (value: unknown) => {
-                  const trigger = record(value);
+                  const trigger = recordValue(value);
                   const label = valueText(trigger.type || trigger.event, Object.keys(trigger)[0] || valueText(value, 'n/a'));
                   return <code title={JSON.stringify(value || {})}>{label}</code>;
                 }
@@ -1083,7 +1065,7 @@ export default function OperatePage() {
             <Button data-testid="operate-automation-test" disabled={!canManageAutomation} loading={automationTestMutation.isPending} onClick={() => automationTestMutation.mutate()}>Test</Button>
             {automationTest ? <Tag data-testid="operate-automation-test-result" color="green">{valueText(automationTest.matched_count, '0')} matched</Tag> : null}
             <Button data-testid="operate-automation-preview-schedules" disabled={!canManageAutomation} loading={automationSchedulePreviewMutation.isPending} onClick={() => automationSchedulePreviewMutation.mutate()}>Preview Due Schedules</Button>
-            {automationSchedulePreview ? <Tag data-testid="operate-automation-schedules-preview-result" color="blue">{list(automationSchedulePreview.schedules).filter((row) => row.due).length} due</Tag> : null}
+            {automationSchedulePreview ? <Tag data-testid="operate-automation-schedules-preview-result" color="blue">{listValue(automationSchedulePreview.schedules).filter((row) => row.due).length} due</Tag> : null}
             <Button data-testid="operate-automation-run-schedules" disabled={!canManageAutomation} loading={automationScheduleMutation.isPending} onClick={() => automationScheduleMutation.mutate()}>Run Due Schedules</Button>
             {automationScheduleRun ? <Tag data-testid="operate-automation-schedules-result" color="blue">{valueText(automationScheduleRun.executed_count, '0')} executed</Tag> : null}
           </Space>

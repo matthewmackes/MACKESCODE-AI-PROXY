@@ -906,24 +906,24 @@ button {
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 24px;
-  padding: 32px;
+  gap: 20px;
+  padding: 30px 34px 36px;
 }
 
 .heroHeader {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 20px;
+  gap: 18px;
   align-items: end;
   border-bottom: 1px solid var(--cds-border-subtle);
-  padding-bottom: 24px;
+  padding-bottom: 20px;
 }
 
 .heroHeader h1,
 .createCenter h1 {
   margin: 0;
-  font-size: clamp(40px, 7vw, 92px);
-  line-height: .94;
+  font-size: clamp(38px, 5.2vw, 72px);
+  line-height: .98;
   font-weight: 400;
 }
 
@@ -933,15 +933,23 @@ button {
   letter-spacing: 0;
 }
 
+.codeHero .heroHeader h1,
+.researchHero .heroHeader h1,
+.advancedHero .heroHeader h1 {
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.06;
+}
+
 .heroHeader p,
 .createCenter p {
-  max-width: 880px;
+  max-width: 760px;
   color: var(--cds-text-secondary);
+  font-size: 15px;
   line-height: 1.5;
 }
 
 .eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: var(--cds-blue);
   font-size: 12px;
   font-weight: 600;
@@ -4662,46 +4670,6 @@ button {
     linear-gradient(180deg, #fafafa 0, #f4f4f4 44%, #f1f2f4 100%);
 }
 
-.heroWorkspace {
-  gap: 20px;
-  padding: 30px 34px 36px;
-}
-
-.heroHeader {
-  gap: 18px;
-  align-items: end;
-  padding-bottom: 20px;
-}
-
-.heroHeader h1,
-.createCenter h1 {
-  font-size: clamp(38px, 5.2vw, 72px);
-  line-height: .98;
-}
-
-.chatHero .heroHeader h1 {
-  font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
-.codeHero .heroHeader h1,
-.researchHero .heroHeader h1,
-.advancedHero .heroHeader h1 {
-  font-size: clamp(28px, 3.4vw, 40px);
-  line-height: 1.06;
-}
-
-.heroHeader p,
-.createCenter p {
-  max-width: 760px;
-  font-size: 15px;
-}
-
-.eyebrow {
-  margin-bottom: 6px;
-}
-
 .composerPanel,
 .conversationPanel,
 .terminalPanel,
@@ -5572,13 +5540,6 @@ html[data-theme="dark"] .whatsNewModal {
 
 .advancedPanel {
   background: var(--cds-chrome);
-}
-
-.emptyState,
-.errorBanner,
-.statusPanel {
-  border-color: var(--cds-border-subtle);
-  background: var(--cds-layer-02);
 }
 
 .modalBackdrop {

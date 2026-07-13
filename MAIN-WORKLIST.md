@@ -10427,19 +10427,33 @@ development worklist does not pretend they are locally closable.
 
 ### Task ID: V2-075
 **Title:** Frontend consolidation batch (helpers, duplicate CSS, terminal resilience)
-**Status:** TODO
+**Status:** ✅ `COMPLETED`
 **Priority:** P3
-**Assigned To:** Unassigned
-**Start Time:** —
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
 
 **Description:** Reuse/consolidation items from the 2026-07-12 survey: shared format helpers (`money/record/list/jsonObject` re-implemented per page with drift); merge `ModelMiniCard`/`ModelAlertCard`; extract a brief-actions hook (five duplicates); merge duplicate CSS rule pairs (~3,700 lines apart) that silently override; TUI terminal teardown/reconnect on control toggle plus missing onerror/reconnect; fit-addon terminal resizing (needs new npm dependency — network); Run left-tab rail on narrow viewports; registry-backed model Selects in Run; Console dual session-control clusters. Already closed elsewhere: dead `SelectedModelPanel` (removed in V2-074), Observe "Requests" substitution (fixed in V2-074), brand SVG artwork extracted to a lazy chunk (V2-071 bundle-budget work).
 
 **Completion Criteria:**
-- [ ] Accepted consolidation items implemented with build/smoke green, or explicitly re-scoped
-- [ ] No behavior change beyond the documented fixes
+- [x] Accepted consolidation items implemented with build/smoke green, or explicitly re-scoped
+- [x] No behavior change beyond the documented fixes
 
 **Dependencies:** None
 **Blocks:** None
+
+**Progress Notes:**
+- 2026-07-12: Shared `frontend/src/utils/format.ts` (numberValue/money/recordValue/listValue/timestampLabel) replaces per-page duplicates in Console/Observe/Operate/Run (money standardized on the adaptive 2/4dp form; page-specific `valueText`/`jsonObject` deliberately kept local). Shared `frontend/src/utils/delivery.ts` (copyText/downloadTextFile/timestampSlug/briefDeliveryActions) replaces the five duplicated brief copy/download implementations in HeroPages plus App's own copyText/downloadText copies (~150 lines removed). `ModelMiniCard`/`ModelAlertCard` collapsed onto one `ModelIdentityCard`.
+- 2026-07-12: Duplicate CSS rule layers merged into single sources of truth (`.heroWorkspace`, `.heroHeader`, hero h1/p, `.eyebrow`, shadowed `.statusPanel` block deleted); cascade-safety verified — all intermediate selectors are higher-specificity compounds.
+- 2026-07-12: Console's Code Session Launcher lost its redundant selector/capture/stop/send/screen tail (the TMux control dock is the single control surface; started sessions auto-select there); the orphaned code-session capture/send/stop mutations, state, and imports were removed with it.
+- 2026-07-12: Run model fields (chat run, profile, context inspect) are registry-backed searchable Selects filtered to routable text models sharing the `['models']` query cache; the Run tab rail switches to top position under 980px.
+- 2026-07-12: TuiTerminal no longer tears down socket/scrollback on control toggles (controller moved to a ref; stdin toggled via runtime options), adds onerror handling and a bounded 3×3s reconnect with a clear final state. TmuxTerminal fits its container via new dependency `@xterm/addon-fit` with a ResizeObserver and sends `{"resize":{rows,cols}}` so the server PTY follows (`backend/v2/api/tmux_ws.py` already supported it). The shared TUI terminal keeps fixed geometry by design — its broadcast bridge has no resize protocol and all viewers share one screen.
+
+**Verification:**
+- `npm run build --prefix frontend` passed; entry `assets/index-0e001dd3.js` = 171,636 bytes (bundle check passed with additional headroom from the dedup).
+- `python3 scripts/check-v2-frontend-audit.py` passed (0 production vulnerabilities across 82 dependencies including `@xterm/addon-fit@0.11.0`).
+- `python3 -m unittest discover -s tests` passed (592 tests).
+- `python3 scripts/v2-browser-smoke.py --required` passed on the first run for this batch.
 
 ---
 

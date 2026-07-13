@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
@@ -45,7 +45,20 @@ import {
   WorkspaceBundlePreview,
   WorkspaceBundleSummary
 } from '../api/generated/v2Client';
+import { getModels, ModelCard } from '../api/v2';
 import { errorText } from '../utils/errors';
+import { recordValue, timestampLabel } from '../utils/format';
+
+function useNarrowViewport(maxWidth = 980): boolean {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(`(max-width: ${maxWidth}px)`).matches);
+  useEffect(() => {
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const onChange = () => setNarrow(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [maxWidth]);
+  return narrow;
+}
 
 function csv(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -81,10 +94,6 @@ function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
 function chatResultText(result: Record<string, unknown>): string {
   const candidates = [result.text, recordValue(result.response).text, result.content, result.message];
   for (const candidate of candidates) {
@@ -95,6 +104,7 @@ function chatResultText(result: Record<string, unknown>): string {
 
 export default function RunPage() {
   const queryClient = useQueryClient();
+  const narrow = useNarrowViewport();
   const [templateForm] = Form.useForm();
   const [chatForm] = Form.useForm();
   const [profileForm] = Form.useForm();
@@ -109,6 +119,7 @@ export default function RunPage() {
   const workspace = useQuery({ queryKey: ['run-workspace'], queryFn: getRunWorkspace });
   const replayRecords = useQuery({ queryKey: ['run-replays'], queryFn: () => listReplays(25) });
   const workspaceBundleRecords = useQuery({ queryKey: ['workspace-bundles'], queryFn: listWorkspaceBundles });
+  const models = useQuery({ queryKey: ['models'], queryFn: getModels });
   const canEdit = capabilities.data?.capabilities['run.edit']?.allowed ?? false;
   const canChat = capabilities.data?.capabilities['chat.use']?.allowed ?? false;
   const templates = workspace.data?.prompt_templates ?? [];
@@ -120,6 +131,7 @@ export default function RunPage() {
   const localRag = workspace.data?.local_rag;
   const replays = replayRecords.data?.replays ?? [];
   const workspaceBundles = workspaceBundleRecords.data?.bundles ?? [];
+  const routableTextModels = useMemo(() => (models.data?.models || []).filter((model: ModelCard) => model.type === 'text' && model.route_enabled), [models.data?.models]);
   const [templateId, setTemplateId] = useState('');
   const [templatePreview, setTemplatePreview] = useState<PromptTemplatePreview | null>(null);
   const [templatePreviewError, setTemplatePreviewError] = useState('');
@@ -429,7 +441,7 @@ export default function RunPage() {
       </Card>
       {!canEdit ? <Alert type="info" showIcon message="You can inspect Run assets, but editing requires model_use permission." /> : null}
       <Tabs
-        tabPosition="left"
+        tabPosition={narrow ? 'top' : 'left'}
         items={[
           {
             key: 'chat',
@@ -445,8 +457,8 @@ export default function RunPage() {
                     onFinish={(values) => chatMutation.mutate(values)}
                   >
                     <Space wrap>
-                      <Form.Item name="model" label="Model">
-                        <Input data-testid="chat-run-model" placeholder="default text model" />
+                      <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
+                        <Select data-testid="chat-run-model" showSearch allowClear placeholder="default text model" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                       </Form.Item>
                       <Form.Item name="max_tokens" label="Max Tokens">
                         <Input data-testid="chat-run-max-tokens" type="number" />
@@ -612,7 +624,7 @@ export default function RunPage() {
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Examples', dataIndex: 'examples', width: 90, render: (examples: PromptTemplate['examples']) => examples?.length || 0 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' },
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => timestampLabel(value) },
                     {
                       title: 'Actions',
                       width: 300,
@@ -697,8 +709,8 @@ export default function RunPage() {
                     <Form.Item name="description" label="Description">
                       <Input data-testid="profile-description" />
                     </Form.Item>
-                    <Form.Item name="model" label="Model">
-                      <Input data-testid="profile-model" placeholder="deepseek-3.2" />
+                    <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
+                      <Select data-testid="profile-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                     </Form.Item>
                     <Form.Item name="template_id" label="Prompt Template">
                       <Select data-testid="profile-template" allowClear value={templateId} onChange={setTemplateId} options={templates.map((template) => ({ value: template.id, label: template.name }))} />
@@ -779,7 +791,7 @@ export default function RunPage() {
                       }
                     },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' },
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => timestampLabel(value) },
                     {
                       title: 'Actions',
                       width: 340,
@@ -882,7 +894,7 @@ export default function RunPage() {
                   { title: 'Required', dataIndex: 'required', width: 100, render: (value: boolean) => value ? <Tag color="orange">Required</Tag> : <Tag>Advisory</Tag> },
                   { title: 'Datasets', render: (_value, record) => (record.gate.recommended_datasets || []).map((row) => String(row['id'] || row['name'] || '')).filter(Boolean).join(', ') || 'none' },
                   { title: 'Evidence', render: (_value, record) => (record.gate.evidence || []).map((row) => String(row['id'] || '')).filter(Boolean).join(', ') || 'none' },
-                  { title: 'Created', dataIndex: 'created_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                  { title: 'Created', dataIndex: 'created_at', render: (value: number) => timestampLabel(value) }
                 ]}
               />
             )
@@ -912,8 +924,8 @@ export default function RunPage() {
                           ]}
                         />
                       </Form.Item>
-                      <Form.Item name="model" label="Model">
-                        <Input data-testid="context-model" placeholder="deepseek-3.2" />
+                      <Form.Item name="model" label="Model" normalize={(value) => value ?? ''}>
+                        <Select data-testid="context-model" showSearch allowClear placeholder="deepseek-3.2" optionFilterProp="label" options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))} />
                       </Form.Item>
                       <Form.Item name="max_tokens" label="Max Output">
                         <Input data-testid="context-max-tokens" type="number" />
@@ -1044,7 +1056,7 @@ export default function RunPage() {
                     { title: 'Template Version', render: (_value, record) => record.prompt_template_id ? <Tag>{record.prompt_template_version || 'current'}</Tag> : <Tag>None</Tag> },
                     { title: 'Status', dataIndex: 'status' },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
               </Space>
@@ -1096,7 +1108,7 @@ export default function RunPage() {
                     { title: 'Root Session', dataIndex: 'root_session_id' },
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
               </Space>
@@ -1164,7 +1176,7 @@ export default function RunPage() {
                     { title: 'Trace', dataIndex: 'trace_id' },
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
               </Space>
@@ -1375,7 +1387,7 @@ export default function RunPage() {
                     { title: 'Targets', render: (_value, record) => (record.targets || []).join(', ') },
                     { title: 'Models', render: (_value, record) => String(record.summary?.models || record.results?.length || 0) },
                     { title: 'Cost', render: (_value, record) => `$${String(record.summary?.total_cost_usd || 0)}` },
-                    { title: 'Created', dataIndex: 'created_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                    { title: 'Created', dataIndex: 'created_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
               </Space>
@@ -1485,7 +1497,7 @@ export default function RunPage() {
                     { title: 'Sections', render: (_value, record) => (record.sections || []).join(', ') },
                     { title: 'Redaction', render: (_value, record) => record.redaction?.contains_sensitive ? `${String(record.redaction.redacted_values || 0)} redacted` : 'clean' },
                     { title: 'Path', dataIndex: 'path' },
-                    { title: 'Created', dataIndex: 'created_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
+                    { title: 'Created', dataIndex: 'created_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
               </Space>

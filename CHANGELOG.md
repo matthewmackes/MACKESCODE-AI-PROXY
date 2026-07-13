@@ -36,6 +36,18 @@
   offline styling for the cost pill, routable-only Create image model choices,
   and brand SVG artwork moved to a lazy chunk to keep the first-load shell
   within its budget.
+- Frontend consolidation: shared `utils/format` (money/record/list/timestamp)
+  and `utils/delivery` (clipboard, file download, brief actions) modules replace
+  per-page duplicates with drift; duplicate CSS rule layers merged into single
+  sources of truth; the redundant session-control cluster in Console's Code
+  Session Launcher collapsed onto the TMux control dock.
+- Advanced Run model fields are registry-backed searchable selects instead of
+  free-text ids, and the Run tab rail moves to the top on narrow viewports.
+- Terminal resilience: the TMux attach terminal now fits its container (with
+  server-side PTY resize) via the new `@xterm/addon-fit` dependency, and the
+  shared TUI terminal no longer tears down its socket and scrollback when
+  toggling read/write control, retries dropped connections up to three times,
+  and reports a clear final state.
 
 ## 2.2.0 — Branding, voice, navigation, and cost guardrails (2026-07-12)
 

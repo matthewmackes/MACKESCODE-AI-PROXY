@@ -37,6 +37,7 @@ import {
 import { getMeCapabilities, getOperate, getTmuxWorkspace } from '../api/generated/v2Client';
 import type { OperatePayload, TmuxWorkspacePayload } from '../api/generated/v2Client';
 import { applyThemeMode, useThemeMode } from '../theme';
+import { briefDeliveryActions, copyText } from '../utils/delivery';
 import { errorText } from '../utils/errors';
 import {
   DEFAULT_VOICE_LANGUAGE,
@@ -341,29 +342,25 @@ function ModelLogo({ model, size }: { model: ModelCard; size?: 'large' | 'xl' })
   );
 }
 
-function ModelMiniCard({ model }: { model: ModelCard }) {
+function ModelIdentityCard({ model, variant = 'mini', showStatus = false }: { model: ModelCard; variant?: 'mini' | 'alert'; showStatus?: boolean }) {
   return (
-    <article className="modelMiniCard" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
+    <article className={variant === 'alert' ? 'modelAlertCard' : 'modelMiniCard'} style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
       <ModelLogo model={model} />
       <div>
         <strong>{model.display_name}</strong>
         <span>{model.company} · {model.training_nation}</span>
+        {showStatus ? <small>{[model.route_enabled ? 'Routable' : readableStatus(model.access_status), model.type, model.cost_label].filter(Boolean).join(' · ')}</small> : null}
       </div>
     </article>
   );
 }
 
+function ModelMiniCard({ model }: { model: ModelCard }) {
+  return <ModelIdentityCard model={model} variant="mini" />;
+}
+
 function ModelAlertCard({ model }: { model: ModelCard }) {
-  return (
-    <article className="modelAlertCard" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
-      <ModelLogo model={model} />
-      <div>
-        <strong>{model.display_name}</strong>
-        <span>{model.company} · {model.training_nation}</span>
-        <small>{[model.route_enabled ? 'Routable' : readableStatus(model.access_status), model.type, model.cost_label].filter(Boolean).join(' · ')}</small>
-      </div>
-    </article>
-  );
+  return <ModelIdentityCard model={model} variant="alert" showStatus />;
 }
 
 export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClose: () => void }) {
@@ -580,26 +577,11 @@ function ModelCompareTray({ models, onRemove, onClear }: { models: ModelCard[]; 
     if (models.length) setBriefStatus('Brief Ready');
   }, [brief, models.length]);
   if (!models.length) return null;
-  const copyBrief = async () => {
-    try {
-      await copyText(brief);
-      setBriefStatus('Copied');
-    } catch {
-      setBriefStatus('Copy failed');
-    }
-  };
-  const downloadBrief = () => {
-    const blob = new Blob([brief], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mde-llm-proxy-model-compare-brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setBriefStatus('Downloaded');
-  };
+  const { copyBrief, downloadBrief } = briefDeliveryActions(brief, 'mde-llm-proxy-model-compare-brief', setBriefStatus, {
+    copied: 'Copied',
+    copyFailed: 'Copy failed',
+    downloaded: 'Downloaded',
+  });
   return (
     <section className="modelCompareTray" aria-label="Model comparison tray">
       <div className="modelCompareHeader">
@@ -892,26 +874,6 @@ function chatContactGroups(models: ModelCard[], favorites: string[], filter: str
   return groups;
 }
 
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall back for plain-HTTP remote browser sessions where clipboard access is restricted.
-    }
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', 'true');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
-}
-
 function readableStatus(value: string | undefined): string {
   return String(value || 'unknown').replace(/_/g, ' ');
 }
@@ -1190,28 +1152,11 @@ function ResearchReportActions({ dossier, onPrint, className = 'researchBriefAct
   useEffect(() => {
     setBriefStatus(readyStatus);
   }, [brief, readyStatus]);
-  const copyBrief = async () => {
-    if (disabled) return;
-    try {
-      await copyText(brief);
-      setBriefStatus('Copied');
-    } catch {
-      setBriefStatus('Copy failed');
-    }
-  };
-  const downloadBrief = () => {
-    if (disabled) return;
-    const blob = new Blob([brief], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mde-llm-proxy-research-packet-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setBriefStatus('Downloaded');
-  };
+  const { copyBrief, downloadBrief } = briefDeliveryActions(brief, 'mde-llm-proxy-research-packet', setBriefStatus, {
+    copied: 'Copied',
+    copyFailed: 'Copy failed',
+    downloaded: 'Downloaded',
+  }, !disabled);
   return (
     <div className={className} aria-label="Research brief actions">
       <span>{briefStatus}</span>
@@ -2780,28 +2725,11 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     URL.revokeObjectURL(url);
     setTranscriptStatus('Downloaded');
   };
-  const copyChatBrief = async () => {
-    if (!messages.length) return;
-    try {
-      await copyText(chatBrief);
-      setTranscriptStatus('Brief copied');
-    } catch {
-      setTranscriptStatus('Brief copy failed');
-    }
-  };
-  const downloadChatBrief = () => {
-    if (!messages.length) return;
-    const blob = new Blob([chatBrief], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mde-llm-proxy-chat-brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setTranscriptStatus('Brief downloaded');
-  };
+  const { copyBrief: copyChatBrief, downloadBrief: downloadChatBrief } = briefDeliveryActions(chatBrief, 'mde-llm-proxy-chat-brief', setTranscriptStatus, {
+    copied: 'Brief copied',
+    copyFailed: 'Brief copy failed',
+    downloaded: 'Brief downloaded',
+  }, messages.length > 0);
   useEffect(() => {
     if (!voiceProfile || voiceDefaultLoaded) return;
     if (!voicePreferences) {
@@ -3371,28 +3299,11 @@ export function CodePage() {
       setCopiedActionId(`failed:${action.id}`);
     }
   };
-  const copyCodeBrief = async () => {
-    if (!hasCodeBrief) return;
-    try {
-      await copyText(codeBrief);
-      setOutputStatus('Brief copied');
-    } catch {
-      setOutputStatus('Brief copy failed');
-    }
-  };
-  const downloadCodeBrief = () => {
-    if (!hasCodeBrief) return;
-    const blob = new Blob([codeBrief], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mde-llm-proxy-code-brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setOutputStatus('Brief downloaded');
-  };
+  const { copyBrief: copyCodeBrief, downloadBrief: downloadCodeBrief } = briefDeliveryActions(codeBrief, 'mde-llm-proxy-code-brief', setOutputStatus, {
+    copied: 'Brief copied',
+    copyFailed: 'Brief copy failed',
+    downloaded: 'Brief downloaded',
+  }, hasCodeBrief);
   const startMutation = useMutation({
     mutationFn: () => startCodeSession({ name: sessionName, project_dir: projectDir, model: selectedModel, permission_mode: 'bypassPermissions', run_mode: 'interactive' }),
     onSuccess: (payload) => {
@@ -4099,28 +4010,11 @@ export function CreatePage() {
       setHistoryStatus('Copy failed');
     }
   };
-  const copyCreateBrief = async () => {
-    if (!hasCreateBrief) return;
-    try {
-      await copyText(createBrief);
-      setBriefStatus('Brief copied');
-    } catch {
-      setBriefStatus('Brief copy failed');
-    }
-  };
-  const downloadCreateBrief = () => {
-    if (!hasCreateBrief) return;
-    const blob = new Blob([createBrief], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mde-llm-proxy-create-brief-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setBriefStatus('Brief downloaded');
-  };
+  const { copyBrief: copyCreateBrief, downloadBrief: downloadCreateBrief } = briefDeliveryActions(createBrief, 'mde-llm-proxy-create-brief', setBriefStatus, {
+    copied: 'Brief copied',
+    copyFailed: 'Brief copy failed',
+    downloaded: 'Brief downloaded',
+  }, hasCreateBrief);
   const imageMutation = useMutation({
     mutationFn: () => runCreateImages({ prompt, ...(selectedImageModel ? { model: selectedImageModel } : {}) }),
     onSuccess: (payload) => {

@@ -4,34 +4,22 @@ import { Alert, Button, Card, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { DecisionExplanation, ReportingExportResult, explainObserveDecision, exportObserveReporting, getMeCapabilities, getObserve } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
-
-function money(value: unknown): string {
-  const parsed = Number(value || 0);
-  return Number.isFinite(parsed) ? `$${parsed.toFixed(4)}` : '$0.0000';
-}
-
-function list(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? value.filter((row) => row && typeof row === 'object') as Array<Record<string, unknown>> : [];
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
+import { listValue, money, recordValue } from '../utils/format';
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
 function auditExplanationRecord(row: Record<string, unknown>): Record<string, unknown> {
-  const request = record(row.request);
+  const request = recordValue(row.request);
   const rest = { ...row };
   delete rest.request;
   delete rest.related_links;
   return {
     ...rest,
     path: row.request_path || request.path,
-    actor: record(row.actor),
-    policy_decision: { ...record(request.policy_decision) }
+    actor: recordValue(row.actor),
+    policy_decision: { ...recordValue(request.policy_decision) }
   };
 }
 
@@ -53,28 +41,28 @@ export default function ObservePage() {
   });
   const canView = capabilities.data?.capabilities['billing.view']?.allowed ?? false;
   const payload = observe.data;
-  const consoleStatus = record(payload?.console);
-  const cost = record(payload?.cost);
-  const analytics = record(payload?.analytics);
-  const providerHealth = record(payload?.provider_health);
-  const audit = record(payload?.audit);
-  const evals = record(payload?.evals);
-  const evalSummary = record(evals.summary);
-  const telemetry = record(payload?.telemetry);
-  const telemetryMetrics = record(telemetry.metrics);
-  const telemetryExporter = record(telemetry.exporter);
-  const telemetryPrivacy = record(telemetry.privacy);
-  const telemetryPolicy = record(telemetry.policy);
-  const reportingExport = record(payload?.reporting_export);
-  const reportingIntegrations = record(payload?.reporting_integrations);
-  const traces = list(payload?.traces);
-  const auditRows = list(audit.records);
-  const evalDatasets = list(evals.datasets);
-  const evalRuns = list(evals.runs);
+  const consoleStatus = recordValue(payload?.console);
+  const cost = recordValue(payload?.cost);
+  const analytics = recordValue(payload?.analytics);
+  const providerHealth = recordValue(payload?.provider_health);
+  const audit = recordValue(payload?.audit);
+  const evals = recordValue(payload?.evals);
+  const evalSummary = recordValue(evals.summary);
+  const telemetry = recordValue(payload?.telemetry);
+  const telemetryMetrics = recordValue(telemetry.metrics);
+  const telemetryExporter = recordValue(telemetry.exporter);
+  const telemetryPrivacy = recordValue(telemetry.privacy);
+  const telemetryPolicy = recordValue(telemetry.policy);
+  const reportingExport = recordValue(payload?.reporting_export);
+  const reportingIntegrations = recordValue(payload?.reporting_integrations);
+  const traces = listValue(payload?.traces);
+  const auditRows = listValue(audit.records);
+  const evalDatasets = listValue(evals.datasets);
+  const evalRuns = listValue(evals.runs);
   const metricFamilies = strings(telemetry.metric_families);
   const labelKeys = strings(telemetry.label_keys);
-  const findings = list(providerHealth.findings);
-  const analyticsSummary = record(analytics.summary);
+  const findings = listValue(providerHealth.findings);
+  const analyticsSummary = recordValue(analytics.summary);
 
   return (
     <Space direction="vertical" size={16} className="pageStack">
@@ -194,16 +182,16 @@ export default function ObservePage() {
             pagination={{ pageSize: 6 }}
             columns={[
               { title: 'Run', dataIndex: 'id' },
-              { title: 'Dataset', render: (_value, row) => String(record(row.dataset).name || record(row.dataset).id || row.dataset || '') },
+              { title: 'Dataset', render: (_value, row) => String(recordValue(row.dataset).name || recordValue(row.dataset).id || row.dataset || '') },
               { title: 'Models', render: (_value, row) => Array.isArray(row.models) ? row.models.join(', ') : String(row.models || '') },
               { title: 'Examples', dataIndex: 'example_count' },
               {
                 title: 'Requests',
-                render: (_value, row) => list(row.summary).reduce((total, item) => total + Number(item.requests || 0), 0)
+                render: (_value, row) => listValue(row.summary).reduce((total, item) => total + Number(item.requests || 0), 0)
               },
               {
                 title: 'Cost',
-                render: (_value, row) => money(list(row.summary).reduce((total, item) => total + Number(item.total_cost_usd || 0), 0))
+                render: (_value, row) => money(listValue(row.summary).reduce((total, item) => total + Number(item.total_cost_usd || 0), 0))
               }
             ]}
           />
