@@ -1,4 +1,4 @@
-import { CSSProperties, KeyboardEvent, MouseEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { CSSProperties, KeyboardEvent, MouseEvent, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import cnFlag from 'flag-icons/flags/1x1/cn.svg';
 import usFlag from 'flag-icons/flags/1x1/us.svg';
 import frFlag from 'flag-icons/flags/1x1/fr.svg';
@@ -267,6 +267,7 @@ export function ModelIdentityCard({
   const detailAction = onOpenDetail || openModelDetail;
   const bodyAction = onPrimary || detailAction;
   const infoGlyphNeeded = interactive && Boolean(onPrimary);
+  const hasCorner = interactive && (showFavorite || infoGlyphNeeded || Boolean(trailing));
   const facts = effectiveSize === 'big'
     ? [modelStatusLabel(model), model.cost_label, model.context_window ? `${model.context_window.toLocaleString()} ctx` : '', model.type, modelHealthLabel(model)]
     : [modelStatusLabel(model), model.cost_label, modelHealthLabel(model)];
@@ -276,7 +277,7 @@ export function ModelIdentityCard({
   };
   return (
     <article
-      className={['mdlCard', effectiveSize, active ? 'active' : ''].filter(Boolean).join(' ')}
+      className={['mdlCard', effectiveSize, active ? 'active' : '', hasCorner ? 'hasCorner' : ''].filter(Boolean).join(' ')}
       style={{ ['--mdl-accent' as string]: accent } as CSSProperties}
       data-testid={testId || 'model-identity-card'}
       data-model-id={model.id}
@@ -291,10 +292,10 @@ export function ModelIdentityCard({
           <FlagBadge nation={model.training_nation} />
         </span>
         <span className="mdlCardIdentity">
-          <strong className="mdlCardName">
-            {model.display_name}
-            {model.is_new ? <span className="mdlCardSparkle" title="New in the last 7 days" aria-label="New model">✨</span> : null}
-          </strong>
+          <span className="mdlCardNameRow">
+            <strong className="mdlCardName">{model.display_name}</strong>
+            {model.is_new ? <span className="mdlCardSparkle" title="New in the last 7 days" role="img" aria-label="New model">✨</span> : null}
+          </span>
           <small className="mdlCardByline">by {model.company || model.provider || 'Unknown'}{model.training_nation ? <> · {model.training_nation}</> : null}</small>
           {effectiveSize === 'big' && model.use_case ? <span className="mdlCardBlurb">{model.use_case}</span> : null}
           <span className="mdlCardFacts">
@@ -356,6 +357,8 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model', allo
   const [expanded, setExpanded] = useState(false);
   const [optionFilter, setOptionFilter] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-opt-${index}`;
   const { favorites } = useModelFavorites();
   const query = optionFilter.trim().toLowerCase();
   const matching = query
@@ -420,6 +423,8 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model', allo
         className="mdlSelectTrigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open && visible[highlighted] ? optionId(highlighted) : undefined}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onTriggerKeyDown}
       >
@@ -442,7 +447,7 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model', allo
         </button>
       ) : null}
       {open ? (
-        <div className="mdlSelectPopover" role="listbox" aria-label={`${label} options`}>
+        <div className="mdlSelectPopover">
           <input
             className="mdlSelectFilter"
             value={optionFilter}
@@ -450,17 +455,21 @@ export function ModelCardSelect({ models, value, onChange, label = 'Model', allo
             placeholder="Filter models"
             aria-label={`Filter ${label} options`}
           />
-          {visible.map((model, index) => (
-            <div
-              key={model.id}
-              role="option"
-              aria-selected={model.id === selected?.id}
-              className={['mdlSelectOption', index === highlighted ? 'highlighted' : ''].filter(Boolean).join(' ')}
-              onMouseEnter={() => setHighlighted(index)}
-            >
-              <ModelIdentityCard model={model} size="small" onPrimary={choose} testId="model-select-option" />
-            </div>
-          ))}
+          <div id={listId} className="mdlSelectListbox" role="listbox" aria-label={`${label} options`}>
+            {visible.map((model, index) => (
+              <div
+                key={model.id}
+                id={optionId(index)}
+                role="option"
+                aria-selected={model.id === selected?.id}
+                className={['mdlSelectOption', index === highlighted ? 'highlighted' : ''].filter(Boolean).join(' ')}
+                onMouseEnter={() => setHighlighted(index)}
+                onClick={() => choose(model)}
+              >
+                <ModelIdentityCard model={model} size="small" interactive={false} showFavorite={false} testId="model-select-option" />
+              </div>
+            ))}
+          </div>
           {collapsed && hiddenCount > 0 ? (
             <button type="button" className="mdlSelectMore" onClick={() => setExpanded(true)}>
               More models ({hiddenCount})…

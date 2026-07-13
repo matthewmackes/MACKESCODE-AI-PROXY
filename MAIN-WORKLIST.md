@@ -10824,6 +10824,47 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 ---
 
+### Task ID: V2-084
+**Title:** Post-refactor polish batch (card a11y, Create dark mode, chrome version pill)
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** `/polish` survey of the surfaces touched by the V2-081/082/083 card refactor and the version-pill addition (two Explore surveys against the 7 project polish axes). Fixes the genuine defects and self-inflicted rough edges found; several were introduced this session.
+
+**Scope (accepted findings):**
+- P1 Create over-wallpaper white chips use theme-flipping text tokens → mood clock / result labels go white-on-white in dark mode; pin their ink to fixed dark (consistent with the "Create glass stays glass" decision).
+- P1 `ModelCardSelect` is an invalid listbox: options wrap native buttons, the filter input sits inside `role="listbox"`, no `aria-activedescendant`. Render options passively (use the existing `interactive={false}` path — currently dead), move the filter above the listbox, wire `aria-activedescendant`.
+- P1 Small-card corner buttons (star/info) overlap the ellipsized name creating a ~56px mis-click zone; add right padding when corner controls are present.
+- P2 Version pill introduced this session: "Console v2" (generation) vs "v2.2.0" (release) ambiguity, no ≤620px treatment (steals ~65px on mobile), no aria-label — relabel, hide on narrow, add label.
+- P2 Cost pill renders "$0.00" MIN/DAY/MONTH when the cost API is offline → show "—".
+- P2 Empty-favorites hint unreachable (active contact always pinned) and shows wrong wording on a no-match search → gate on `favorites.length===0`, distinct no-match message.
+- P2 Models-grid "Use in Chat" offered for non-routable models → opens a different model in Chat; only offer when `route_enabled`.
+- P2 Near-black brand accents (Anthropic #191919, Moonshot #000000) make the stripe/active indicator invisible in dark → clamp accent luminance for the border/active path.
+- P2 Drawer slide keyframe runs at mount, not on expand → animate the `.open` state.
+- P2 Tautological "N · N online" (contact list is pre-filtered to routable) → drop the redundant online count.
+- P3 hygiene: unused `modelStatusLabel` import, sparkle inside the truncating name span, weather stuck on "standby", muted voice-tools empty band, `.mdlCardBody:focus-visible` ring.
+
+**Completion Criteria:**
+- [x] Accepted P1/P2/P3 findings implemented (dark-mode Create chips, listbox a11y, corner mis-click padding, version pill aria/mobile, cost "—" offline, favorites hint, routable-only Use-in-Chat, near-black accent clamp, expand animation, dropped online count, sparkle/import/weather/voice-band/focus-ring hygiene)
+- [x] Dead `interactive={false}` passive path now used by select options; `allowClear` confirmed live (RunPage `ModelCardSelectField`), not dead
+- [x] Frontend build + bundle boundary (179,673 B) + required V2 browser smoke pass; committed (no push)
+
+**Deferred (logged, not blocking):**
+- Models grid drops Compare/Use-in-Chat when Big degrades to Small under 620px — mobile users lose those two workflows (needs a compact icon-actions row on `small`).
+- The favorites-lead-collapse logic is re-implemented three times (chat pane, grid, select) with drift — extract a shared `partitionFavorites(models, favorites, {expanded, query})`.
+- `.mdlCard` mounts a matchMedia + favorites subscription per instance; hoist to the page for large grids.
+- Brand "Console v2" sits beside the "v2.2.0" release pill — accepted as a conventional semver pill rather than churning branding + the smoke's "Console v2" assertion.
+
+**Verification:** `tsc -b` clean; `npm run build`; `check-v2-frontend-bundles.py`; `scripts/v2-browser-smoke.py --required` (updated the stale "· N online" drawer-header assertion to "All contacts").
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; worklist drained 2026-07-13 — INT-168/169/170/171 hardening, V2-076/077/078/079 polish, and V2-082/083 favorites-collapse + brand-hue/flag cards all COMPLETED with tests + browser smoke green. No open TODO/IN_PROGRESS tasks remain.*
+*Last updated by: Claude; V2-084 post-refactor polish batch COMPLETED 2026-07-13.*
 *Timestamp: 2026-07-13*

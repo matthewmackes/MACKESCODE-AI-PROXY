@@ -742,11 +742,12 @@ export default function App() {
         <span
           className="shellVersionBadge"
           data-testid="shell-version"
-          title={`${platformBranding.brandName} release ${releaseVersion}${health.data?.version ? ' (live)' : ''}`}
+          aria-label={`${platformBranding.brandName} release ${releaseVersion}`}
+          title={`${platformBranding.brandName} release ${releaseVersion}${health.data?.version ? ' (live)' : ' (build)'}`}
         >
           v{releaseVersion}
         </span>
-        <div className="shellCurrentWorkspace" aria-live="polite">
+        <div className="shellCurrentWorkspace" data-testid="shell-current-workspace" aria-live="polite">
           <span>Workspace</span>
           <strong>{activeItem.label}</strong>
         </div>
@@ -804,15 +805,15 @@ export default function App() {
             <CarbonIcon path="actions/system-run-symbolic.svg" label="Cost" />
             <span>
               <small>MIN</small>
-              <strong data-testid="shell-cost-minute">{money(costPayload?.costs?.minute_total_usd)}</strong>
+              <strong data-testid="shell-cost-minute">{costStatus === 'offline' ? '—' : money(costPayload?.costs?.minute_total_usd)}</strong>
             </span>
             <span>
               <small>DAY</small>
-              <strong data-testid="shell-cost-day">{money(costPayload?.costs?.daily_total_usd)}</strong>
+              <strong data-testid="shell-cost-day">{costStatus === 'offline' ? '—' : money(costPayload?.costs?.daily_total_usd)}</strong>
             </span>
             <span>
               <small>MONTH</small>
-              <strong data-testid="shell-cost-month">{money(costPayload?.costs?.monthly_total_usd)}</strong>
+              <strong data-testid="shell-cost-month">{costStatus === 'offline' ? '—' : money(costPayload?.costs?.monthly_total_usd)}</strong>
             </span>
           </summary>
           <div className="shellCostPanel" role="group" aria-label="Cost threshold and pause controls">

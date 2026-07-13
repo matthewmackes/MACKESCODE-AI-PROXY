@@ -40,7 +40,7 @@ import { applyThemeMode, useThemeMode } from '../theme';
 import { briefDeliveryActions, copyText } from '../utils/delivery';
 import { errorText } from '../utils/errors';
 import { readableStatus } from '../utils/format';
-import { CarbonIcon, ModelCardSelect, ModelIdentityCard, ModelLogo, V2_MODEL_DETAIL_EVENT, modelHealthLabel, modelStatusLabel, useBrandSvg } from '../components/modelCard';
+import { CarbonIcon, ModelCardSelect, ModelIdentityCard, ModelLogo, V2_MODEL_DETAIL_EVENT, modelHealthLabel, useBrandSvg } from '../components/modelCard';
 import { useModelFavorites } from '../favorites';
 import {
   DEFAULT_VOICE_LANGUAGE,
@@ -735,7 +735,6 @@ type ChatContactPane = {
   pinned: ModelCard[];
   drawer: ModelCard[];
   totalCount: number;
-  onlineCount: number;
 };
 
 function chatContactPane(models: ModelCard[], favorites: string[], activeId: string, filter: string): ChatContactPane {
@@ -757,7 +756,6 @@ function chatContactPane(models: ModelCard[], favorites: string[], activeId: str
     pinned,
     drawer,
     totalCount: models.length,
-    onlineCount: models.filter((model) => model.route_enabled).length,
   };
 }
 
@@ -823,10 +821,17 @@ function useCreateMood() {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     let cancelled = false;
     const loadWeather = async () => {
-      if (!('permissions' in navigator) || !navigator.geolocation) return;
+      if (!('permissions' in navigator) || !navigator.geolocation) {
+        if (!cancelled) setWeather('Weather off');
+        return;
+      }
       try {
         const permission = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-        if (permission.state !== 'granted' || cancelled) return;
+        if (cancelled) return;
+        if (permission.state !== 'granted') {
+          setWeather('Weather off');
+          return;
+        }
         navigator.geolocation.getCurrentPosition(async (position) => {
           try {
             const { latitude, longitude } = position.coords;
@@ -2939,7 +2944,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
                 <span>⭐ Pinned</span>
                 <strong>{contactPane.pinned.length}</strong>
               </div>
-              {contactPane.pinned.length ? contactPane.pinned.map((contact) => (
+              {contactPane.pinned.map((contact) => (
                 <ModelIdentityCard
                   key={`pinned-${contact.id}`}
                   model={contact}
@@ -2948,9 +2953,10 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
                   active={contact.id === selectedModel}
                   testId="chat-contact-card"
                 />
-              )) : (
-                <p className="icqPinnedHint">☆ Star models to keep them here.</p>
-              )}
+              ))}
+              {favoriteIds.length === 0 && !contactFilter.trim() ? (
+                <p className="icqPinnedHint">☆ Star a model to keep it here.</p>
+              ) : null}
             </section>
             <button
               type="button"
@@ -2960,7 +2966,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
               onClick={() => setContactsDrawerOpen((current) => !current)}
             >
               <span className="icqDrawerChevron" aria-hidden="true">▸</span>
-              All contacts ({contactPane.totalCount} · {contactPane.onlineCount} online)
+              All contacts ({contactPane.totalCount})
             </button>
             <section className={`icqContactDrawer ${contactsDrawerExpanded ? 'open' : ''}`} aria-hidden={!contactsDrawerExpanded}>
               {contactsDrawerExpanded ? (
@@ -4137,7 +4143,7 @@ export function ModelsPage() {
                   onOpenDetail={(target) => setInspectedModelId(target.id)}
                   compared={compareIds.includes(model.id)}
                   onCompareToggle={(target) => toggleCompare(target.id)}
-                  onUseInChat={openModelInChat}
+                  onUseInChat={model.route_enabled ? openModelInChat : undefined}
                   testId="model-showcase-card"
                 />
               ))}

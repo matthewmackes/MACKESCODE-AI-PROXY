@@ -1340,7 +1340,7 @@ def run_browser_smoke(base_url: str) -> None:
         drawer_toggle = page.get_by_test_id("chat-contacts-drawer-toggle")
         expect(drawer_toggle).to_be_visible()
         expect(drawer_toggle).to_have_attribute("aria-expanded", "false")
-        expect(drawer_toggle).to_contain_text("online")
+        expect(drawer_toggle).to_contain_text("All contacts")
         expect(contact_cards.first).to_be_visible()
         # V2-083: every model identity card carries a training-nation flag badge on its logo tile.
         expect(contact_cards.first.locator(".mdlFlagBadge")).to_be_visible()
