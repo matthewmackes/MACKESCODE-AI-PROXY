@@ -2,7 +2,7 @@ import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdvancedPage, CarbonIcon, ChatPage, CodePage, CreatePage, ModelDetailHost, ResearchPage, V2_ADVANCED_TAB_EVENT, V2_AUTH_REQUIRED_EVENT, V2_RESETTABLE_WORKSPACE_KEYS, V2_WORKSPACE_SESSION_KEYS, WHATS_NEW_DISMISSED_KEY, WhatsNewModal } from './pages/HeroPages';
 import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api/auth';
-import { CostControlPayload, getCostControl, getSpeechStatus, getWhatsNew, overrideCostControl, updateCostControlThresholds } from './api/v2';
+import { CostControlPayload, getCostControl, getHealth, getSpeechStatus, getWhatsNew, overrideCostControl, updateCostControlThresholds } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
 import { applyThemeMode, resolveInitialThemeMode, useThemeMode } from './theme';
@@ -295,6 +295,8 @@ export default function App() {
       return true;
     }
   });
+  const health = useQuery({ queryKey: ['shell-health'], queryFn: getHealth, retry: false });
+  const releaseVersion = health.data?.version || __APP_VERSION__;
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew, retry: false });
   const speechStatus = useQuery({ queryKey: ['shell-speech-status'], queryFn: getSpeechStatus, retry: false, refetchInterval: 30000 });
   const costControl = useQuery({ queryKey: ['cost-control'], queryFn: getCostControl, retry: false, refetchInterval: 60000 });
@@ -737,6 +739,13 @@ export default function App() {
             <span>{platformBranding.platform} Console v2</span>
           </div>
         </div>
+        <span
+          className="shellVersionBadge"
+          data-testid="shell-version"
+          title={`${platformBranding.brandName} release ${releaseVersion}${health.data?.version ? ' (live)' : ''}`}
+        >
+          v{releaseVersion}
+        </span>
         <div className="shellCurrentWorkspace" aria-live="polite">
           <span>Workspace</span>
           <strong>{activeItem.label}</strong>

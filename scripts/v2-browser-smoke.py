@@ -1157,6 +1157,8 @@ def run_browser_smoke(base_url: str) -> None:
         assert_loaded_image(page.get_by_test_id("shell-brand-icon").locator("img"), "shell MDE app icon")
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("MDE")
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("LLM-PROXY Console v2")
+        expect(page.get_by_test_id("shell-version")).to_be_visible()
+        expect(page.get_by_test_id("shell-version")).to_contain_text(re.compile(r"v\d+\.\d+"))
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Workspace")
         expect(page.get_by_test_id("shell-floating-menu")).to_contain_text("Chat")
         expect(page.get_by_test_id("shell-menu-toggle")).to_have_attribute("aria-expanded", "false")

@@ -1,4 +1,4 @@
-import{r as m,j as _}from"./vendor-react-e3356dcc.js";import{x as P,t as A}from"./terminalTheme-e0968941.js";import{ah as T}from"./index-6641dfd4.js";/**
+import{r as m,j as _}from"./vendor-react-e3356dcc.js";import{x as P,t as A}from"./terminalTheme-e0968941.js";import{ah as T}from"./index-9f148123.js";/**
  * Copyright (c) 2014-2024 The xterm.js authors. All rights reserved.
  * @license MIT
  *

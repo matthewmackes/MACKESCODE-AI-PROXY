@@ -370,6 +370,15 @@ export type CostControlPayload = {
   provider?: Record<string, unknown>;
 };
 
+export type HealthPayload = {
+  status: string;
+  version: string;
+};
+
+export function getHealth(): Promise<HealthPayload> {
+  return requestJson<HealthPayload>('/v2/health');
+}
+
 export function getModels(): Promise<ModelsPayload> {
   return requestJson<ModelsPayload>('/v2/models');
 }

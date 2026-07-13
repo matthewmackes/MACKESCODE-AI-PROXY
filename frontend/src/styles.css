@@ -150,6 +150,21 @@ button {
   align-content: center;
 }
 
+.shellVersionBadge {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 2px 8px;
+  border: 1px solid var(--cds-border-subtle);
+  border-radius: 999px;
+  background: var(--cds-layer-02);
+  color: var(--cds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
 .shellFloatingBrand {
   flex: 1 1 220px;
   grid-template-columns: 34px minmax(0, 1fr);
