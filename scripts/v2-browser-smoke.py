@@ -1220,10 +1220,15 @@ def run_browser_smoke(base_url: str) -> None:
         expect(readiness_pulse).to_contain_text("block")
         expect(readiness_pulse).to_contain_text("adv")
         expect(readiness_pulse).to_contain_text("checks")
-        expect(page.get_by_test_id("advanced-readiness-reasons")).to_be_visible()
-        expect(page.get_by_test_id("advanced-readiness-reason").first).to_be_visible()
-        expect(page.get_by_test_id("advanced-readiness-reason").first).to_contain_text("Config drift")
-        expect(page.get_by_test_id("advanced-readiness-reason").first).not_to_contain_text("#1 Operator Action")
+        # Readiness reasons depend on the ephemeral server's live drift/state,
+        # which is empty on a clean checkout (e.g. CI). Assert reason rendering
+        # only when reasons exist; run_readiness_advisory_label_smoke covers the
+        # reasons list and "Config drift" content deterministically with mocks.
+        readiness_reasons = page.get_by_test_id("advanced-readiness-reason")
+        if readiness_reasons.count() > 0:
+            expect(page.get_by_test_id("advanced-readiness-reasons")).to_be_visible()
+            expect(readiness_reasons.first).to_be_visible()
+            expect(readiness_reasons.first).not_to_contain_text("#1 Operator Action")
         readiness_pulse.click()
         expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_test_id("operate-payment-review")).to_be_visible()
