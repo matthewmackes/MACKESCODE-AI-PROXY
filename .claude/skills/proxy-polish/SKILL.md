@@ -1,5 +1,5 @@
 ---
-name: polish
+name: proxy-polish
 description: >-
   Iteratively refine the DO Claude Code Proxy web interface, especially Create,
   Code, Console, model cards, dark mode, and routing/cost detail surfaces. Use
@@ -8,7 +8,12 @@ description: >-
   bugs or release publishing.
 ---
 
-# polish - GUI Refinement For DO Claude Code Proxy
+# proxy-polish - GUI Refinement For DO Claude Code Proxy
+
+Invoke as `/proxy-polish`. (This is the project-scoped GUI polish loop for the
+DO Claude Code Proxy web console. It is deliberately named distinctly from the
+user-level `/polish` MCNF egui skill, which targets a different codebase and
+must not be applied here.)
 
 Read `GOVERNANCE.md`, `docs/requirements-ledger.md`, and
 `docs/create-experience.md` before making broad UI changes. The goal is a
