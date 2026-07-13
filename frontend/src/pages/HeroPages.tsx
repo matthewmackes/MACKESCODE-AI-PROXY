@@ -1,16 +1,5 @@
 import { ChangeEvent, ClipboardEvent, DragEvent, Fragment, KeyboardEvent, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import alibabaCloudMark from 'simple-icons/icons/alibabacloud.svg?raw';
-import anthropicMark from 'simple-icons/icons/anthropic.svg?raw';
-import deepseekMark from 'simple-icons/icons/deepseek.svg?raw';
-import digitalOceanMark from 'simple-icons/icons/digitalocean.svg?raw';
-import googleMark from 'simple-icons/icons/google.svg?raw';
-import metaMark from 'simple-icons/icons/meta.svg?raw';
-import minimaxMark from 'simple-icons/icons/minimax.svg?raw';
-import mistralMark from 'simple-icons/icons/mistralai.svg?raw';
-import moonshotMark from 'simple-icons/icons/moonshotai.svg?raw';
-import nvidiaMark from 'simple-icons/icons/nvidia.svg?raw';
-import xiaomiMark from 'simple-icons/icons/xiaomi.svg?raw';
 import {
   CodeAttachment,
   discoverModels,
@@ -47,6 +36,7 @@ import {
 } from '../api/v2';
 import { getMeCapabilities, getOperate, getTmuxWorkspace } from '../api/generated/v2Client';
 import type { OperatePayload, TmuxWorkspacePayload } from '../api/generated/v2Client';
+import { applyThemeMode, useThemeMode } from '../theme';
 import { errorText } from '../utils/errors';
 import {
   DEFAULT_VOICE_LANGUAGE,
@@ -59,6 +49,28 @@ import {
 } from '../voicePreferences';
 
 const iconBase = '/branding/Mackes-Carbon/scalable';
+
+let loadedBrandMarkArt: Record<string, string> = {};
+const brandMarkArtReady = import('../brandMarkArt')
+  .then((module) => {
+    loadedBrandMarkArt = module.BRAND_MARK_ART;
+    return loadedBrandMarkArt;
+  })
+  .catch(() => loadedBrandMarkArt);
+
+function useBrandMarkArt(): Record<string, string> {
+  const [art, setArt] = useState(loadedBrandMarkArt);
+  useEffect(() => {
+    let active = true;
+    void brandMarkArtReady.then((loaded) => {
+      if (active) setArt(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return art;
+}
 export const WHATS_NEW_DISMISSED_KEY = 'matts-v2-whats-new-dismissed';
 export const V2_WORKSPACE_SESSION_KEYS = {
   chatTranscript: 'matts-v2-chat-transcript',
@@ -95,6 +107,7 @@ const ConsolePage = lazy(() => delayedAdvancedImport(() => import('./ConsolePage
 const ObservePage = lazy(() => delayedAdvancedImport(() => import('./ObservePage')));
 const OperatePage = lazy(() => delayedAdvancedImport(() => import('./OperatePage')));
 const RunPage = lazy(() => delayedAdvancedImport(() => import('./RunPage')));
+const AdvancedThemeProvider = lazy(() => delayedAdvancedImport(() => import('../components/AdvancedThemeProvider')));
 const TuiTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TuiTerminal')));
 const TmuxTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TmuxTerminal')));
 
@@ -138,7 +151,9 @@ function responseText(payload: unknown): string {
     const text = asText(response.text);
     return text.trim() ? text : diagnosticWarningText(response);
   }
-  return asText(response.text || response.content || response.message || response.answer || response);
+  const readable = asText(response.text || response.content || response.message || response.answer);
+  if (readable.trim()) return readable;
+  return diagnosticWarningText(response) || 'The model returned a response with no readable text. Open Raw payload for the full detail.';
 }
 
 function responseHasDiagnostics(payload: unknown): boolean {
@@ -161,10 +176,17 @@ function chatResponseMetadata(payload: unknown): string {
   return parts.join(' · ');
 }
 
+const STATUS_PANEL_LABELS: Record<string, string> = {
+  neutral: 'Status',
+  loading: 'Loading',
+  error: 'Error',
+  success: 'Ready',
+};
+
 function StatusPanel({ tone = 'neutral', title, detail }: { tone?: 'neutral' | 'loading' | 'error' | 'success'; title: string; detail?: string }) {
   return (
     <div className={`statusPanel ${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
-      <span>{tone === 'loading' ? 'Loading' : tone}</span>
+      <span>{STATUS_PANEL_LABELS[tone] || 'Status'}</span>
       <strong>{title}</strong>
       {detail ? <p>{detail}</p> : null}
     </div>
@@ -223,26 +245,26 @@ function modelLogoInitials(model: ModelCard): string {
   return (letters || 'AI').toUpperCase();
 }
 
-type LocalBrandMark = { key: string; label: string; short: string; svg?: string };
+type LocalBrandMark = { key: string; label: string; short: string };
 
 const LOCAL_BRAND_MARKS: Record<string, LocalBrandMark> = {
-  alibaba: { key: 'alibaba', label: 'Alibaba Cloud', short: 'ALI', svg: alibabaCloudMark },
-  anthropic: { key: 'anthropic', label: 'Anthropic', short: 'ANT', svg: anthropicMark },
+  alibaba: { key: 'alibaba', label: 'Alibaba Cloud', short: 'ALI' },
+  anthropic: { key: 'anthropic', label: 'Anthropic', short: 'ANT' },
   arcee: { key: 'arcee', label: 'Arcee AI', short: 'ARC' },
   baai: { key: 'baai', label: 'BAAI', short: 'BAAI' },
   blackforest: { key: 'blackforest', label: 'Black Forest Labs', short: 'BFL' },
-  deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS', svg: deepseekMark },
-  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO', svg: digitalOceanMark },
-  google: { key: 'google', label: 'Google', short: 'G', svg: googleMark },
-  meta: { key: 'meta', label: 'Meta', short: 'META', svg: metaMark },
+  deepseek: { key: 'deepseek', label: 'DeepSeek', short: 'DS' },
+  digitalocean: { key: 'digitalocean', label: 'DigitalOcean', short: 'DO' },
+  google: { key: 'google', label: 'Google', short: 'G' },
+  meta: { key: 'meta', label: 'Meta', short: 'META' },
   microsoft: { key: 'microsoft', label: 'Microsoft', short: 'MS' },
-  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI', svg: minimaxMark },
-  mistral: { key: 'mistral', label: 'Mistral AI', short: 'M', svg: mistralMark },
-  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI', svg: moonshotMark },
-  nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV', svg: nvidiaMark },
+  minimax: { key: 'minimax', label: 'MiniMax', short: 'MINI' },
+  mistral: { key: 'mistral', label: 'Mistral AI', short: 'M' },
+  moonshot: { key: 'moonshot', label: 'Moonshot AI', short: 'KIMI' },
+  nvidia: { key: 'nvidia', label: 'NVIDIA', short: 'NV' },
   openai: { key: 'openai', label: 'OpenAI', short: 'OAI' },
   stability: { key: 'stability', label: 'Stability AI', short: 'SD' },
-  xiaomi: { key: 'xiaomi', label: 'Xiaomi', short: 'MI', svg: xiaomiMark },
+  xiaomi: { key: 'xiaomi', label: 'Xiaomi', short: 'MI' },
   zhipu: { key: 'zhipu', label: 'Zhipu AI', short: 'GLM' },
 };
 
@@ -297,15 +319,17 @@ function canRenderArtworkLogo(url: string): boolean {
 function ModelLogo({ model, size }: { model: ModelCard; size?: 'large' | 'xl' }) {
   const logo = model.artwork?.logo || '';
   const brandMark = localBrandMark(model);
+  const brandArt = useBrandMarkArt();
+  const brandSvg = brandMark ? brandArt[brandMark.key] : undefined;
   const renderableLogo = !brandMark && canRenderArtworkLogo(logo);
   const [failedLogo, setFailedLogo] = useState(false);
   useEffect(() => setFailedLogo(false), [model.id, logo, renderableLogo]);
   const className = ['modelLogo', size].filter(Boolean).join(' ');
-  const artworkState = brandMark?.svg ? 'local-brand-svg' : brandMark ? 'local-brand-text' : renderableLogo && logo && !failedLogo ? 'public-logo' : logo ? 'attributed-initials' : 'generated-initials';
+  const artworkState = brandSvg ? 'local-brand-svg' : brandMark ? 'local-brand-text' : renderableLogo && logo && !failedLogo ? 'public-logo' : logo ? 'attributed-initials' : 'generated-initials';
   return (
     <div className={className} data-artwork-state={artworkState} data-brand={brandMark?.key || ''} data-testid="model-logo" aria-label={`${model.display_name} model identity`}>
-      {brandMark?.svg ? (
-        <span className="modelBrandSvg" aria-hidden="true" title={brandMark.label} dangerouslySetInnerHTML={{ __html: brandMark.svg }} />
+      {brandSvg && brandMark ? (
+        <span className="modelBrandSvg" aria-hidden="true" title={brandMark.label} dangerouslySetInnerHTML={{ __html: brandSvg }} />
       ) : brandMark ? (
         <span className="modelBrandText" aria-hidden="true" title={brandMark.label}>{brandMark.short}</span>
       ) : renderableLogo && logo && !failedLogo ? (
@@ -407,6 +431,8 @@ function ModelArtworkGallery({ model }: { model: ModelCard }) {
   const sources = model.artwork?.sources || [];
   const backgroundLabel = String(model.artwork?.background || 'generated_brand_panel').replace(/_/g, ' ');
   const brandMark = localBrandMark(model);
+  const brandArt = useBrandMarkArt();
+  const brandSvg = brandMark ? brandArt[brandMark.key] : undefined;
   return (
     <div className="modelArtworkGallery" aria-label="Artwork source gallery">
       <div className="artworkIdentity" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--secondary' as string]: model.nation_palette?.secondary || '#da1e28', ['--surface' as string]: model.nation_palette?.surface || '#edf5ff' }}>
@@ -419,7 +445,7 @@ function ModelArtworkGallery({ model }: { model: ModelCard }) {
         {model.artwork?.brand_url ? <a className="artworkBrandLink" href={model.artwork.brand_url} target="_blank" rel="noreferrer">Brand Site</a> : <span className="artworkBrandLink muted">Generated Identity</span>}
       </div>
       <div className="artworkFacts" aria-label="Artwork metadata">
-        <div><span>Logo</span><strong>{brandMark?.svg ? 'Bundled SVG' : brandMark ? 'Local brand mark' : model.artwork?.logo ? 'Generated from source' : 'Generated initials'}</strong></div>
+        <div><span>Logo</span><strong>{brandSvg ? 'Bundled SVG' : brandMark ? 'Local brand mark' : model.artwork?.logo ? 'Generated from source' : 'Generated initials'}</strong></div>
         <div><span>Background</span><strong>{backgroundLabel}</strong></div>
         <div><span>Sources</span><strong>{sources.length.toLocaleString()}</strong></div>
         <div><span>Policy</span><strong>{model.artwork?.policy_notes ? 'Tracked' : 'Default'}</strong></div>
@@ -676,27 +702,7 @@ function saveModelsShowcaseState(state: ModelsShowcaseState): void {
   }
 }
 
-function SelectedModelPanel({ model }: { model?: ModelCard }) {
-  if (!model) return <StatusPanel title="No model selected" detail="Choose a routable model before sending a chat request." />;
-  return (
-    <div className="selectedModelPanel" style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--surface' as string]: model.nation_palette?.surface || '#edf5ff' }}>
-      <ModelLogo model={model} />
-      <div>
-        <span>Selected Model</span>
-        <strong>{model.display_name}</strong>
-        <p>{model.company} · {model.training_nation}</p>
-      </div>
-      <div className="selectedModelFacts">
-        <span>{model.route_enabled ? 'Routable' : model.access_status}</span>
-        <span>{model.cost_label}</span>
-        <span>{model.context_window.toLocaleString()} ctx</span>
-      </div>
-    </div>
-  );
-}
-
 type ChatDeliveryState = 'sending' | 'failed';
-type ChatThemeMode = 'light' | 'dark';
 type ChatMessage = {
   id?: string;
   role: string;
@@ -725,7 +731,6 @@ type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type ChatUiState = {
   selectedModel: string;
   favorites: string[];
-  theme: ChatThemeMode;
 };
 const CHAT_TRANSCRIPT_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatTranscript;
 const CHAT_UI_STATE_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.chatUiState;
@@ -748,17 +753,16 @@ function formatChatTimestamp(value?: string): string {
 }
 
 function loadChatUiState(): ChatUiState {
-  if (typeof window === 'undefined') return { selectedModel: '', favorites: [], theme: 'light' };
+  if (typeof window === 'undefined') return { selectedModel: '', favorites: [] };
   try {
     const parsed = JSON.parse(window.sessionStorage.getItem(CHAT_UI_STATE_SESSION_KEY) || '{}');
     const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
     return {
       selectedModel: asText(row.selectedModel),
       favorites: Array.isArray(row.favorites) ? row.favorites.filter((item): item is string => typeof item === 'string' && Boolean(item)) : [],
-      theme: row.theme === 'dark' ? 'dark' : 'light',
     };
   } catch {
-    return { selectedModel: '', favorites: [], theme: 'light' };
+    return { selectedModel: '', favorites: [] };
   }
 }
 
@@ -768,7 +772,6 @@ function saveChatUiState(state: ChatUiState): void {
     window.sessionStorage.setItem(CHAT_UI_STATE_SESSION_KEY, JSON.stringify({
       selectedModel: state.selectedModel,
       favorites: state.favorites.slice(0, 24),
-      theme: state.theme,
     }));
   } catch {
     // Browser storage failures should not block the Chat UI.
@@ -1432,7 +1435,9 @@ function ResearchBriefTab({ data }: { data: ResearchDossier }) {
         <summary>Model audit and diagnostics</summary>
         <ResearchTeamPanel strategy={data.model_audit?.strategy} />
         <ResearchModelOutputs data={data} />
-        <pre>{JSON.stringify(data.model_audit?.diagnostics || {}, null, 2)}</pre>
+        {Object.keys(data.model_audit?.diagnostics || {}).length
+          ? <pre>{JSON.stringify(data.model_audit?.diagnostics, null, 2)}</pre>
+          : <p className="researchAuditEmpty">No diagnostics were reported for this run.</p>}
       </details>
     </div>
   );
@@ -2699,7 +2704,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
   const [model, setModel] = useState(restoredUi.selectedModel);
   const [contactFilter, setContactFilter] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>(restoredUi.favorites);
-  const [chatTheme, setChatTheme] = useState<ChatThemeMode>(restoredUi.theme);
+  const chatTheme = useThemeMode();
   const [contactsOpen, setContactsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(loadChatTranscript);
@@ -2753,17 +2758,6 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     if (message.role !== 'assistant') return undefined;
     return models.find((item) => item.display_name === message.model || item.id === message.model) || selectedModelCard;
   };
-  useEffect(() => {
-    const root = document.documentElement;
-    if (chatTheme === 'dark') {
-      root.dataset.chatTheme = 'dark';
-    } else if (root.dataset.chatTheme === 'dark') {
-      delete root.dataset.chatTheme;
-    }
-    return () => {
-      if (root.dataset.chatTheme === 'dark') delete root.dataset.chatTheme;
-    };
-  }, [chatTheme]);
   const copyTranscript = async () => {
     if (!transcript) return;
     try {
@@ -2847,8 +2841,8 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
     saveChatTranscript(messages);
   }, [messages]);
   useEffect(() => {
-    saveChatUiState({ selectedModel, favorites: favoriteIds, theme: chatTheme });
-  }, [chatTheme, favoriteIds, selectedModel]);
+    saveChatUiState({ selectedModel, favorites: favoriteIds });
+  }, [favoriteIds, selectedModel]);
   useEffect(() => {
     if (!models.length) return;
     if (!selectedModel || !models.some((item) => item.id === selectedModel)) setModel(models[0].id);
@@ -3103,7 +3097,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
             <CarbonIcon path="apps/system-users.svg" label="Contacts" />
             Contacts
           </button>
-          <button className="secondaryButton" type="button" onClick={() => setChatTheme((current) => current === 'dark' ? 'light' : 'dark')}>
+          <button className="secondaryButton" type="button" aria-pressed={chatTheme === 'dark'} onClick={() => applyThemeMode(chatTheme === 'dark' ? 'light' : 'dark')}>
             <CarbonIcon path={chatTheme === 'dark' ? 'apps/light.svg' : 'apps/moon.svg'} label="Theme" />
             {chatTheme === 'dark' ? 'Light' : 'Dark'}
           </button>
@@ -3231,7 +3225,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
                     <p>{message.content}</p>
                     {message.diagnosticDetail ? (
                       <details className="messageDiagnostics">
-                        <summary>Raw details</summary>
+                        <summary>Raw payload</summary>
                         <pre>{message.diagnosticDetail}</pre>
                       </details>
                     ) : null}
@@ -3258,7 +3252,7 @@ export function ChatPage({ voicePreferences, onVoicePreferencesChange }: { voice
             )}
           </div>
           <form className="icqComposer" onSubmit={(event) => { event.preventDefault(); sendChat(); }}>
-            <textarea className="icqComposerInput" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleChatComposerKeyDown} placeholder="Message active LLM contact" />
+            <textarea className="icqComposerInput" value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={handleChatComposerKeyDown} placeholder="Message active LLM contact" aria-label="Chat message" />
             <button className="primaryButton" type="submit" disabled={!canSendChat}>
               <CarbonIcon path="actions/document-send-symbolic.svg" label="Send" />
               {mutation.isPending ? 'Sending' : 'Send'}
@@ -3658,7 +3652,7 @@ export function CodePage() {
           </div>
           <input value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => {
             if (event.key === 'Enter') sendFocusedReply();
-          }} placeholder="Reply to the active Claude Code prompt" />
+          }} placeholder="Reply to the active Claude Code prompt" aria-label="Reply to the active Claude Code prompt" />
           <button className="secondaryButton" type="button" onClick={sendFocusedReply} disabled={!replyText.trim() || sendMutation.isPending}>Send Reply</button>
         </div>
         {proxyTuiOpen ? (
@@ -3703,7 +3697,11 @@ export function CodePage() {
                 <span>{contextTypeLabel(item.type)}</span>
                 <strong>{item.label}</strong>
                 <small>{[item.detail, item.source].filter(Boolean).join(' · ') || item.status}</small>
-                {!item.id.startsWith('attachment:') ? <button type="button" onClick={() => removeContextItem(item.id)} aria-label={`Remove ${item.label}`}>x</button> : null}
+                {!item.id.startsWith('attachment:') ? (
+                  <button type="button" onClick={() => removeContextItem(item.id)} aria-label={`Remove ${item.label}`}>
+                    <CarbonIcon path="actions/window-close-symbolic.svg" label="Remove" />
+                  </button>
+                ) : null}
               </article>
             )) : <div className="attachmentDropHint">No staged context.</div>}
           </div>
@@ -3752,7 +3750,7 @@ export function CodePage() {
           <div className="codeChangePanel" data-testid="code-change-cards">
             <div className="codePanelHeader">
               <div>
-                <span>Live Files & Diffs</span>
+                <span>Staged Context Changes</span>
                 <strong>{changeCards.length} change card{changeCards.length === 1 ? '' : 's'}</strong>
               </div>
               <small>Grouped by task</small>
@@ -3821,7 +3819,9 @@ export function CodePage() {
             </div>
             {evidenceHighlights.length ? evidenceHighlights.map((item) => (
               <article className="evidenceItem" key={item.id}>
-                <button type="button" onClick={() => setEvidenceHighlights((current) => current.filter((row) => row.id !== item.id))}>x</button>
+                <button type="button" aria-label={`Remove ${item.label}`} onClick={() => setEvidenceHighlights((current) => current.filter((row) => row.id !== item.id))}>
+                  <CarbonIcon path="actions/window-close-symbolic.svg" label="Remove" />
+                </button>
                 <span>{item.target}</span>
                 <strong>{item.label}</strong>
                 <small>{item.detail}</small>
@@ -3858,7 +3858,7 @@ export function CodePage() {
               </div>
               <p>{action.detail}</p>
               <details>
-                <summary>Raw details</summary>
+                <summary>Raw payload</summary>
                 <pre>{action.raw}</pre>
               </details>
             </article>
@@ -4003,7 +4003,7 @@ export function ResearchPage() {
       {activeTab === 'search' ? (
         <div className="researchTabPanel lexisSearchPanel" role="tabpanel">
           <div className="searchLine lexisSearchLine">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleResearchSearchKeyDown} placeholder="Search technical documentation, examples, papers, web, and local RAG" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleResearchSearchKeyDown} placeholder="Search technical documentation, examples, papers, web, and local RAG" aria-label="Research search query" />
             <select value={mode} onChange={(event) => setMode(event.target.value)}>{(payload.data?.modes || ['Balanced']).map((item) => <option key={item}>{item}</option>)}</select>
             <button className="primaryButton" type="button" onClick={submitResearchSearch} disabled={!canRunResearchSearch}>{searchMutation.isPending ? 'Searching' : 'Search'}</button>
           </div>
@@ -4069,7 +4069,10 @@ export function CreatePage() {
   const [imageResult, setImageResult] = useState<{ images: CreateImageResult[]; raw: string } | null>(restoredWorkspace.imageResult);
   const [historyItems, setHistoryItems] = useState<CreateHistoryItem[]>(restoredWorkspace.historyItems);
   const [historyStatus, setHistoryStatus] = useState(restoredWorkspace.historyItems.length ? 'Restored' : 'Ready');
-  const imageModels = create.data?.image_models || [];
+  const imageModels = useMemo(
+    () => (create.data?.image_models || []).filter((card) => card.route_enabled),
+    [create.data?.image_models],
+  );
   const selectedImageModel = model || imageModels[0]?.id || '';
   const hasCreateBrief = hasCreateBriefState({ prompt, model, imageResult, historyItems });
   const createBrief = useMemo(() => createBriefMarkdown({ prompt, model: selectedImageModel, imageResult, historyItems }), [prompt, selectedImageModel, imageResult, historyItems]);
@@ -4303,7 +4306,7 @@ export function ModelsPage() {
               <span>{spotlight.training_nation}</span>
               <span>{spotlight.cost_label}</span>
               <span>{spotlight.context_window.toLocaleString()} ctx</span>
-              <span>{spotlight.route_enabled ? 'Routable' : spotlight.access_status}</span>
+              <span>{spotlight.route_enabled ? 'Routable' : readableStatus(spotlight.access_status)}</span>
               <button className="secondaryButton" type="button" onClick={() => setInspectedModelId(spotlight.id)}><CarbonIcon path="apps/information.svg" label="Inspect" />Inspect</button>
               <button className="secondaryButton" type="button" onClick={() => toggleCompare(spotlight.id)}><CarbonIcon path="apps/compare.svg" label="Compare" />{compareIds.includes(spotlight.id) ? 'Remove Compare' : 'Compare'}</button>
             </div>
@@ -4332,7 +4335,7 @@ export function ModelsPage() {
           <article className="modelShowcaseCard" key={model.id} style={{ ['--accent' as string]: model.nation_palette?.accent || '#0f62fe', ['--secondary' as string]: model.nation_palette?.secondary || '#da1e28', ['--surface' as string]: model.nation_palette?.surface || '#f4f4f4' }}>
             <div className="modelCardTop">
               <ModelLogo model={model} size="large" />
-              <span className={`statusPill ${model.route_enabled ? 'ok' : 'warn'}`}>{model.route_enabled ? 'Routable' : model.access_status}</span>
+              <span className={`statusPill ${model.route_enabled ? 'ok' : 'warn'}`}>{model.route_enabled ? 'Routable' : readableStatus(model.access_status)}</span>
             </div>
             <h3>{model.display_name}</h3>
             <p>{model.use_case}</p>
@@ -4541,10 +4544,14 @@ export function AdvancedPage() {
       </div>
       {tab === 'overview' ? <AdvancedOverview onOpenOperate={openOperateTab} /> : null}
       <Suspense fallback={<AdvancedLoading label={tab} />}>
-        {tab === 'console' ? <ConsolePage /> : null}
-        {tab === 'run' ? <RunPage /> : null}
-        {tab === 'observe' ? <ObservePage /> : null}
-        {tab === 'operate' ? <OperatePage /> : null}
+        {tab === 'console' || tab === 'run' || tab === 'observe' || tab === 'operate' ? (
+          <AdvancedThemeProvider>
+            {tab === 'console' ? <ConsolePage /> : null}
+            {tab === 'run' ? <RunPage /> : null}
+            {tab === 'observe' ? <ObservePage /> : null}
+            {tab === 'operate' ? <OperatePage /> : null}
+          </AdvancedThemeProvider>
+        ) : null}
       </Suspense>
     </section>
   );

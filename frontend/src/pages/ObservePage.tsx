@@ -94,32 +94,36 @@ export default function ObservePage() {
       </Card>
       {!canView ? <Alert type="info" showIcon message="Viewing reporting data requires billing/reporting permission." /> : null}
       {observe.error ? <Alert type="error" showIcon message={errorText(observe.error)} /> : null}
-      <Space wrap data-testid="observe-summary">
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Last 24h</Typography.Text>
-          <Typography.Title level={4}>{money(cost.last_24h_total_usd ?? cost.last_24h_usd ?? analyticsSummary.last_24h_total_usd)}</Typography.Title>
-        </Card>
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Month</Typography.Text>
-          <Typography.Title level={4}>{money(cost.month_total_usd ?? cost.month_to_date_total_usd)}</Typography.Title>
-        </Card>
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Requests</Typography.Text>
-          <Typography.Title level={4}>{String(analyticsSummary.requests ?? analyticsSummary.total_requests ?? traces.length)}</Typography.Title>
-        </Card>
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Reporting Export</Typography.Text>
-          <Typography.Title level={4}>{String(reportingExport.status || reportingExport.state || 'ready')}</Typography.Title>
-        </Card>
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Eval Passes</Typography.Text>
-          <Typography.Title level={4}>{String(Number(evalSummary.requests || 0) - Number(evalSummary.failures || 0))}/{String(evalSummary.requests || 0)}</Typography.Title>
-        </Card>
-        <Card className="metricCard">
-          <Typography.Text type="secondary">Telemetry Policy</Typography.Text>
-          <Typography.Title level={4}>{String(telemetryPolicy.status || 'unknown')}</Typography.Title>
-        </Card>
-      </Space>
+      {observe.isLoading ? (
+        <Alert type="info" showIcon message="Loading observability data" />
+      ) : (
+        <Space wrap data-testid="observe-summary">
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Last 24h</Typography.Text>
+            <Typography.Title level={4}>{money(cost.last_24h_total_usd ?? cost.last_24h_usd ?? analyticsSummary.last_24h_total_usd)}</Typography.Title>
+          </Card>
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Month</Typography.Text>
+            <Typography.Title level={4}>{money(cost.month_total_usd ?? cost.month_to_date_total_usd)}</Typography.Title>
+          </Card>
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Requests</Typography.Text>
+            <Typography.Title level={4}>{String(analyticsSummary.requests ?? analyticsSummary.total_requests ?? 'n/a')}</Typography.Title>
+          </Card>
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Reporting Export</Typography.Text>
+            <Typography.Title level={4}>{String(reportingExport.status || reportingExport.state || 'not configured')}</Typography.Title>
+          </Card>
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Eval Passes</Typography.Text>
+            <Typography.Title level={4}>{String(Number(evalSummary.requests || 0) - Number(evalSummary.failures || 0))}/{String(evalSummary.requests || 0)}</Typography.Title>
+          </Card>
+          <Card className="metricCard">
+            <Typography.Text type="secondary">Telemetry Policy</Typography.Text>
+            <Typography.Title level={4}>{String(telemetryPolicy.status || 'unknown')}</Typography.Title>
+          </Card>
+        </Space>
+      )}
       <Card title="Recent Traces" data-testid="observe-traces">
         <Table<Record<string, unknown>>
           rowKey={(row, index) => String(row.trace_id || index)}
@@ -158,7 +162,10 @@ export default function ObservePage() {
             <Tag>{explanation.deterministic ? 'Deterministic' : 'Inferred'}</Tag>
           </Space>
           <Typography.Paragraph>{explanation.reason}</Typography.Paragraph>
-          <pre className="templatePreview">{JSON.stringify(explanation, null, 2)}</pre>
+          <details>
+            <summary>Raw payload</summary>
+            <pre className="templatePreview">{JSON.stringify(explanation, null, 2)}</pre>
+          </details>
         </Card>
       ) : null}
       <Card title="Provider Findings" data-testid="observe-provider-findings">
@@ -220,7 +227,10 @@ export default function ObservePage() {
               { title: 'Metric Family', dataIndex: 'family' }
             ]}
           />
-          <pre className="templatePreview">{JSON.stringify({ exporter: telemetryExporter, policy: telemetryPolicy, label_keys: labelKeys }, null, 2)}</pre>
+          <details>
+            <summary>Raw payload</summary>
+            <pre className="templatePreview">{JSON.stringify({ exporter: telemetryExporter, policy: telemetryPolicy, label_keys: labelKeys }, null, 2)}</pre>
+          </details>
         </Space>
       </Card>
       <Card title="Audit" data-testid="observe-audit">
@@ -272,7 +282,11 @@ export default function ObservePage() {
             description={`${exportResult.path} (${exportResult.redaction_mode || 'default_safe'})`}
           />
         ) : null}
-        <pre className="templatePreview">{JSON.stringify({ reporting_export: reportingExport, reporting_integrations: reportingIntegrations }, null, 2)}</pre>
+        <Typography.Paragraph type="secondary">Export status: {String(reportingExport.status || reportingExport.state || 'not configured')}</Typography.Paragraph>
+        <details>
+          <summary>Raw payload</summary>
+          <pre className="templatePreview">{JSON.stringify({ reporting_export: reportingExport, reporting_integrations: reportingIntegrations }, null, 2)}</pre>
+        </details>
       </Card>
     </Space>
   );

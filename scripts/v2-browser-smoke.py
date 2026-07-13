@@ -196,6 +196,11 @@ def assert_no_broken_model_artwork(page, label: str) -> None:
     assert logo_count > 0, "%s did not render model identity marks" % label
     local_brand_count = page.locator('.modelLogo[data-artwork-state^="local-brand"]').count()
     assert local_brand_count > 0, "%s did not render any local model brand marks" % label
+    # Brand SVG art arrives via a lazy same-origin chunk; wait for the upgrade from text marks.
+    page.wait_for_function(
+        "document.querySelectorAll('.modelLogo[data-artwork-state=\"local-brand-svg\"]').length > 0",
+        timeout=5000,
+    )
     bundled_svg_count = page.locator('.modelLogo[data-artwork-state="local-brand-svg"]').count()
     assert bundled_svg_count > 0, "%s did not render any bundled SVG model artwork" % label
     fallback_count = page.locator('.modelLogo[data-artwork-state$="initials"]').count()
@@ -509,6 +514,54 @@ def run_shell_error_boundary_smoke(browser, base_url: str) -> None:
         assert_no_document_horizontal_overflow(page, "fatal shell recovery")
     finally:
         page.close()
+
+
+def run_dark_mode_smoke(browser, base_url: str) -> None:
+    from playwright.sync_api import expect
+
+    context = browser.new_context(viewport={"width": 1280, "height": 820}, color_scheme="light")
+    page = context.new_page()
+    try:
+        page.goto(base_url + "#chat", wait_until="domcontentloaded", timeout=60000)
+        dismiss_whats_new_if_present(page)
+        toggle = page.get_by_test_id("shell-theme-toggle")
+        expect(toggle).to_be_visible()
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
+        toggle.click()
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+        expect(toggle).to_have_attribute("aria-pressed", "true")
+        page.wait_for_function(
+            """
+            () => {
+              const rgb = getComputedStyle(document.body).backgroundColor.match(/\\d+/g);
+              if (!rgb) return false;
+              const [r, g, b] = rgb.map(Number);
+              return r < 64 && g < 64 && b < 64;
+            }
+            """
+        )
+        navigate_shell(page, "models")
+        expect(page.get_by_role("heading", name="Models")).to_be_visible()
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+        assert_no_document_horizontal_overflow(page, "dark Models")
+        page.reload(wait_until="domcontentloaded")
+        dismiss_whats_new_if_present(page)
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+        navigate_shell(page, "chat")
+        expect(page.get_by_role("heading", name="Chat")).to_be_visible()
+        page.get_by_role("button", name="Light", exact=True).click()
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
+        expect(page.get_by_test_id("shell-theme-toggle")).to_have_attribute("aria-pressed", "false")
+    finally:
+        context.close()
+
+    context = browser.new_context(viewport={"width": 1280, "height": 820}, color_scheme="dark")
+    page = context.new_page()
+    try:
+        page.goto(base_url + "#chat", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+    finally:
+        context.close()
 
 
 def run_boot_fallback_no_js_smoke(browser, base_url: str) -> None:
@@ -901,6 +954,7 @@ def run_browser_smoke(base_url: str) -> None:
         browser = p.chromium.launch()
         run_boot_fallback_no_js_smoke(browser, base_url)
         run_shell_error_boundary_smoke(browser, base_url)
+        run_dark_mode_smoke(browser, base_url)
         run_readiness_advisory_label_smoke(browser, base_url)
         run_readiness_handoff_top_action_smoke(browser, base_url)
         run_high_risk_config_drift_guard_smoke(browser, base_url)
@@ -1437,7 +1491,7 @@ def run_browser_smoke(base_url: str) -> None:
             page.get_by_role("button", name="Ask Model To Review Image", exact=True).click()
         expect(page.locator(".codeOutputConsole")).to_contain_text("Image review response")
         expect(page.locator(".codeOutputConsole")).to_contain_text("reviewed screenshot")
-        expect(page.locator(".codeOutputConsole").get_by_text("Raw details").first).to_be_visible()
+        expect(page.locator(".codeOutputConsole").get_by_text("Raw payload").first).to_be_visible()
         page.locator(".codeHero .xlInput").fill("follow up after screenshot review")
         stored_code = page.evaluate("window.sessionStorage.getItem('matts-v2-code-workspace')")
         assert stored_code and "reviewed screenshot" in stored_code and "v2-smoke-image.png" in stored_code

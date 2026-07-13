@@ -85,6 +85,14 @@ function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function chatResultText(result: Record<string, unknown>): string {
+  const candidates = [result.text, recordValue(result.response).text, result.content, result.message];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate;
+  }
+  return '';
+}
+
 export default function RunPage() {
   const queryClient = useQueryClient();
   const [templateForm] = Form.useForm();
@@ -116,11 +124,16 @@ export default function RunPage() {
   const [templatePreview, setTemplatePreview] = useState<PromptTemplatePreview | null>(null);
   const [templatePreviewError, setTemplatePreviewError] = useState('');
   const [templateSchemaError, setTemplateSchemaError] = useState('');
+  const [templateSaveError, setTemplateSaveError] = useState('');
   const [templateRollbackStatus, setTemplateRollbackStatus] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [templateSearch, setTemplateSearch] = useState('');
   const [profileSearch, setProfileSearch] = useState('');
   const [profileSettingsError, setProfileSettingsError] = useState('');
+  const [profileActionError, setProfileActionError] = useState('');
   const [evalGatePreview, setEvalGatePreview] = useState<EvalGate | null>(null);
+  const [recordError, setRecordError] = useState('');
+  const [branchError, setBranchError] = useState('');
+  const [snapshotError, setSnapshotError] = useState('');
   const [ragError, setRagError] = useState('');
   const [ragSearchResults, setRagSearchResults] = useState<LocalRagSearchResult | null>(null);
   const [replaySnapshot, setReplaySnapshot] = useState<ReplaySnapshot | null>(null);
@@ -182,10 +195,12 @@ export default function RunPage() {
     mutationFn: (payload: Partial<PromptTemplate>) => savePromptTemplate(payload),
     onSuccess: () => {
       setTemplateSchemaError('');
+      setTemplateSaveError('');
       setTemplateRollbackStatus(null);
       templateForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
-    }
+    },
+    onError: (error) => setTemplateSaveError(errorText(error))
   });
   const previewMutation = useMutation({
     mutationFn: (payload: { body?: string; variables?: string[]; values?: Record<string, unknown> }) => previewPromptTemplate(payload),
@@ -199,21 +214,35 @@ export default function RunPage() {
     mutationFn: (payload: Partial<RunProfile>) => saveRunProfile(payload),
     onSuccess: () => {
       setProfileSettingsError('');
+      setProfileActionError('');
       profileForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
-    }
+    },
+    onError: (error) => setProfileActionError(errorText(error))
   });
   const activateProfileMutation = useMutation({
     mutationFn: (profileId: string) => activateRunProfile(profileId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['run-workspace'] })
+    onSuccess: () => {
+      setProfileActionError('');
+      queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
+    },
+    onError: (error) => setProfileActionError(errorText(error))
   });
   const evalGatePreviewMutation = useMutation({
     mutationFn: (profile: RunProfile) => previewEvalGate({ surface: 'run_profile', after: { profile } }),
-    onSuccess: (payload) => setEvalGatePreview(payload.eval_gate)
+    onSuccess: (payload) => {
+      setProfileActionError('');
+      setEvalGatePreview(payload.eval_gate);
+    },
+    onError: (error) => setProfileActionError(errorText(error))
   });
   const rollbackProfileMutation = useMutation({
     mutationFn: (payload: { profileId: string; version: number }) => rollbackRunProfile(payload.profileId, payload.version),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['run-workspace'] })
+    onSuccess: () => {
+      setProfileActionError('');
+      queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
+    },
+    onError: (error) => setProfileActionError(errorText(error))
   });
   const rollbackTemplateMutation = useMutation({
     mutationFn: (payload: { templateId: string; version: number }) => rollbackPromptTemplate(payload.templateId, payload.version),
@@ -226,23 +255,29 @@ export default function RunPage() {
   const recordMutation = useMutation({
     mutationFn: (payload: Partial<RunRecord>) => saveRunRecord(payload),
     onSuccess: () => {
+      setRecordError('');
       recordForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
-    }
+    },
+    onError: (error) => setRecordError(errorText(error))
   });
   const branchMutation = useMutation({
     mutationFn: (payload: Partial<ConversationBranch>) => saveConversationBranch(payload),
     onSuccess: () => {
+      setBranchError('');
       branchForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
-    }
+    },
+    onError: (error) => setBranchError(errorText(error))
   });
   const snapshotMutation = useMutation({
     mutationFn: (payload: Partial<SessionSnapshot>) => saveSessionSnapshot(payload),
     onSuccess: () => {
+      setSnapshotError('');
       snapshotForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['run-workspace'] });
-    }
+    },
+    onError: (error) => setSnapshotError(errorText(error))
   });
   const ragConfigMutation = useMutation({
     mutationFn: (payload: { collections: Array<{ id: string; name: string; include: string[]; exclude: string[]; max_file_bytes: number }> }) => saveLocalRagConfig(payload),
@@ -365,6 +400,11 @@ export default function RunPage() {
     },
     onError: (error) => setChatError(errorText(error))
   });
+  const chatText = chatResult ? chatResultText(chatResult) : '';
+  const chatRouting = recordValue(chatResult?.routing);
+  const chatModel = String(chatRouting.used || chatRouting.requested || '');
+  const chatBackend = String(chatRouting.backend || '');
+  const chatCostUsd = optionalNumber(recordValue(chatResult?.cost).total_cost_usd ?? chatResult?.cost_usd);
 
   return (
     <Space direction="vertical" size={16} className="pageStack">
@@ -436,7 +476,24 @@ export default function RunPage() {
                 </Card>
                 {chatResult ? (
                   <Card title="Chat Result" data-testid="chat-run-result">
-                    <pre className="templatePreview">{JSON.stringify(chatResult, null, 2)}</pre>
+                    <Space direction="vertical" size={12} className="pageStack">
+                      {chatModel || chatBackend || chatCostUsd !== undefined ? (
+                        <Space wrap>
+                          {chatModel ? <Tag>{chatModel}</Tag> : null}
+                          {chatBackend ? <Tag>{chatBackend}</Tag> : null}
+                          {chatCostUsd !== undefined ? <Tag>${String(chatCostUsd)}</Tag> : null}
+                        </Space>
+                      ) : null}
+                      {chatText ? (
+                        <pre className="templatePreview">{chatText}</pre>
+                      ) : (
+                        <Typography.Text type="secondary">No assistant text in this response.</Typography.Text>
+                      )}
+                      <details>
+                        <summary>Raw payload</summary>
+                        <pre className="templatePreview">{JSON.stringify(chatResult, null, 2)}</pre>
+                      </details>
+                    </Space>
                   </Card>
                 ) : null}
               </Space>
@@ -447,6 +504,7 @@ export default function RunPage() {
             label: 'Prompt Templates',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {templateSaveError ? <Alert type="error" showIcon message={templateSaveError} /> : null}
                 <Card title="New Prompt Template">
                   <Form form={templateForm} layout="vertical" disabled={!canEdit} onFinish={(values) => {
                     try {
@@ -554,7 +612,7 @@ export default function RunPage() {
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Examples', dataIndex: 'examples', width: 90, render: (examples: PromptTemplate['examples']) => examples?.length || 0 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => new Date(value * 1000).toLocaleString() },
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' },
                     {
                       title: 'Actions',
                       width: 300,
@@ -627,6 +685,7 @@ export default function RunPage() {
             label: 'Run Profiles',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {profileActionError ? <Alert type="error" showIcon message={profileActionError} /> : null}
                 <Card title="New Run Profile">
                   <Form form={profileForm} layout="vertical" disabled={!canEdit} onFinish={saveProfile}>
                     <Form.Item name="id" hidden>
@@ -720,7 +779,7 @@ export default function RunPage() {
                       }
                     },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => new Date(value * 1000).toLocaleString() },
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' },
                     {
                       title: 'Actions',
                       width: 340,
@@ -823,7 +882,7 @@ export default function RunPage() {
                   { title: 'Required', dataIndex: 'required', width: 100, render: (value: boolean) => value ? <Tag color="orange">Required</Tag> : <Tag>Advisory</Tag> },
                   { title: 'Datasets', render: (_value, record) => (record.gate.recommended_datasets || []).map((row) => String(row['id'] || row['name'] || '')).filter(Boolean).join(', ') || 'none' },
                   { title: 'Evidence', render: (_value, record) => (record.gate.evidence || []).map((row) => String(row['id'] || '')).filter(Boolean).join(', ') || 'none' },
-                  { title: 'Created', dataIndex: 'created_at', render: (value: number) => new Date(value * 1000).toLocaleString() }
+                  { title: 'Created', dataIndex: 'created_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
                 ]}
               />
             )
@@ -929,6 +988,7 @@ export default function RunPage() {
             label: 'Run Records',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {recordError ? <Alert type="error" showIcon message={recordError} /> : null}
                 <Card title="New Run Record">
                   <Form form={recordForm} layout="vertical" disabled={!canEdit} onFinish={(values) => recordMutation.mutate({
                     title: values.title || '',
@@ -984,7 +1044,7 @@ export default function RunPage() {
                     { title: 'Template Version', render: (_value, record) => record.prompt_template_id ? <Tag>{record.prompt_template_version || 'current'}</Tag> : <Tag>None</Tag> },
                     { title: 'Status', dataIndex: 'status' },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => new Date(value * 1000).toLocaleString() }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
                   ]}
                 />
               </Space>
@@ -995,6 +1055,7 @@ export default function RunPage() {
             label: 'Branches',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {branchError ? <Alert type="error" showIcon message={branchError} /> : null}
                 <Card title="New Conversation Branch">
                   <Form form={branchForm} layout="vertical" disabled={!canEdit} onFinish={(values) => branchMutation.mutate({
                     title: values.title,
@@ -1035,7 +1096,7 @@ export default function RunPage() {
                     { title: 'Root Session', dataIndex: 'root_session_id' },
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => new Date(value * 1000).toLocaleString() }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
                   ]}
                 />
               </Space>
@@ -1046,6 +1107,7 @@ export default function RunPage() {
             label: 'Session Snapshots',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {snapshotError ? <Alert type="error" showIcon message={snapshotError} /> : null}
                 <Card title="New Session Snapshot">
                   <Form form={snapshotForm} layout="vertical" disabled={!canEdit} onFinish={(values) => snapshotMutation.mutate({
                     session_id: values.session_id,
@@ -1102,7 +1164,7 @@ export default function RunPage() {
                     { title: 'Trace', dataIndex: 'trace_id' },
                     { title: 'Version', dataIndex: 'version', width: 90 },
                     { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => new Date(value * 1000).toLocaleString() }
+                    { title: 'Updated', dataIndex: 'updated_at', render: (value: number) => value ? new Date(value * 1000).toLocaleString() : 'n/a' }
                   ]}
                 />
               </Space>
@@ -1282,7 +1344,11 @@ export default function RunPage() {
                       <Tag>{replaySnapshot.model || 'model n/a'}</Tag>
                     </Space>
                     {replaySnapshot.limitations?.length ? <Alert type="warning" showIcon message={replaySnapshot.limitations.join(' ')} /> : null}
-                    <pre className="templatePreview">{JSON.stringify(replaySnapshot.messages || [], null, 2)}</pre>
+                    <Typography.Text type="secondary">{(replaySnapshot.messages || []).length} messages captured.</Typography.Text>
+                    <details>
+                      <summary>Raw payload</summary>
+                      <pre className="templatePreview">{JSON.stringify(replaySnapshot.messages || [], null, 2)}</pre>
+                    </details>
                   </Card>
                 ) : null}
                 {replayResult ? (
@@ -1292,7 +1358,11 @@ export default function RunPage() {
                       <Tag>{String(replayResult.summary?.models || replayResult.results?.length || 0)} models</Tag>
                       <Tag>${String(replayResult.summary?.total_cost_usd || 0)}</Tag>
                     </Space>
-                    <pre className="templatePreview">{JSON.stringify(replayResult, null, 2)}</pre>
+                    <Typography.Text type="secondary">{(replayResult.results || []).map((row) => `${String(row.model || 'model n/a')}: ${row.ok ? 'ok' : 'error'}`).join(', ') || 'No per-model results.'}</Typography.Text>
+                    <details>
+                      <summary>Raw payload</summary>
+                      <pre className="templatePreview">{JSON.stringify(replayResult, null, 2)}</pre>
+                    </details>
                   </Card>
                 ) : null}
                 <Table<ReplayRecord>

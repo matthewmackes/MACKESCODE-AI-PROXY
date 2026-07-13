@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Checkbox, Input, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { getMeCapabilities } from '../api/generated/v2Client';
@@ -87,6 +87,7 @@ function OnboardingTemplateGallery({
   data,
   canSeed,
   seedLoading,
+  seedError,
   onSeed,
   onCopy,
   copiedKey
@@ -94,6 +95,7 @@ function OnboardingTemplateGallery({
   data?: OnboardingPayload;
   canSeed: boolean;
   seedLoading: boolean;
+  seedError: string;
   onSeed: () => void;
   onCopy: (text: string, key: string) => void;
   copiedKey: string;
@@ -111,6 +113,7 @@ function OnboardingTemplateGallery({
           {summary.seeded ? <Tag color="purple">{summary.seeded} seeded</Tag> : null}
           <Button size="small" disabled={!canSeed || !summary.missing} loading={seedLoading} onClick={onSeed}>Seed Model Templates</Button>
         </Space>
+        {seedError ? <Alert type="error" showIcon message={seedError} /> : null}
         <div className="onboardingTemplateGrid" data-testid="operate-onboarding-template-gallery">
           {items.map((item) => {
             const model = record(item.model);
@@ -277,7 +280,6 @@ export default function OperatePage() {
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000 });
   const onboarding = useQuery({ queryKey: ['onboarding'], queryFn: getOnboarding, refetchInterval: 60000, retry: false });
-  const seedAttempted = useRef(false);
   const [ciReference, setCiReference] = useState('acme/app#5');
   const [datasetJson, setDatasetJson] = useState('{"id":"v2-smoke-dataset","name":"V2 Smoke Dataset","examples":[{"id":"ex-001","input":"Reply only ok","expected":"ok"}]}');
   const [automationEventJson, setAutomationEventJson] = useState('{"event":{"event":"run_profile.changed","source":"run","severity":"high","model":"model-a","session":"v2-smoke"}}');
@@ -304,6 +306,7 @@ export default function OperatePage() {
   const [driftActionResult, setDriftActionResult] = useState<Record<string, unknown> | null>(null);
   const [paymentReviewStatus, setPaymentReviewStatus] = useState('Payment review ready');
   const [operateCostThresholdDraft, setOperateCostThresholdDraft] = useState('');
+  const [seedTemplatesError, setSeedTemplatesError] = useState('');
   const ciPreviewMutation = useMutation({
     mutationFn: () => previewOperateCiTriage({ reference: ciReference }),
     onSuccess: setCiPreview
@@ -398,8 +401,10 @@ export default function OperatePage() {
   const seedTemplatesMutation = useMutation({
     mutationFn: seedOnboardingModelTemplates,
     onSuccess: () => {
+      setSeedTemplatesError('');
       onboarding.refetch();
-    }
+    },
+    onError: (error) => setSeedTemplatesError(errorText(error))
   });
   const paymentReviewMutation = useMutation({
     mutationFn: (items: Array<Record<string, unknown>>) => updateCostControlThresholds({ payment_review: { items } }),
@@ -561,13 +566,6 @@ export default function OperatePage() {
     }
   };
 
-  useEffect(() => {
-    const missing = Number(onboarding.data?.model_templates?.summary?.missing || 0);
-    if (!canSeedTemplates || !missing || seedAttempted.current || seedTemplatesMutation.isPending) return;
-    seedAttempted.current = true;
-    seedTemplatesMutation.mutate();
-  }, [canSeedTemplates, onboarding.data?.model_templates?.summary?.missing, seedTemplatesMutation]);
-
   return (
     <Space direction="vertical" size={16} className="pageStack">
       <Card>
@@ -587,6 +585,7 @@ export default function OperatePage() {
         data={onboarding.data}
         canSeed={canSeedTemplates}
         seedLoading={seedTemplatesMutation.isPending}
+        seedError={seedTemplatesError}
         onSeed={() => seedTemplatesMutation.mutate()}
         onCopy={(text, key) => void copyTemplatePreview(text, key)}
         copiedKey={copiedTemplateKey}
@@ -876,7 +875,10 @@ export default function OperatePage() {
             {datasetResult ? <Tag data-testid="operate-eval-dataset-result" color="green">{valueText(datasetResult.id, 'saved')}</Tag> : null}
           </Space>
           {datasetMutation.error ? <Alert type="error" showIcon message={errorText(datasetMutation.error)} /> : null}
-          <pre className="templatePreview">{JSON.stringify(evalGate, null, 2)}</pre>
+          <details>
+            <summary>Raw payload</summary>
+            <pre className="templatePreview">{JSON.stringify(evalGate, null, 2)}</pre>
+          </details>
         </Space>
       </Card>
       <Card title="Rollback and Drift" data-testid="operate-rollback">
@@ -970,7 +972,15 @@ export default function OperatePage() {
               }
             ]}
           />
-          {rollbackPreview ? <pre className="templatePreview">{JSON.stringify(rollbackPreview, null, 2)}</pre> : null}
+          {rollbackPreview ? (
+            <>
+              <Typography.Text type="secondary">Rollback preview: {valueText(record(rollbackPreview.summary).will_restore, '0')} items will restore</Typography.Text>
+              <details>
+                <summary>Raw payload</summary>
+                <pre className="templatePreview">{JSON.stringify(rollbackPreview, null, 2)}</pre>
+              </details>
+            </>
+          ) : null}
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.path || row.key, String(index))}
             dataSource={driftItems}
@@ -1026,13 +1036,29 @@ export default function OperatePage() {
           {ciLaunchMutation.error ? <Alert type="error" showIcon message={errorText(ciLaunchMutation.error)} /> : null}
           {repositoryPreviewMutation.error ? <Alert type="error" showIcon message={errorText(repositoryPreviewMutation.error)} /> : null}
           {repositoryImportMutation.error ? <Alert type="error" showIcon message={errorText(repositoryImportMutation.error)} /> : null}
-          {ciPreview ? <pre data-testid="operate-ci-preview-result" className="templatePreview">{JSON.stringify(ciPreview, null, 2)}</pre> : null}
+          {ciPreview ? (
+            <>
+              <Typography.Text type="secondary">CI triage preview ready · {valueText(ciPreview.reference, ciReference)}</Typography.Text>
+              <details>
+                <summary>Raw payload</summary>
+                <pre data-testid="operate-ci-preview-result" className="templatePreview">{JSON.stringify(ciPreview, null, 2)}</pre>
+              </details>
+            </>
+          ) : null}
           {ciLaunch ? <Alert data-testid="operate-ci-launch-result" type="success" showIcon message="CI launch patch ready" description={valueText(record(ciLaunch.launch_patch).print_prompt_append || ciLaunch.reference, 'launch ready')} /> : null}
           <Space wrap>
             <Button data-testid="operate-repository-preview" disabled={!canImportRepository} loading={repositoryPreviewMutation.isPending} onClick={() => repositoryPreviewMutation.mutate()}>Repository Preview</Button>
             <Button data-testid="operate-repository-import" disabled={!canImportRepository} loading={repositoryImportMutation.isPending} onClick={() => repositoryImportMutation.mutate()}>Import Context</Button>
           </Space>
-          {repositoryPreview ? <pre data-testid="operate-repository-preview-result" className="templatePreview">{JSON.stringify(repositoryPreview, null, 2)}</pre> : null}
+          {repositoryPreview ? (
+            <>
+              <Typography.Text type="secondary">Repository context preview ready · {valueText(repositoryPreview.reference || record(repositoryPreview.preview).reference, ciReference)}</Typography.Text>
+              <details>
+                <summary>Raw payload</summary>
+                <pre data-testid="operate-repository-preview-result" className="templatePreview">{JSON.stringify(repositoryPreview, null, 2)}</pre>
+              </details>
+            </>
+          ) : null}
           {repositoryImport ? <Alert data-testid="operate-repository-import-result" type="success" showIcon message="Repository context imported" description={valueText(record(repositoryImport.launch_patch).print_prompt_append || record(repositoryImport.preview).reference, 'import ready')} /> : null}
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name, String(index))}
@@ -1041,7 +1067,15 @@ export default function OperatePage() {
             columns={[
               { title: 'Rule', render: (_value, row) => valueText(row.name || row.id) },
               { title: 'Enabled', dataIndex: 'enabled', render: (value: unknown) => <Tag color={value === false ? 'default' : 'blue'}>{value === false ? 'disabled' : 'enabled'}</Tag> },
-              { title: 'Trigger', dataIndex: 'trigger', render: (value: unknown) => <code>{JSON.stringify(value || {})}</code> }
+              {
+                title: 'Trigger',
+                dataIndex: 'trigger',
+                render: (value: unknown) => {
+                  const trigger = record(value);
+                  const label = valueText(trigger.type || trigger.event, Object.keys(trigger)[0] || valueText(value, 'n/a'));
+                  return <code title={JSON.stringify(value || {})}>{label}</code>;
+                }
+              }
             ]}
           />
           <Input.TextArea data-testid="operate-automation-event-json" value={automationEventJson} onChange={(event) => setAutomationEventJson(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} />
@@ -1056,9 +1090,24 @@ export default function OperatePage() {
           {automationTestMutation.error ? <Alert type="error" showIcon message={errorText(automationTestMutation.error)} /> : null}
           {automationSchedulePreviewMutation.error ? <Alert type="error" showIcon message={errorText(automationSchedulePreviewMutation.error)} /> : null}
           {automationScheduleMutation.error ? <Alert type="error" showIcon message={errorText(automationScheduleMutation.error)} /> : null}
-          {automationTest ? <pre className="templatePreview">{JSON.stringify(automationTest, null, 2)}</pre> : null}
-          {automationSchedulePreview ? <pre className="templatePreview">{JSON.stringify(automationSchedulePreview, null, 2)}</pre> : null}
-          {automationScheduleRun ? <pre className="templatePreview">{JSON.stringify(automationScheduleRun, null, 2)}</pre> : null}
+          {automationTest ? (
+            <details>
+              <summary>Raw payload</summary>
+              <pre className="templatePreview">{JSON.stringify(automationTest, null, 2)}</pre>
+            </details>
+          ) : null}
+          {automationSchedulePreview ? (
+            <details>
+              <summary>Raw payload</summary>
+              <pre className="templatePreview">{JSON.stringify(automationSchedulePreview, null, 2)}</pre>
+            </details>
+          ) : null}
+          {automationScheduleRun ? (
+            <details>
+              <summary>Raw payload</summary>
+              <pre className="templatePreview">{JSON.stringify(automationScheduleRun, null, 2)}</pre>
+            </details>
+          ) : null}
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name || row.check, String(index))}
             dataSource={ciFindings}
@@ -1098,7 +1147,15 @@ export default function OperatePage() {
             }
           ]}
         />
-        {modelDeprecationPreview ? <pre className="templatePreview">{JSON.stringify(modelDeprecationPreview, null, 2)}</pre> : null}
+        {modelDeprecationPreview ? (
+          <>
+            <Typography.Text type="secondary">Migration preview: {valueText(modelDeprecationPreview.model)} -&gt; {valueText(modelDeprecationPreview.replacement_model, 'select replacement')}</Typography.Text>
+            <details>
+              <summary>Raw payload</summary>
+              <pre className="templatePreview">{JSON.stringify(modelDeprecationPreview, null, 2)}</pre>
+            </details>
+          </>
+        ) : null}
       </Card>
     </Space>
   );

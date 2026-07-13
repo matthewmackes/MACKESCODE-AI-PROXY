@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+- Promoted dark mode from the Chat-scoped toggle to a global, persisted console
+  theme: shell-chrome toggle with `prefers-color-scheme` default, pre-paint boot
+  theming, tokenized dark surfaces across all six workspaces, a dark Ant Design
+  algorithm for Advanced Console/Run/Observe/Operate, and dark-visible Carbon
+  icons. The old chat-only toggle drove shared CSS but was deleted on leaving
+  Chat; both toggles now drive one persistent theme.
+- Converted hardcoded light-surface colors in the V2 stylesheet to shared theme
+  tokens (new `--cds-chrome`, `--cds-layer-accent`, `--cds-layer-danger`,
+  `--cds-link-strong`), keeping light mode pixel-stable while dark mode inherits
+  automatically; Create's over-wallpaper glass panels intentionally keep their
+  glass look in both themes.
+- Made webfont loading non-render-blocking: the Google Fonts CSS `@import`
+  moved to async preconnect/preload links in `index.html`, so offline or
+  egress-restricted networks fall back to system fonts without stalling first
+  paint.
+- Surfaced silent mutation failures as visible alerts across Advanced Run
+  (template/profile save, activate, eval-gate preview, rollback, record, branch,
+  snapshot), Console (take/release control, tmux capture/send/key/rename/stop,
+  code-session actions), and Operate (template seeding); Operate no longer fires
+  a template-seed write just from viewing the page, and invalid template values
+  JSON now reports a friendly message instead of a raw SyntaxError.
+- Replaced always-visible raw JSON dumps in Observe, Operate, and Run with
+  human-readable summaries plus consistent "Raw payload" disclosures; chat
+  responses without readable text render a diagnostic message instead of a
+  stringified object; Observe gates its initial load and reports "not
+  configured"/"n/a" instead of optimistic "ready" and substituted counts.
+- Readability, accessibility, and consistency polish: human-readable model
+  access statuses on Models spotlight/showcase, denser Code/Research/Advanced
+  headers, larger chat answer text, "n/a" guards for missing timestamps,
+  labeled icon-only controls with Carbon close icons replacing literal "x"
+  glyphs, reduced-motion coverage for skeleton and cost-pulse animations,
+  offline styling for the cost pill, routable-only Create image model choices,
+  and brand SVG artwork moved to a lazy chunk to keep the first-load shell
+  within its budget.
+
 ## 2.2.0 — Branding, voice, navigation, and cost guardrails (2026-07-12)
 
 - Added canonical MDE / LLM-PROXY branding, app icon assets, manifest metadata,

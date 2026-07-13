@@ -10296,6 +10296,153 @@ development worklist does not pretend they are locally closable.
 
 ---
 
+### Task ID: V2-071
+**Title:** Promote dark mode from Chat-scoped to global
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+
+**Description:** GOVERNANCE Interface Rules and the requirements ledger (INT-012, Confirmed) require dark mode to apply globally. The V2 theme toggle lives only in Chat, sets `data-chat-theme` on the document element, and is deleted when Chat unmounts, so dark mode is unreachable from Code, Research, Create, Models, and Advanced. The Advanced pages (antd) additionally have no dark algorithm or overrides.
+
+**Implementation Steps:**
+1. Lift theme state out of `ChatPage` into a shared theme module + `App.tsx`; apply a `data-theme` attribute on `documentElement` with no unmount teardown; persist to localStorage; default from `prefers-color-scheme: dark` (adopting a legacy chat-scoped dark preference once when present).
+2. Add a Dark Mode toggle to the shell floating chrome (aria-pressed, Carbon icon); keep the Chat toggle wired to the same global state.
+3. Rename the `html[data-chat-theme="dark"]` selector blocks to the global attribute and extend coverage to the light-hardcoded skeleton gradient and other clashing surfaces.
+4. Wrap each Advanced page in antd `ConfigProvider` with `theme.darkAlgorithm` driven by the global theme (kept inside the lazy chunks to preserve the first-load bundle boundary).
+5. Ensure monochrome `.carbonIcon` `<img>` SVGs stay visible in dark.
+6. Add a pre-paint theme script + theme-aware boot styling to `frontend/index.html` (no light flash).
+7. Extend `scripts/v2-browser-smoke.py`: toggle flips `data-theme`; computed background darkens; preference survives reload AND workspace switching (regression for the unmount-teardown bug).
+
+**Completion Criteria:**
+- [x] Dark theme applies on all six workspaces + chrome, dialogs, quick switcher, antd surfaces
+- [x] Toggle in shell chrome; persisted; `prefers-color-scheme` default when unset
+- [x] Carbon icons visible in dark; no light flash before React mounts
+- [x] Browser smoke asserts toggle, rendered dark background, persistence across reload and workspace switch
+- [x] Frontend build, bundle check, and required V2 browser smoke pass
+
+**Dependencies:** None
+**Blocks:** None
+
+**Progress Notes:**
+- 2026-07-12: Survey (v2-polish-survey-2026-07-12) verified the chat-scoped teardown, the 23 dark selectors, and the absence of any antd `ConfigProvider`/`darkAlgorithm` in `frontend/src`.
+- 2026-07-12: Added `frontend/src/theme.ts` (localStorage `matts-v2-theme`, legacy chat-theme adoption, `prefers-color-scheme` default, MutationObserver `useThemeMode`), a pre-paint theme script + dark boot styles in `index.html`, the shell-chrome toggle, and renamed `html[data-chat-theme]` selectors to `html[data-theme]` with dark tokens for chrome/accent/danger surfaces and icon inversion. Advanced pages get `theme.darkAlgorithm` via a lazily imported `AdvancedThemeProvider` so antd stays out of the first-load chunk.
+- 2026-07-12: First smoke run caught a real regression — App held theme in local `useState`, so Chat's toggle desynced the shell toggle's `aria-pressed`; fixed by making the document attribute the single source of truth (`useThemeMode` in App too).
+- 2026-07-12: Keeping the shell within its 180,000-byte first-load budget required moving the 11 bundled `simple-icons` brand SVGs into a lazy `brandMarkArt` chunk (entry: 182,191 → 173,721 bytes); `ModelLogo` upgrades from text marks to SVG when the chunk arrives, and the artwork smoke guard now waits for that upgrade.
+
+**Verification:**
+- `npm run build --prefix frontend` (tsc -b + vite) passed; entry `assets/index-3f48e254.js` = 173,721 bytes.
+- `python3 scripts/check-v2-frontend-bundles.py` passed; `python3 scripts/check-v2-frontend-audit.py` passed (0 production vulnerabilities).
+- `python3 -m unittest discover -s tests` passed (592 tests).
+- `python3 scripts/v2-browser-smoke.py --required` passed including the new `run_dark_mode_smoke` (toggle flips `data-theme`, computed body background < rgb(64,64,64), persistence across workspace switch + reload, chat-toggle parity, `prefers-color-scheme: dark` default context).
+
+---
+
+### Task ID: V2-072
+**Title:** Non-blocking webfont loading for the V2 console
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+
+**Description:** `frontend/src/styles.css` begins with `@import url("https://fonts.googleapis.com/...")`, a render-blocking external fetch in the built CSS. On an offline or egress-restricted private network, first paint waits on a CDN timeout. No IBM Plex binaries exist in the repo or node_modules, so full self-hosting needs network access and is a follow-up.
+
+**Implementation Steps:**
+1. Remove the `@import`; load the font stylesheet from `frontend/index.html` via `preconnect` + async `preload`/`onload` pattern with a `noscript` fallback.
+2. Verify system font fallbacks (`--font-sans`/`--font-mono` stacks) render immediately when the CDN is unreachable.
+
+**Completion Criteria:**
+- [x] No external `@import` remains in bundled CSS
+- [x] Fonts load when online; instant system-font fallback offline
+- [x] Frontend build and required V2 browser smoke pass
+
+**Dependencies:** None
+**Blocks:** None
+
+**Progress Notes:**
+- 2026-07-12: Removed the `@import` from `styles.css`; `index.html` now loads the font CSS via `preconnect` + `preload` + `media="print" onload` async links with a `noscript` fallback. Local IBM Plex vendoring (removing the CDN entirely) remains a network-gated follow-up. Verification shared with V2-071 (build, bundle check, required browser smoke all green).
+
+---
+
+### Task ID: V2-073
+**Title:** Surface silent mutation failures in Run/Console/Operate
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+
+**Description:** Eight RunPage mutations (template/profile/activate/eval-gate-preview/rollback-profile/record/branch/snapshot) and the ConsolePage control-plane mutations (take control, release, capture, send input/key, rename, stop) define no `onError` and never render error state; a rejected save/control action silently stops the spinner. OperatePage auto-fires a template-seed write on page view with failures swallowed. The errorText → state → Alert idiom already exists on both pages.
+
+**Implementation Steps:**
+1. RunPage: add `onError` + rendered error surfacing for the 8 uncovered mutations.
+2. ConsolePage: surface errors for control/session mutations; validate template-values JSON synchronously so the friendly message replaces the raw SyntaxError and the dead catch is removed.
+3. OperatePage: remove the auto-seed-on-view effect in favor of the existing explicit button; surface seed failures.
+
+**Completion Criteria:**
+- [x] Every write mutation on Run/Console/Operate surfaces failure visibly
+- [x] No dead error-handling code remains on the template-apply path
+- [x] Viewing Operate performs no unannounced backend write
+- [x] Required V2 browser smoke passes
+
+**Dependencies:** None
+**Blocks:** None
+
+**Progress Notes:**
+- 2026-07-12: RunPage — the 8 uncovered mutations (template save, profile save/activate/eval-gate-preview/rollback, record, branch, snapshot) now share five grouped error states with `onError: errorText` and `<Alert>`s beside their panels; onSuccess handlers clear them. ConsolePage — take/release control, tmux capture/send/key/rename/stop, and code-session capture/send/stop surface errors near their control clusters; template-values JSON parses synchronously before `.mutate` so the friendly "Template values must be a JSON object." replaces the raw SyntaxError and the dead catch is removed. OperatePage — the auto-seed-on-view effect is deleted (the explicit Seed button stays) and seed failures render an Alert under the button.
+- 2026-07-12: Verification shared with V2-071: build/tsc, 592 unit tests, and required V2 browser smoke all green.
+
+---
+
+### Task ID: V2-074
+**Title:** State-honesty and readability polish batch
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-12
+**Completion Time:** 2026-07-12
+
+**Description:** Survey-verified quality gaps: raw JSON rendered as primary content (Observe/Operate/Run + chat fallback), machine strings on visible surfaces ("NEUTRAL", "probe_failed", "Invalid Date"), hero-scale type in dense tools, reduced-motion gaps, loading zeros presented as truth, and small accessibility misses (unlabeled icon-only controls, literal "x" glyphs).
+
+**Completion Criteria:**
+- [x] No always-visible `JSON.stringify` blobs; raw payloads behind consistent `<details>` labels
+- [x] Human-readable status labels on Models/status surfaces; timestamp guards in Run tables
+- [x] Code/Research headers use a dense clamp; chat answer body reads larger than metadata
+- [x] `skeletonPulse`/`costPausePulse` disabled under `prefers-reduced-motion`
+- [x] Observe loading state gated; no hardcoded "ready" for absent reporting status
+- [x] Create image picker filters to routable models
+- [x] Icon-only controls labeled; literal "x" close glyphs replaced with the Carbon close icon
+- [x] Required V2 browser smoke passes
+
+**Dependencies:** None
+**Blocks:** None
+
+**Progress Notes:**
+- 2026-07-12: Landed across HeroPages/Observe/Operate/Run/App/styles: chat `responseText` renders a diagnostic instead of a stringified object; StatusPanel "NEUTRAL" tag replaced with mapped labels; Models spotlight/showcase use `readableStatus`; Research diagnostics hide the empty `{}` dump; "Live Files & Diffs" renamed to the honest "Staged Context Changes"; Observe/Operate/Run raw JSON demoted behind consistent "Raw payload" disclosures with human summaries; Observe gates initial load and reports "not configured"/"n/a"; Run chat/replay results render readable text with routing/cost tags; six "Invalid Date" sites guarded; Code/Research/Advanced h1 clamp reduced to 28-40px; chat `.messageBody p` raised to 15px/1.55; `skeletonPulse` + `costPausePulse` covered by `prefers-reduced-motion`; evidence/context removers and both shell dialogs use labeled Carbon close icons; Create image picker filters to `route_enabled`; cost pill gets a distinct offline treatment; dead `SelectedModelPanel` removed.
+- 2026-07-12: The pre-existing smoke assertion for the "Raw details" label was updated to the standardized "Raw payload". Verification shared with V2-071: build/tsc, 592 unit tests, required V2 browser smoke green.
+
+---
+
+### Task ID: V2-075
+**Title:** Frontend consolidation batch (helpers, duplicate CSS, terminal resilience)
+**Status:** TODO
+**Priority:** P3
+**Assigned To:** Unassigned
+**Start Time:** —
+
+**Description:** Reuse/consolidation items from the 2026-07-12 survey: shared format helpers (`money/record/list/jsonObject` re-implemented per page with drift); merge `ModelMiniCard`/`ModelAlertCard`; extract a brief-actions hook (five duplicates); merge duplicate CSS rule pairs (~3,700 lines apart) that silently override; TUI terminal teardown/reconnect on control toggle plus missing onerror/reconnect; fit-addon terminal resizing (needs new npm dependency — network); Run left-tab rail on narrow viewports; registry-backed model Selects in Run; Console dual session-control clusters. Already closed elsewhere: dead `SelectedModelPanel` (removed in V2-074), Observe "Requests" substitution (fixed in V2-074), brand SVG artwork extracted to a lazy chunk (V2-071 bundle-budget work).
+
+**Completion Criteria:**
+- [ ] Accepted consolidation items implemented with build/smoke green, or explicitly re-scoped
+- [ ] No behavior change beyond the documented fixes
+
+**Dependencies:** None
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Codex; Platform review remediation appended 2026-07-11.*
-*Timestamp: 2026-07-11*
+*Last updated by: Claude; V2 polish backlog (V2-071..V2-075) appended 2026-07-12.*
+*Timestamp: 2026-07-12*

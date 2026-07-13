@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
-
 html,
 body,
 #root {
@@ -28,6 +26,10 @@ body,
   --cds-green: #24a148;
   --cds-yellow: #f1c21b;
   --cds-purple: #8a3ffc;
+  --cds-field: #ffffff;
+  --cds-chrome: rgba(255, 255, 255, .94);
+  --cds-layer-accent: #edf5ff;
+  --cds-layer-danger: #fff1f1;
   --cds-terminal: #161616;
   --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
   --font-display: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -99,7 +101,7 @@ button {
   gap: 8px;
   padding: 6px;
   border: 1px solid var(--cds-border-subtle);
-  background: rgba(255,255,255,.94);
+  background: var(--cds-chrome);
   color: var(--cds-text);
   box-shadow: 0 8px 28px rgba(22,22,22,.12);
   backdrop-filter: blur(12px);
@@ -130,7 +132,7 @@ button {
   display: grid;
   place-items: center;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
 }
 
@@ -177,16 +179,28 @@ button {
   border-left: 1px solid var(--cds-border-subtle);
 }
 
-.shellVoiceToggle {
+.shellVoiceToggle,
+.shellThemeToggle {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
   white-space: nowrap;
+}
+
+.shellThemeToggle {
+  flex: 0 0 auto;
+  min-height: 42px;
+}
+
+.shellThemeToggle:hover,
+.shellThemeToggle:focus-visible {
+  border-color: var(--cds-blue);
+  outline: 0;
 }
 
 .shellVoiceTools.enabled .shellVoiceToggle {
@@ -338,7 +352,7 @@ button {
 
 .tagLike.hard {
   border-color: var(--cds-red);
-  background: #fff1f1;
+  background: var(--cds-layer-danger);
   color: #a2191f;
 }
 
@@ -382,7 +396,7 @@ button {
 .shellCostActions button {
   height: 32px;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
   padding: 0 10px;
 }
@@ -1032,7 +1046,7 @@ button {
   gap: 8px;
   align-items: center;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
   padding: 6px 10px;
   font: inherit;
@@ -1065,7 +1079,7 @@ button {
   gap: 12px;
   align-items: center;
   border: 0;
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
   text-align: left;
   padding: 10px 12px;
@@ -1079,7 +1093,7 @@ button {
 }
 
 .quickSwitcherList button.active.highlighted {
-  background: #edf5ff;
+  background: var(--cds-layer-accent);
 }
 
 .quickSwitcherList .carbonIcon {
@@ -2335,7 +2349,7 @@ button {
 
 .codeTerminalPrimary {
   align-content: start;
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .codeTerminalHeader {
@@ -2539,7 +2553,7 @@ button {
   width: 28px;
   height: 28px;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
 }
 
@@ -2826,7 +2840,7 @@ button {
 .researchEvidence.compact {
   max-height: 420px;
   overflow: auto;
-  background: rgba(255, 255, 255, .94);
+  background: var(--cds-chrome);
   color: var(--cds-text-primary);
 }
 
@@ -2889,13 +2903,13 @@ button {
   padding: 12px;
   border: 1px solid var(--research-rule);
   border-top: 3px solid var(--research-red);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .lexisSearchLine input,
 .lexisSearchLine select {
   border-color: #a8a8a8;
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .lexisSearchLine .primaryButton,
@@ -2909,7 +2923,7 @@ button {
   justify-content: end;
   gap: 8px;
   border-color: var(--research-rule);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .researchSearchStatus {
@@ -2917,7 +2931,7 @@ button {
   gap: 6px;
   padding: 12px;
   border-left: 4px solid var(--research-red);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .researchSearchStatus span {
@@ -2940,7 +2954,7 @@ button {
   gap: 8px;
   align-items: center;
   border-top: 3px solid var(--research-black);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .lexisResearchHero .engineControls span {
@@ -2957,7 +2971,7 @@ button {
   display: grid;
   min-width: 0;
   border: 1px solid var(--research-rule);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .lexisResultHeader,
@@ -3018,12 +3032,12 @@ button {
   display: grid;
   place-items: center;
   border: 1px solid var(--research-rule);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .pinButton.active {
   border-color: var(--research-red);
-  background: #fff1f1;
+  background: var(--cds-layer-danger);
 }
 
 .pinButton .carbonIcon {
@@ -3076,7 +3090,7 @@ button {
 
 .claimMapHeader,
 .claimRow {
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .claimMapHeader {
@@ -3126,7 +3140,7 @@ button {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--research-rule);
-  background: #f4f4f4;
+  background: var(--cds-layer-02);
   padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3135,7 +3149,7 @@ button {
 
 .researchAuditPanel {
   border: 1px solid var(--research-rule);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   padding: 10px;
 }
 
@@ -3166,7 +3180,7 @@ button {
   padding: 12px;
   border: 1px solid var(--research-rule);
   border-top: 3px solid var(--research-black);
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .sourceRegistryCard.active {
@@ -4246,7 +4260,7 @@ button {
   justify-content: center;
   padding: 0 12px;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--cds-text);
   font-size: 12px;
   font-weight: 600;
@@ -4385,7 +4399,7 @@ button {
 .modelCompareModel {
   min-height: 48px;
   padding: 10px;
-  background: #ffffff;
+  background: var(--cds-layer-01);
 }
 
 .modelCompareLabel {
@@ -4671,6 +4685,13 @@ button {
   letter-spacing: 0;
 }
 
+.codeHero .heroHeader h1,
+.researchHero .heroHeader h1,
+.advancedHero .heroHeader h1 {
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.06;
+}
+
 .heroHeader p,
 .createCenter p {
   max-width: 760px;
@@ -4813,6 +4834,11 @@ button {
   line-height: 1.5;
 }
 
+.icqTranscriptPane .messageBody p {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
 .chatEmptyState {
   min-height: 230px;
   display: grid;
@@ -4878,9 +4904,9 @@ button {
 
 .chatStarterRow button {
   min-height: 34px;
-  border: 1px solid #cfd7e5;
-  background: #ffffff;
-  color: #27364f;
+  border: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer-01);
+  color: var(--cds-text);
   padding: 0 11px;
 }
 
@@ -4889,7 +4915,7 @@ button {
   color: var(--cds-blue);
 }
 
-html[data-chat-theme="dark"] {
+html[data-theme="dark"] {
   color-scheme: dark;
   --cds-background: #111111;
   --cds-layer: #1f1f1f;
@@ -4897,6 +4923,7 @@ html[data-chat-theme="dark"] {
   --cds-layer-02: #292929;
   --cds-layer-03: #393939;
   --cds-layer-hover: #333333;
+  --cds-layer-selected: #393939;
   --cds-field: #161616;
   --cds-text: #f4f4f4;
   --cds-text-primary: #f4f4f4;
@@ -4905,80 +4932,141 @@ html[data-chat-theme="dark"] {
   --cds-border: #6f6f6f;
   --cds-border-subtle: #393939;
   --cds-border-strong: #8d8d8d;
+  --cds-chrome: rgba(24, 24, 24, .94);
+  --cds-layer-accent: #262f3f;
+  --cds-layer-danger: #3a0b0d;
+  --cds-link-strong: #78a9ff;
 }
 
-html[data-chat-theme="dark"] body {
+html[data-theme="dark"] body {
   background: #111111;
 }
 
-html[data-chat-theme="dark"] .carbonShell {
+html[data-theme="dark"] .carbonShell {
   background: #111111;
 }
 
-html[data-chat-theme="dark"] .mainSurface {
+html[data-theme="dark"] .mainSurface {
   background:
     linear-gradient(180deg, #151515 0, #111111 46%, #0f0f0f 100%);
 }
 
-html[data-chat-theme="dark"] .shellFloatingChrome {
+html[data-theme="dark"] .shellFloatingChrome {
   border-color: #3d3d3d;
   background: rgba(24,24,24,.94);
   color: #f4f4f4;
   box-shadow: 0 14px 40px rgba(0,0,0,.44);
 }
 
-html[data-chat-theme="dark"] .shellMenuButton,
-html[data-chat-theme="dark"] .shellVoiceToggle,
-html[data-chat-theme="dark"] .shellCostActions button {
+html[data-theme="dark"] .shellMenuButton,
+html[data-theme="dark"] .shellVoiceToggle,
+html[data-theme="dark"] .shellThemeToggle,
+html[data-theme="dark"] .shellCostActions button {
   border-color: #525252;
   background: #242424;
   color: #f4f4f4;
 }
 
-html[data-chat-theme="dark"] .shellMenuButton:hover,
-html[data-chat-theme="dark"] .shellMenuButton:focus-visible,
-html[data-chat-theme="dark"] .shellVoiceToggle:hover,
-html[data-chat-theme="dark"] .shellVoiceToggle:focus-visible,
-html[data-chat-theme="dark"] .shellCostActions button:hover,
-html[data-chat-theme="dark"] .shellCostActions button:focus-visible {
+html[data-theme="dark"] .shellMenuButton:hover,
+html[data-theme="dark"] .shellMenuButton:focus-visible,
+html[data-theme="dark"] .shellVoiceToggle:hover,
+html[data-theme="dark"] .shellVoiceToggle:focus-visible,
+html[data-theme="dark"] .shellThemeToggle:hover,
+html[data-theme="dark"] .shellThemeToggle:focus-visible,
+html[data-theme="dark"] .shellCostActions button:hover,
+html[data-theme="dark"] .shellCostActions button:focus-visible {
   border-color: #78a9ff;
   background: #303030;
 }
 
-html[data-chat-theme="dark"] .shellVoiceField select,
-html[data-chat-theme="dark"] .shellCostThreshold input {
+html[data-theme="dark"] .shellVoiceField select,
+html[data-theme="dark"] .shellCostThreshold input {
   border-color: #525252;
   background: #161616;
   color: #f4f4f4;
 }
 
-html[data-chat-theme="dark"] .shellCostTools,
-html[data-chat-theme="dark"] .shellCostTools strong {
+html[data-theme="dark"] .shellCostTools,
+html[data-theme="dark"] .shellCostTools strong {
   color: #f4f4f4;
 }
 
-html[data-chat-theme="dark"] .shellCostPanel {
+html[data-theme="dark"] .shellCostPanel {
   border-color: #3d3d3d;
   background: #1f1f1f;
   box-shadow: 0 18px 48px rgba(0,0,0,.5);
 }
 
-html[data-chat-theme="dark"] .shellCostBreakdown span,
-html[data-chat-theme="dark"] .tagLike {
+html[data-theme="dark"] .shellCostBreakdown span,
+html[data-theme="dark"] .tagLike {
   border-color: #393939;
   background: #292929;
 }
 
-html[data-chat-theme="dark"] .tagLike.warning {
+html[data-theme="dark"] .tagLike.warning {
   border-color: #f1c21b;
   background: #302400;
   color: #fddc69;
 }
 
-html[data-chat-theme="dark"] .tagLike.hard {
+html[data-theme="dark"] .tagLike.hard {
   border-color: #ff8389;
   background: #3a0b0d;
   color: #ffb3b8;
+}
+
+html[data-theme="dark"] .shellFloatingChrome .carbonIcon,
+html[data-theme="dark"] .secondaryButton .carbonIcon,
+html[data-theme="dark"] .iconButton .carbonIcon,
+html[data-theme="dark"] .ant-btn .carbonIcon,
+html[data-theme="dark"] .ant-card-head .carbonIcon,
+html[data-theme="dark"] .quickSwitcherRecents .carbonIcon,
+html[data-theme="dark"] .quickSwitcherList .carbonIcon,
+html[data-theme="dark"] .authDialogHeader .carbonIcon,
+html[data-theme="dark"] .modalCloseButton .carbonIcon,
+html[data-theme="dark"] .icqContactSearch .carbonIcon,
+html[data-theme="dark"] .voiceConsoleLead .carbonIcon,
+html[data-theme="dark"] .pinButton .carbonIcon,
+html[data-theme="dark"] .resultCopyButton .carbonIcon,
+html[data-theme="dark"] .icqFavoriteButton .carbonIcon,
+html[data-theme="dark"] .closeButton .carbonIcon,
+html[data-theme="dark"] .contextPill button .carbonIcon,
+html[data-theme="dark"] .evidenceItem button .carbonIcon,
+html[data-theme="dark"] .advancedOverviewIcon .carbonIcon,
+html[data-theme="dark"] .quickSwitcherRecents button .carbonIcon {
+  filter: invert(1);
+}
+
+.shellCostTools.offline summary {
+  border-left: 3px solid var(--cds-border-strong);
+  opacity: .78;
+}
+
+.tagLike.offline {
+  border-color: var(--cds-border-strong);
+  background: var(--cds-layer-02);
+  color: var(--cds-text-secondary);
+}
+
+.researchAuditEmpty {
+  margin: 8px 0 0;
+  color: var(--cds-text-secondary);
+  font-size: 13px;
+}
+
+html[data-theme="dark"] .icqFavoriteButton.active .carbonIcon {
+  filter: invert(1) sepia(1) saturate(4) hue-rotate(350deg);
+}
+
+html[data-theme="dark"] .quickSwitcherList button {
+  background: var(--cds-layer-01);
+}
+
+html[data-theme="dark"] .quickSwitcher,
+html[data-theme="dark"] .authDialog,
+html[data-theme="dark"] .shellCostPanel,
+html[data-theme="dark"] .whatsNewModal {
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
 }
 
 .chatHero.chatThemeDark {
@@ -5313,7 +5401,7 @@ html[data-chat-theme="dark"] .tagLike.hard {
 }
 
 .researchTabs button.active {
-  background: #ffffff;
+  background: var(--cds-layer-01);
   color: var(--research-red);
   box-shadow: inset 0 -3px 0 var(--research-red);
 }
@@ -5321,17 +5409,17 @@ html[data-chat-theme="dark"] .tagLike.hard {
 .lexisSearchLine {
   padding: 14px;
   border-top: 2px solid var(--research-red);
-  background: rgba(255,255,255,.96);
+  background: var(--cds-chrome);
   box-shadow: 0 1px 2px rgba(22,22,22,.04);
 }
 
 .lexisSearchLine input,
 .lexisSearchLine select {
-  background: #fbfbfa;
+  background: var(--cds-field);
 }
 
 .researchReportActions {
-  background: rgba(255,255,255,.92);
+  background: var(--cds-chrome);
 }
 
 .lexisResearchHero .primaryButton {
@@ -5346,13 +5434,13 @@ html[data-chat-theme="dark"] .tagLike.hard {
 .lexisResearchHero .engineControls {
   border-top: 2px solid #2a2a2d;
   padding: 10px 12px;
-  background: rgba(255,255,255,.95);
+  background: var(--cds-chrome);
 }
 
 .lexisResearchHero .engineChip {
   min-height: 44px;
   border-color: #d5d7dc;
-  background: #ffffff;
+  background: var(--cds-layer-01);
   box-shadow: inset 0 -2px 0 transparent;
 }
 
@@ -5476,21 +5564,21 @@ html[data-chat-theme="dark"] .tagLike.hard {
 .advancedHero .advancedTabs button.active,
 .advancedTabs button.active,
 .modeSwitch button.active {
-  background: #edf5ff;
+  background: var(--cds-layer-accent);
   border-color: var(--cds-blue);
-  color: #0043ce;
+  color: var(--cds-link-strong, #0043ce);
   box-shadow: inset 0 -2px 0 var(--cds-blue);
 }
 
 .advancedPanel {
-  background: rgba(255,255,255,.96);
+  background: var(--cds-chrome);
 }
 
 .emptyState,
 .errorBanner,
 .statusPanel {
-  border-color: #d8dce2;
-  background: #f8f9fb;
+  border-color: var(--cds-border-subtle);
+  background: var(--cds-layer-02);
 }
 
 .modalBackdrop {
@@ -5662,7 +5750,15 @@ html[data-chat-theme="dark"] .tagLike.hard {
   width: 36px;
   height: 36px;
   border: 1px solid var(--cds-border-subtle);
-  background: #ffffff;
+  background: var(--cds-layer-01);
+}
+
+.closeButton .carbonIcon,
+.contextPill button .carbonIcon,
+.evidenceItem button .carbonIcon {
+  width: 14px;
+  height: 14px;
+  filter: none;
 }
 
 .linkGrid {
@@ -5699,7 +5795,7 @@ html[data-chat-theme="dark"] .tagLike.hard {
 .advancedOverview .readinessPulse,
 .advancedOverview .homeSummary {
   border: 1px solid var(--cds-border-subtle);
-  background: rgba(255,255,255,.96);
+  background: var(--cds-chrome);
   box-shadow: 0 1px 2px rgba(22,22,22,.04);
 }
 
@@ -5723,7 +5819,7 @@ html[data-chat-theme="dark"] .tagLike.hard {
   height: 44px;
   display: grid;
   place-items: center;
-  background: #edf5ff;
+  background: var(--cds-layer-accent);
 }
 
 .advancedOverviewIcon .carbonIcon {
@@ -5782,20 +5878,20 @@ html[data-chat-theme="dark"] .tagLike.hard {
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 14px;
   padding: 18px;
-  background: rgba(255,255,255,.96);
+  background: var(--cds-chrome);
   color: var(--cds-text);
 }
 
 .advancedOverview .readinessPulse:hover,
 .advancedOverview .readinessPulse:focus-visible {
-  background: #ffffff;
+  background: var(--cds-layer-01);
   border-color: var(--cds-blue);
 }
 
 .advancedOverview .readinessPulseMark {
   width: 44px;
   height: 44px;
-  background: #edf5ff;
+  background: var(--cds-layer-accent);
 }
 
 .advancedOverview .readinessPulseMark .carbonIcon {
@@ -6013,7 +6109,7 @@ html[data-chat-theme="dark"] .tagLike.hard {
 .advancedLoadingRows span {
   display: block;
   min-height: 44px;
-  background: linear-gradient(90deg, #e0e0e0 0%, #f4f4f4 45%, #e0e0e0 100%);
+  background: linear-gradient(90deg, var(--cds-layer-03) 0%, var(--cds-layer-02) 45%, var(--cds-layer-03) 100%);
   background-size: 220% 100%;
   animation: skeletonPulse 1.4s ease-in-out infinite;
 }
@@ -6389,7 +6485,7 @@ html[data-chat-theme="dark"] .tagLike.hard {
 
 .statusPanel.error {
   border-left-color: var(--cds-red);
-  background: #fff1f1;
+  background: var(--cds-layer-danger);
 }
 
 .statusPanel.success {
@@ -6624,6 +6720,15 @@ html[data-chat-theme="dark"] .tagLike.hard {
     justify-content: center;
   }
 
+  .shellThemeToggle {
+    min-height: 40px;
+    padding: 0 9px;
+  }
+
+  .shellThemeToggle span {
+    display: none;
+  }
+
   .shellVoiceField select {
     width: 100%;
     max-width: none;
@@ -6713,6 +6818,12 @@ html[data-chat-theme="dark"] .tagLike.hard {
   .shellDrawerBackdrop,
   .shellDrawer {
     transition-duration: .08s;
+  }
+
+  .shellCostTools.hard summary,
+  .advancedLoadingGrid span,
+  .advancedLoadingRows span {
+    animation: none;
   }
 }
 

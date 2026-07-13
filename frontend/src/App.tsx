@@ -5,6 +5,7 @@ import { forgetConsoleToken, hasConsoleToken, rememberConsoleToken } from './api
 import { CostControlPayload, getCostControl, getSpeechStatus, getWhatsNew, overrideCostControl, updateCostControlThresholds } from './api/v2';
 import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
+import { applyThemeMode, resolveInitialThemeMode, useThemeMode } from './theme';
 import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS, voicePresetById } from './voicePreferences';
 
 type NavItem = {
@@ -202,6 +203,7 @@ function costStatusClass(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === 'paused' || normalized === 'hard') return 'hard';
   if (normalized === 'warning') return 'warning';
+  if (normalized === 'offline') return 'offline';
   return 'ready';
 }
 
@@ -249,7 +251,9 @@ function ConsoleSignInDialog({ prompt, onClose, onSubmit }: { prompt: AuthPrompt
             <span>Console Access</span>
             <h2 id="console-sign-in-title">{prompt.title}</h2>
           </div>
-          <button className="closeButton inline" type="button" aria-label="Close Sign In" onClick={onClose}>x</button>
+          <button className="closeButton inline" type="button" aria-label="Close Sign In" onClick={onClose}>
+            <CarbonIcon path="actions/window-close-symbolic.svg" label="Close" />
+          </button>
         </div>
         <p className="authDialogDetail">{prompt.detail}</p>
         <label className="field authTokenField">
@@ -289,6 +293,7 @@ export default function App() {
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(DEFAULT_AUTH_PROMPT);
   const [signedIn, setSignedIn] = useState(() => hasConsoleToken());
+  const themeMode = useThemeMode();
   const [voicePreferences, setVoicePreferences] = useState(loadVoicePreferences);
   const [costThresholdDraft, setCostThresholdDraft] = useState('');
   const [costControlStatus, setCostControlStatus] = useState('Cost ready');
@@ -308,6 +313,10 @@ export default function App() {
   const voicePresetRef = useRef<HTMLSelectElement | null>(null);
   const drawerRef = useRef<HTMLElement | null>(null);
   const drawerNavRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => {
+    applyThemeMode(resolveInitialThemeMode());
+  }, []);
+  const toggleThemeMode = () => applyThemeMode(themeMode === 'dark' ? 'light' : 'dark');
   useEffect(() => {
     const threshold = costControl.data?.threshold?.monthly_threshold_usd;
     if (threshold === undefined || threshold === null) return;
@@ -647,7 +656,9 @@ export default function App() {
                 <button className="iconButton" type="button" aria-label="Copy Current Workspace Link" title="Copy current workspace link" onClick={() => void copyCurrentWorkspaceLink()}>
                   <CarbonIcon path="actions/insert-link-symbolic.svg" label="Copy link" />
                 </button>
-                <button className="closeButton inline" type="button" aria-label="Close Switch Workspace" onClick={closeQuickSwitcher}>x</button>
+                <button className="closeButton inline" type="button" aria-label="Close Switch Workspace" onClick={closeQuickSwitcher}>
+                  <CarbonIcon path="actions/window-close-symbolic.svg" label="Close" />
+                </button>
               </div>
             </div>
             <div className="searchLine compact quickSwitcherSearch">
@@ -774,6 +785,18 @@ export default function App() {
             </>
           ) : null}
         </div>
+        <button
+          className="shellThemeToggle"
+          type="button"
+          aria-pressed={themeMode === 'dark'}
+          aria-label={themeMode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={toggleThemeMode}
+          data-testid="shell-theme-toggle"
+        >
+          <CarbonIcon path={themeMode === 'dark' ? 'apps/light.svg' : 'apps/moon.svg'} label="Theme" />
+          <span>{themeMode === 'dark' ? 'Dark' : 'Light'}</span>
+        </button>
         <details className={`shellCostTools ${costClass}`} data-testid="shell-cost-control">
           <summary aria-label="Cost controls">
             <CarbonIcon path="actions/system-run-symbolic.svg" label="Cost" />

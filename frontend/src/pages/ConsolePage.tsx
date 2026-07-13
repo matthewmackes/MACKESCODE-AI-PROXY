@@ -53,10 +53,14 @@ function money(value: unknown): string {
   return Number.isFinite(amount) ? `$${amount.toFixed(4)}` : '$0.0000';
 }
 
-function jsonObject(value: string): Record<string, unknown> {
+function jsonObject(value: string): Record<string, unknown> | null {
   if (!value.trim()) return {};
-  const parsed = JSON.parse(value);
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function clientId(): string {
@@ -94,6 +98,9 @@ export default function ConsolePage() {
   const [permissionPreview, setPermissionPreview] = useState<PermissionPreview | null>(null);
   const [commandQuery, setCommandQuery] = useState('');
   const [commandDispatchResult, setCommandDispatchResult] = useState('');
+  const [controlError, setControlError] = useState('');
+  const [sessionActionError, setSessionActionError] = useState('');
+  const [codeSessionActionError, setCodeSessionActionError] = useState('');
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const status = useQuery({ queryKey: ['tui-status'], queryFn: getConsoleTuiStatus, refetchInterval: 5000 });
   const overview = useQuery({ queryKey: ['console-overview'], queryFn: getConsoleOverview, refetchInterval: 10000 });
@@ -128,16 +135,20 @@ export default function ConsolePage() {
   const acquire = useMutation({
     mutationFn: () => acquireConsoleTuiControl(client),
     onSuccess: (payload) => {
+      setControlError('');
       setController(payload.lease.holder === client);
       queryClient.invalidateQueries({ queryKey: ['tui-status'] });
-    }
+    },
+    onError: (error) => setControlError(errorText(error))
   });
   const release = useMutation({
     mutationFn: () => releaseConsoleTuiControl(client),
     onSuccess: () => {
+      setControlError('');
       setController(false);
       queryClient.invalidateQueries({ queryKey: ['tui-status'] });
-    }
+    },
+    onError: (error) => setControlError(errorText(error))
   });
   const startSession = useMutation({
     mutationFn: (payload: CodeSessionStartPayload) => startCodeSession(payload),
@@ -153,65 +164,87 @@ export default function ConsolePage() {
   });
   const captureSession = useMutation({
     mutationFn: (name: string) => captureCodeSession(name),
-    onSuccess: (payload) => setSessionScreen(payload.screen || '')
+    onSuccess: (payload) => {
+      setCodeSessionActionError('');
+      setSessionScreen(payload.screen || '');
+    },
+    onError: (error) => setCodeSessionActionError(errorText(error))
   });
   const captureTmux = useMutation({
     mutationFn: (name: string) => captureTmuxSession(name),
-    onSuccess: (payload) => setSessionScreen(payload.screen || '')
+    onSuccess: (payload) => {
+      setSessionActionError('');
+      setSessionScreen(payload.screen || '');
+    },
+    onError: (error) => setSessionActionError(errorText(error))
   });
   const sendSessionInput = useMutation({
     mutationFn: () => sendCodeSessionInput(selectedSession, sessionInput, true),
     onSuccess: () => {
+      setCodeSessionActionError('');
       setSessionInput('');
       setTimeout(() => selectedSession && captureSession.mutate(selectedSession), 250);
-    }
+    },
+    onError: (error) => setCodeSessionActionError(errorText(error))
   });
   const sendTmuxInput = useMutation({
     mutationFn: (enter: boolean) => sendTmuxText(selectedSession, sessionInput, enter),
     onSuccess: () => {
+      setSessionActionError('');
       setSessionInput('');
       setTimeout(() => selectedSession && captureTmux.mutate(selectedSession), 250);
-    }
+    },
+    onError: (error) => setSessionActionError(errorText(error))
   });
   const sendTmuxControlKey = useMutation({
     mutationFn: (key: string) => sendTmuxKey(selectedSession, key),
-    onSuccess: () => setTimeout(() => selectedSession && captureTmux.mutate(selectedSession), 250)
+    onSuccess: () => {
+      setSessionActionError('');
+      setTimeout(() => selectedSession && captureTmux.mutate(selectedSession), 250);
+    },
+    onError: (error) => setSessionActionError(errorText(error))
   });
   const renameTmux = useMutation({
     mutationFn: () => renameTmuxSession(selectedSession, sessionRename || selectedSession, sessionRename || selectedSession),
     onSuccess: (payload) => {
+      setSessionActionError('');
       const name = valueText(payload.name, selectedSession);
       setSelectedSession(name);
       setSessionRename(valueText(payload.display_name || payload.name, name));
       queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
       queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-    }
+    },
+    onError: (error) => setSessionActionError(errorText(error))
   });
   const stopSession = useMutation({
     mutationFn: (name: string) => stopCodeSession(name),
     onSuccess: () => {
+      setCodeSessionActionError('');
       setSelectedSession('');
       setSessionRename('');
       setSessionScreen('');
       queryClient.invalidateQueries({ queryKey: ['console-overview'] });
       queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
-    }
+    },
+    onError: (error) => setCodeSessionActionError(errorText(error))
   });
   const stopTmux = useMutation({
     mutationFn: (name: string) => stopTmuxSession(name),
     onSuccess: () => {
+      setSessionActionError('');
       setSelectedSession('');
       setSessionRename('');
       setSessionScreen('');
       queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
       queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-    }
+    },
+    onError: (error) => setSessionActionError(errorText(error))
   });
   const applyTemplate = useMutation({
-    mutationFn: (template: PromptTemplate) => previewPromptTemplate({
+    mutationFn: ({ template, values }: { template: PromptTemplate; values: Record<string, unknown> }) => previewPromptTemplate({
       body: template.body,
       variables: template.variables,
-      values: jsonObject(templateValues)
+      values
     }),
     onSuccess: (payload) => {
       setTemplateApplyError('');
@@ -230,11 +263,12 @@ export default function ConsolePage() {
   });
 
   const handleApplyTemplate = (template: PromptTemplate) => {
-    try {
-      applyTemplate.mutate(template);
-    } catch (error) {
+    const values = jsonObject(templateValues);
+    if (!values) {
       setTemplateApplyError('Template values must be a JSON object.');
+      return;
     }
+    applyTemplate.mutate({ template, values });
   };
 
   const onProfileChange = (profile: string) => {
@@ -274,6 +308,7 @@ export default function ConsolePage() {
             <Button data-testid="tui-take-control" type="primary" onClick={() => acquire.mutate()} loading={acquire.isPending} disabled={controller || !canControlTui}>Take control</Button>
             <Button data-testid="tui-release-control" onClick={() => release.mutate()} loading={release.isPending} disabled={!controller}>Release</Button>
           </Space>
+          {controlError ? <Alert type="error" showIcon message={controlError} /> : null}
           {capabilities.data ? (
             <Typography.Text type="secondary">Actor: {capabilities.data.actor.id} · {capabilities.data.actor.roles.join(', ') || 'no roles'}</Typography.Text>
           ) : null}
@@ -352,6 +387,7 @@ export default function ConsolePage() {
               }
             ]}
           />
+          {sessionActionError ? <Alert type="error" showIcon message={sessionActionError} /> : null}
           <div className="tmuxControlDock" data-testid="tmux-control-dock">
             <Space wrap>
               <Select
@@ -630,6 +666,7 @@ export default function ConsolePage() {
               ) : null}
             </Space>
           </Form>
+          {codeSessionActionError ? <Alert type="error" showIcon message={codeSessionActionError} /> : null}
           <Space wrap>
             <Select
               data-testid="code-session-selector"

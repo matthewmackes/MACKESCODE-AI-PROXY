@@ -9,6 +9,26 @@
     <link rel="icon" type="image/png" href="/brand/mde-app-icon.png" />
     <link rel="apple-touch-icon" href="/brand/mde-app-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem("matts-v2-theme");
+          var theme = stored === "dark" || stored === "light"
+            ? stored
+            : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          document.documentElement.dataset.theme = theme;
+        } catch (error) {
+          /* Theme falls back to light when storage or matchMedia are unavailable. */
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" />
+    </noscript>
     <style>
       :root {
         color-scheme: light;
@@ -16,10 +36,18 @@
         background: #f4f4f4;
         color: #161616;
       }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        background: #161616;
+        color: #f4f4f4;
+      }
       body {
         margin: 0;
         min-width: 320px;
         background: #f4f4f4;
+      }
+      :root[data-theme="dark"] body {
+        background: #161616;
       }
       .bootShell {
         min-height: 100vh;
