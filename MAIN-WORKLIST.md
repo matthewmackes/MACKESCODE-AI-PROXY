@@ -10645,6 +10645,35 @@ development worklist does not pretend they are locally closable.
 
 ---
 
+### Task ID: V2-080
+**Title:** Dark-theme fixes for the What's New modal
+**Status:** ✅ `COMPLETED`
+**Priority:** P2
+**Assigned To:** Claude (polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** Operator-reported defect: dark mode looks poor on the What's New popup. Verified causes: (1) `.modelAlertCard` — the modal body's primary content — uses a pastel-to-white gradient (`linear-gradient(90deg, var(--surface), #ffffff)`) whose `--cds-text-secondary` copy (#c6c6c6 in dark) is unreadable on white; (2) the polish layer re-declares `border-color: #dadde1` on `.whatsNewModal` and 14 other major panels, forcing light borders in dark; (3) `.whatsNewJumpStrip .carbonIcon` keeps `filter: none`, rendering black icons on dark layer-02 buttons; (4) `.linkGrid a` uses `--cds-blue` (#0f62fe), marginal contrast on dark layers.
+
+**Completion Criteria:**
+- [x] Alert cards render on dark layers with readable text in dark mode (accent border retained)
+- [x] Panel borders follow `--cds-border-subtle` in both themes
+- [x] Jump-strip icons visible in dark; link-grid links use the dark link token
+- [x] Build, bundle boundary, and required V2 browser smoke pass; live service restarted with the fix
+
+**Dependencies:** None
+**Blocks:** None
+
+**Progress Notes:**
+- 2026-07-13: `html[data-theme="dark"] .modelAlertCard` now uses `var(--cds-layer-02)` instead of the pastel-to-white gradient; the 15-panel polish-layer `border-color: #dadde1` re-declaration converted to `var(--cds-border-subtle)` (light shifts imperceptibly from #dadde1 to #e0e0e0, dark inherits #393939); jump-strip icons invert in dark; `.linkGrid a` uses `var(--cds-link-strong, var(--cds-blue))`. `.modelMiniCard` needed no change (deliberately dark in both themes).
+
+**Verification:**
+- `npm run build --prefix frontend` passed; entry `assets/index-cfbd7407.js` = 171,636 bytes; bundle check passed.
+- `python3 scripts/v2-browser-smoke.py --required` passed (exit 0).
+- Live V2 console restarted on PID 2354880 serving the new bundle; `/v2/health` 200 on the LAN address.
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; planning leftovers promoted to INT-168..INT-171 and V2-076..V2-079 on 2026-07-12.*
-*Timestamp: 2026-07-12*
+*Last updated by: Claude; V2-080 What's New dark-mode fixes added 2026-07-13.*
+*Timestamp: 2026-07-13*

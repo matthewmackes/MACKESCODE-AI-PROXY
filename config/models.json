@@ -537,12 +537,12 @@
         "deepseek"
       ],
       "auto_managed": true,
-      "context_window": 131072,
+      "context_window": 163840,
       "created": 1776375302,
       "display_name": "DeepSeek 3.2",
       "enabled": true,
       "id": "deepseek-3.2",
-      "max_output_tokens": 26214,
+      "max_output_tokens": 32768,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.425,
@@ -596,12 +596,12 @@
         "deepseek-v4"
       ],
       "auto_managed": true,
-      "context_window": 87040,
+      "context_window": 262144,
       "created": 1777633630,
       "display_name": "DeepSeek V4 Pro",
       "enabled": true,
       "id": "deepseek-v4-pro",
-      "max_output_tokens": 17408,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 1.392,
@@ -655,12 +655,12 @@
     {
       "aliases": [],
       "auto_managed": true,
-      "context_window": 65536,
+      "context_window": 163840,
       "created": 1782322674,
       "display_name": "GLM 5.1",
       "enabled": false,
       "id": "glm-5.1",
-      "max_output_tokens": 13107,
+      "max_output_tokens": 32768,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.975,
@@ -693,12 +693,12 @@
     {
       "aliases": [],
       "auto_managed": true,
-      "context_window": 256000,
+      "context_window": 262144,
       "created": 1773347767,
       "display_name": "Kimi K2.5",
       "enabled": true,
       "id": "kimi-k2.5",
-      "max_output_tokens": 32768,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.375,
@@ -712,12 +712,12 @@
     {
       "aliases": [],
       "auto_managed": true,
-      "context_window": 96000,
+      "context_window": 262144,
       "created": 1778000987,
       "display_name": "Kimi K2.6",
       "enabled": true,
       "id": "kimi-k2.6",
-      "max_output_tokens": 19200,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.76,
@@ -769,12 +769,12 @@
     {
       "aliases": [],
       "auto_managed": true,
-      "context_window": 32000,
+      "context_window": 262144,
       "created": 1781303831,
       "display_name": "Mimo V2.5",
       "enabled": true,
       "id": "mimo-v2.5",
-      "max_output_tokens": 6400,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.105,
@@ -788,12 +788,12 @@
     {
       "aliases": [],
       "auto_managed": true,
-      "context_window": 87040,
+      "context_window": 262144,
       "created": 1781721728,
       "display_name": "Mimo V2.5 Pro",
       "enabled": true,
       "id": "mimo-v2.5-pro",
-      "max_output_tokens": 17408,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.6,
@@ -1357,7 +1357,7 @@
       "display_name": "Qwen3 Coder Flash",
       "enabled": true,
       "id": "qwen3-coder-flash",
-      "max_output_tokens": 65536,
+      "max_output_tokens": 52429,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.45,
@@ -1376,7 +1376,7 @@
       "display_name": "Qwen3.5 397b A17b",
       "enabled": true,
       "id": "qwen3.5-397b-a17b",
-      "max_output_tokens": 81920,
+      "max_output_tokens": 26214,
       "owned_by": "digitalocean",
       "pricing": {
         "input": 0.385,

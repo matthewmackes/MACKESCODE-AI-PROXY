@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed dark-mode rendering of the What's New modal: alert cards now sit on
+  dark layers with readable text instead of a pastel-to-white gradient, panel
+  borders follow the theme token instead of a hardcoded light gray, jump-strip
+  icons invert, and link buttons use the dark link color.
+
 - Promoted dark mode from the Chat-scoped toggle to a global, persisted console
   theme: shell-chrome toggle with `prefers-color-scheme` default, pre-paint boot
   theming, tokenized dark surfaces across all six workspaces, a dark Ant Design
