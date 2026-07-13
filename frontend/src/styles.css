@@ -91,7 +91,7 @@ button {
   top: 14px;
   left: 14px;
   z-index: 8;
-  width: min(980px, calc(100vw - 28px));
+  width: min(1120px, calc(100vw - 28px));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -231,8 +231,7 @@ button {
   gap: 2px;
 }
 
-.shellVoiceField span,
-.shellVoiceStatus {
+.shellVoiceField span {
   color: var(--cds-text-secondary);
   font-size: 11px;
   line-height: 1;
@@ -254,13 +253,6 @@ button {
 
 .shellVoiceField.compact select {
   width: 118px;
-}
-
-.shellVoiceStatus {
-  max-width: 84px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .shellCostTools {
@@ -4014,8 +4006,13 @@ html[data-theme="dark"] .createBriefDock > span {
   gap: 16px;
   padding: 18px;
   border: 1px solid var(--cds-border-subtle);
-  border-left: 6px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff 46%);
+  border-left: 4px solid var(--accent);
+  /* Theme-aware surface: subtle brand-accent tint over the themed layer, like
+     the model cards. The nation pastel (--surface) appears only in the palette
+     swatch row below, never as the panel background (it was white-on-dark,
+     hiding the title). */
+  background: color-mix(in srgb, var(--accent) 8%, var(--cds-layer-01));
+  color: var(--cds-text);
 }
 
 .modelInspectorHeader {
@@ -4103,9 +4100,10 @@ html[data-theme="dark"] .createBriefDock > span {
   align-items: center;
   min-height: 96px;
   padding: 14px;
+  color: var(--cds-text);
   background:
     linear-gradient(120deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 48%),
-    linear-gradient(90deg, var(--surface), #ffffff);
+    var(--cds-layer-01);
 }
 
 .artworkIdentity > div > span,
@@ -4305,7 +4303,8 @@ html[data-theme="dark"] .createBriefDock > span {
   gap: 10px;
   align-items: center;
   border-top: 4px solid var(--accent);
-  background: linear-gradient(90deg, var(--surface), #ffffff);
+  color: var(--cds-text);
+  background: color-mix(in srgb, var(--accent) 8%, var(--cds-layer-01));
 }
 
 .modelCompareModel strong,
@@ -5753,9 +5752,7 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 
 .modelInspector {
   border-left-width: 4px;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--surface) 74%, #ffffff), #ffffff 54%),
-    #ffffff;
+  background: color-mix(in srgb, var(--accent) 8%, var(--cds-layer-01));
 }
 
 .advancedHero .advancedTabs button.active,
@@ -6179,6 +6176,10 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 
 .advancedHero {
   overflow-x: clip;
+  /* Clear the fixed floating chrome, which wraps to a ~2-row band (voice +
+     cost) — the default hero top offset left the "Owner/Admin Operations"
+     eyebrow clipped under it. */
+  padding-top: 122px;
 }
 
 .advancedHero .ant-space {
@@ -6878,10 +6879,6 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
 
   .shellVoiceField.compact select {
     width: 100%;
-  }
-
-  .shellVoiceStatus {
-    display: none;
   }
 
   .shellCostTools {

@@ -7,7 +7,7 @@ import { V2_FATAL_ERROR_DIAGNOSTIC_KEY } from './components/ShellErrorBoundary';
 import { getPlatformBranding } from './branding';
 import { applyThemeMode, resolveInitialThemeMode, useThemeMode } from './theme';
 import { copyText, downloadTextFile, timestampSlug } from './utils/delivery';
-import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS, voicePresetById } from './voicePreferences';
+import { DEFAULT_SPEECH_LANGUAGES, DEFAULT_VOICE_LANGUAGE, loadVoicePreferences, saveVoicePreferences, VoicePreferences, VOICE_PRESETS } from './voicePreferences';
 
 type NavItem = {
   key: string;
@@ -323,7 +323,6 @@ export default function App() {
   const recentItems = useMemo(() => recentWorkspaceKeys.map((key) => navItemForKey(key)).filter((item): item is NavItem => Boolean(item)).filter((item) => item.key !== active).slice(0, QUICK_SWITCHER_RECENT_LIMIT), [active, recentWorkspaceKeys]);
   const highlightedQuickItem = quickItems[quickHighlightedIndex] || quickItems[0];
   const activeItem = useMemo(() => navItemForKey(active) || navItems[0], [active]);
-  const activeVoicePreset = voicePresetById(voicePreferences.globalPresetId);
   const voiceLanguages = speechStatus.data?.languages?.length ? speechStatus.data.languages : DEFAULT_SPEECH_LANGUAGES;
   const savedStateCount = useMemo(savedWorkspaceStateCount, [quickOpen, savedStateVersion]);
   const [savedStateStatus, setSavedStateStatus] = useState(savedStateCount ? 'State ready' : 'No saved state');
@@ -784,7 +783,6 @@ export default function App() {
                   {voiceLanguages.map((language) => <option key={language} value={language}>{language}</option>)}
                 </select>
               </label>
-              <span className="shellVoiceStatus">{activeVoicePreset.shortLabel}</span>
             </>
           ) : null}
         </div>
