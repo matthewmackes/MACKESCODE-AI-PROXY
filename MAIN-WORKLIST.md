@@ -10865,6 +10865,40 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 ---
 
+### Task: V2-085
+
+**Title:** Chat per-message model card overlap + dark-mode consistency
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (proxy-polish run)
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** `/proxy-polish` targeted fix from an operator report: "Dark mode looks poor, inconsistent in the Chat interface, and in the received messages the LLM detail pane is overlapping the received messages on the left-hand side." Both defects trace to the V2-081/084 card unification, which put a 220px `ModelIdentityCard` (size=small) in each assistant message header. Reproduced and verified with seeded-transcript screenshots (dark, light, 560px), a 2× element clip, and a computed-geometry read.
+
+**Root causes + fixes (`frontend/src/styles.css`):**
+- P1 Container overlap: `.icqTranscriptPane .messageRow` used `grid-template-columns: 38px minmax(0,1fr)` (sized for the old 38px avatar). The 220px assistant card overflowed the fixed track and sat on top of the message body. Fix: size column 1 to its content (`auto`) so it fits a 38px avatar or the ~220px card without overflow. Verified geometry: card right=656, body left=666 (10px gap; previously overlapping).
+- P1 Chip spill: `.mdlCardFacts span { white-space: nowrap }` — the combined cost label ("$0.25 INPUT / 1M TOKENS ; $0.55 OUTPUT / 1M TOKENS") is wider than a 220px card and, unable to wrap or shrink, bled past the card's right edge onto the body text. Fix (shared card → every small-card surface): chips wrap (`white-space: normal; overflow-wrap: anywhere; max-width: 100%`) and `.mdlCardFacts { min-width: 0 }`.
+- P2 Dark double-stripe: the assistant row drew its own inset accent stripe ~10px from the card's own brand stripe. Fix: drop the row stripe on assistant rows; the card carries the accent.
+- P2 Dark row tint: dark assistant rows used a bespoke green tint (`#1f241f`) that clashed with the brand card and didn't match the neutral light theme. Fix: remove it so assistant rows use the neutral row background; the card is the sole accent. User rows keep the ICQ-blue tint (pairs with the blue avatar).
+- P2 Responsiveness: under 620px a 220px rail crushes the text. Fix: assistant rows become single-column and the card becomes a full-width header above the body.
+
+**Regression coverage (`scripts/v2-browser-smoke.py`):** the dark-mode smoke navigated chat with an EMPTY transcript, so no assistant card ever rendered — the overlap was invisible to CI. Added `run_chat_model_card_layout_smoke`: seeds a user+assistant transcript, then on 1280px asserts `card.right ≤ body.left` (no rail overlap) and every `.mdlCardFacts span` is contained within the card, and on 560px asserts the card stacks above the body. Wired into `run_browser_smoke`.
+
+**Completion Criteria:**
+- [x] Card no longer overlaps the message body (desktop rail; verified geometry + dark & light screenshots)
+- [x] Cost/fact chips wrap inside the card, no spill onto adjacent content (2× clip verified)
+- [x] Dark chat consistent: single brand accent (no double stripe), neutral assistant rows matching light
+- [x] Responsive: card stacks as a full-width header under 620px (560px screenshot verified)
+- [x] Regression guard added + wired; frontend build + bundle boundary (179,673 B) + required V2 browser smoke pass; committed
+
+**Verification:** `npm run build` (tsc+vite) clean; `check-v2-frontend-bundles.py` (179,673 B); seeded-transcript screenshots (dark/light/560px) + 2× geometry read; `scripts/v2-browser-smoke.py --required` green.
+
+**Dependencies:** V2-081/084 (card unification introduced the per-message card)
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-084 post-refactor polish batch COMPLETED 2026-07-13.*
+*Last updated by: Claude; V2-085 chat model-card overlap + dark consistency COMPLETED 2026-07-13.*
 *Timestamp: 2026-07-13*

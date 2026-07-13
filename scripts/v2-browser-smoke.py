@@ -581,6 +581,97 @@ def run_dark_mode_smoke(browser, base_url: str) -> None:
         context.close()
 
 
+CHAT_LAYOUT_TRANSCRIPT = [
+    {"role": "user", "content": "Give me a two-line status summary of the proxy and the single next action."},
+    {
+        "role": "assistant",
+        "content": (
+            "The proxy is healthy on 127.0.0.1:18081 and every routable model answered the last smoke run. "
+            "Next action: clear the two rate-limited Serverless endpoints before the release cut, then re-run the model audit."
+        ),
+        "model": "DeepSeek V3.2",
+        "company": "DeepSeek",
+        "delivery": "delivered",
+    },
+]
+
+_CHAT_LAYOUT_MEASURE = """
+() => {
+  const rows = [...document.querySelectorAll('.icqTranscriptPane .messageRow.assistant')];
+  return rows.map(row => {
+    const card = row.querySelector('.messageModelCard');
+    const body = row.querySelector('.messageBody');
+    const cardBox = card.getBoundingClientRect();
+    const bodyBox = body.getBoundingClientRect();
+    const spills = [...card.querySelectorAll('.mdlCardFacts span')]
+      .map(s => s.getBoundingClientRect().right - cardBox.right);
+    return {
+      cardRight: cardBox.right, bodyLeft: bodyBox.left,
+      cardBottom: cardBox.bottom, bodyTop: bodyBox.top,
+      chipSpill: Math.max(0, ...spills, 0),
+    };
+  });
+}
+"""
+
+
+def _seed_chat_transcript(page, transcript, theme: str = "dark") -> None:
+    page.add_init_script(
+        "window.localStorage.setItem('matts-v2-theme', %s);"
+        "window.sessionStorage.setItem('matts-v2-whats-new-dismissed', '1');"
+        "window.sessionStorage.setItem('matts-v2-chat-transcript', %s);"
+        % (json.dumps(theme), json.dumps(json.dumps(transcript)))
+    )
+
+
+def run_chat_model_card_layout_smoke(browser, base_url: str) -> None:
+    """A per-message model card must never overflow onto the message body, and
+    a fact chip (e.g. the long cost label) must never spill past the card edge.
+    Regression guard for the 220px chat card that once overlapped the text and
+    whose nowrap cost chip once bled onto adjacent content."""
+    # Desktop: card sits in a left rail; its right edge must clear the body.
+    context = browser.new_context(viewport={"width": 1280, "height": 860}, color_scheme="dark")
+    page = context.new_page()
+    _seed_chat_transcript(page, CHAT_LAYOUT_TRANSCRIPT)
+    try:
+        page.goto(base_url + "#chat", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_selector(".messageModelCard", timeout=15000)
+        page.wait_for_timeout(400)
+        rows = page.evaluate(_CHAT_LAYOUT_MEASURE)
+        assert rows, "expected at least one assistant message row (desktop)"
+        for i, r in enumerate(rows):
+            assert r["cardRight"] <= r["bodyLeft"] + 1, (
+                "desktop: model card (right=%s) overlaps message body (left=%s) in row %d"
+                % (r["cardRight"], r["bodyLeft"], i)
+            )
+            assert r["chipSpill"] <= 1, (
+                "desktop: a card fact chip spills %.1fpx past the card edge in row %d" % (r["chipSpill"], i)
+            )
+    finally:
+        context.close()
+
+    # Narrow: the card stacks above the body (single column); no chip spill.
+    context = browser.new_context(viewport={"width": 560, "height": 860}, color_scheme="dark")
+    page = context.new_page()
+    _seed_chat_transcript(page, CHAT_LAYOUT_TRANSCRIPT)
+    try:
+        page.goto(base_url + "#chat", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_selector(".messageModelCard", timeout=15000)
+        page.wait_for_timeout(400)
+        rows = page.evaluate(_CHAT_LAYOUT_MEASURE)
+        assert rows, "expected at least one assistant message row (narrow)"
+        for i, r in enumerate(rows):
+            assert r["cardBottom"] <= r["bodyTop"] + 2, (
+                "narrow: model card should stack above the body (cardBottom=%s, bodyTop=%s) in row %d"
+                % (r["cardBottom"], r["bodyTop"], i)
+            )
+            assert r["chipSpill"] <= 1, (
+                "narrow: a card fact chip spills %.1fpx past the card edge in row %d" % (r["chipSpill"], i)
+            )
+    finally:
+        context.close()
+
+
 def run_boot_fallback_no_js_smoke(browser, base_url: str) -> None:
     from playwright.sync_api import expect
 
@@ -972,6 +1063,7 @@ def run_browser_smoke(base_url: str) -> None:
         run_boot_fallback_no_js_smoke(browser, base_url)
         run_shell_error_boundary_smoke(browser, base_url)
         run_dark_mode_smoke(browser, base_url)
+        run_chat_model_card_layout_smoke(browser, base_url)
         run_readiness_advisory_label_smoke(browser, base_url)
         run_readiness_handoff_top_action_smoke(browser, base_url)
         run_high_risk_config_drift_guard_smoke(browser, base_url)

@@ -1832,7 +1832,10 @@ button {
 }
 
 .icqTranscriptPane .messageRow {
-  grid-template-columns: 38px minmax(0, 1fr);
+  /* Column 1 sizes to its content: a 38px avatar (user/system) or the ~220px
+     model card (assistant). A fixed 38px track made the wider assistant card
+     overflow and overlap the message body. */
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   padding: 9px 10px;
@@ -1845,8 +1848,10 @@ button {
   background: rgba(38,38,38,.9);
 }
 
+/* Assistant identity and accent come from the model card in column 1, which
+   carries its own brand left-stripe. A row stripe here would double it. */
 .icqTranscriptPane .messageRow.assistant {
-  box-shadow: inset 3px 0 0 var(--message-accent, var(--cds-green));
+  box-shadow: none;
 }
 
 .icqTranscriptPane .messageRow.user {
@@ -2091,6 +2096,16 @@ button {
   .icqTranscriptPane .messageRow {
     grid-template-columns: 32px minmax(0, 1fr);
     padding: 8px;
+  }
+
+  /* Too narrow for a 220px card rail: stack the card as a full-width header
+     above the message body instead of crushing the text column. */
+  .icqTranscriptPane .messageRow.assistant {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .icqTranscriptPane .messageRow.assistant .messageModelCard {
+    width: 100%;
   }
 
   .messageAvatar,
@@ -5105,6 +5120,7 @@ html[data-theme="dark"] .mdlSelectClear .carbonIcon {
   flex-wrap: wrap;
   gap: 4px 6px;
   margin-top: 4px;
+  min-width: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--cds-text-secondary);
@@ -5115,7 +5131,12 @@ html[data-theme="dark"] .mdlSelectClear .carbonIcon {
   border: 1px solid var(--cds-border-subtle);
   border-radius: 3px;
   background: var(--cds-layer-02);
-  white-space: nowrap;
+  /* Wrap long chips (e.g. the combined cost label) within the card instead of
+     letting a single nowrap chip overflow a narrow (220px) card and spill onto
+     adjacent content, such as the chat message body. */
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .mdlCardCorner {
@@ -5469,10 +5490,8 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   background: #1f1f1f;
 }
 
-.chatHero.chatThemeDark .icqTranscriptPane .messageRow.assistant {
-  background: #1f241f;
-}
-
+/* Assistant rows stay the neutral row background in dark; the brand-tinted
+   model card is the accent, so a second green tint here read as inconsistent. */
 .chatHero.chatThemeDark .icqTranscriptPane .messageRow.user {
   background: #1b2534;
 }
