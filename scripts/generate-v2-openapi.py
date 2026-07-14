@@ -462,6 +462,19 @@ export type IrcBridgeConfig = {
   restart_delay_seconds: number;
 };
 
+export type IrcModelContact = {
+  id: string;
+  display_name: string;
+  irc_nick: string;
+  type: string;
+  provider: string;
+  company: string;
+  family: string;
+  route_enabled: boolean;
+  access_status: string;
+  health: Record<string, unknown>;
+};
+
 export type IrcBridgePayload = {
   generated_at: number;
   config: IrcBridgeConfig;
@@ -472,7 +485,8 @@ export type IrcBridgePayload = {
     tail: string;
   };
   listening: boolean;
-  models: Array<Record<string, unknown>>;
+  models: IrcModelContact[];
+  model_count: number;
   metadata_log: string;
 };
 

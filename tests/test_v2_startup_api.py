@@ -1,7 +1,9 @@
 import json
 import os
+import tempfile
 import unittest
 from contextlib import contextmanager
+from pathlib import Path
 
 try:
     from fastapi.testclient import TestClient
@@ -10,6 +12,7 @@ except (ImportError, RuntimeError):  # pragma: no cover
 
 from backend.v2.api import startup as startup_api
 from backend.v2.app import create_app
+from backend.v2.services.startup_services import command_process_status
 
 
 @contextmanager
@@ -51,6 +54,23 @@ class FakeStartupManager:
         if service_id == "proxy" and action == "restart" and payload.get("confirm") != "restart:proxy":
             raise ValueError("restart for proxy requires confirmation")
         return {"service_id": service_id, "action": action, "result": {"ok": True}, "payload": self.status_payload()}
+
+
+class StartupServiceHelperTests(unittest.TestCase):
+    def test_command_process_status_matches_exact_executable_and_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp)
+            good = proc / "123"
+            bad = proc / "456"
+            good.mkdir()
+            bad.mkdir()
+            (good / "cmdline").write_bytes(b"python3\0/home/mm/DO-ClaudeCode-Proxy/matts-proxy-tui\0--interactive\0")
+            (bad / "cmdline").write_bytes(b"python3\0matts-proxy-tui --interactive\0")
+
+            status = command_process_status("matts-proxy-tui", {"--interactive"}, proc)
+
+        self.assertTrue(status["running"])
+        self.assertEqual(status["pid"], 123)
 
 
 @unittest.skipIf(TestClient is None, "fastapi test client is not installed")

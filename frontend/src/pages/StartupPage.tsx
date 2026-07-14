@@ -41,6 +41,8 @@ function bridgeAddress(payload?: IrcBridgePayload): string {
   return `${config.host}:${config.port}`;
 }
 
+const statusPreStyle = { maxHeight: 280, overflow: 'auto' } as const;
+
 export default function StartupPage() {
   const queryClient = useQueryClient();
   const [ircDraft, setIrcDraft] = useState<Partial<IrcBridgeConfig>>({});
@@ -189,7 +191,7 @@ export default function StartupPage() {
               <Space direction="vertical" className="pageStack">
                 {row.errors?.length ? <Alert type="warning" showIcon message={row.errors.join(' · ')} /> : null}
                 <Typography.Paragraph copyable={{ text: JSON.stringify(row.status, null, 2) }}>
-                  <pre>{JSON.stringify(row.status, null, 2)}</pre>
+                  <pre style={statusPreStyle}>{JSON.stringify(row.status, null, 2)}</pre>
                 </Typography.Paragraph>
               </Space>
             )
@@ -245,10 +247,10 @@ export default function StartupPage() {
           <Space wrap>
             <Tag color={irc.data?.tmux.running ? 'green' : 'default'}>tmux {irc.data?.tmux.running ? 'running' : 'stopped'}</Tag>
             <Tag color={irc.data?.listening ? 'green' : 'default'}>{irc.data?.listening ? 'Listening' : 'Not listening'}</Tag>
-            <Tag>{irc.data?.models.length || 0} routable text models</Tag>
+            <Tag>{irc.data?.model_count ?? irc.data?.models.length ?? 0} routable text models</Tag>
             <Tag>{irc.data?.metadata_log || 'metadata log unavailable'}</Tag>
           </Space>
-          {irc.data?.tmux.tail ? <pre data-testid="irc-bridge-tail">{irc.data.tmux.tail}</pre> : null}
+          {irc.data?.tmux.tail ? <pre data-testid="irc-bridge-tail" style={statusPreStyle}>{irc.data.tmux.tail}</pre> : null}
         </Space>
       </Card>
     </Space>

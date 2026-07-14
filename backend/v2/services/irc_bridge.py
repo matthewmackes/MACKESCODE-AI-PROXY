@@ -31,6 +31,7 @@ DEFAULT_SESSION_NAME = "matts-irc-bridge"
 DEFAULT_CHANNEL = "#llms"
 SERVER_NAME = "matts-irc"
 IRC_LINE_LIMIT = 430
+STATUS_TAIL_BYTES = 6000
 
 
 def _read_console_config() -> dict[str, Any]:
@@ -156,6 +157,34 @@ def text_chunks(text: str, limit: int = IRC_LINE_LIMIT) -> list[str]:
             line = line[len(chunk):]
         rows.append(line)
     return rows or [" "]
+
+
+def tail_text(text: str, limit: int = STATUS_TAIL_BYTES) -> str:
+    raw = str(text or "")
+    if limit <= 0:
+        return ""
+    if len(raw) <= limit:
+        return raw
+    marker = "\n[tail truncated]\n"
+    if limit <= len(marker):
+        return raw[-limit:]
+    return marker + raw[-(limit - len(marker)):]
+
+
+def compact_model_contact(model: dict[str, Any]) -> dict[str, Any]:
+    health = model.get("health") if isinstance(model.get("health"), dict) else {}
+    return {
+        "id": str(model.get("id") or ""),
+        "display_name": str(model.get("display_name") or model.get("id") or ""),
+        "irc_nick": str(model.get("irc_nick") or ""),
+        "type": str(model.get("type") or ""),
+        "provider": str(model.get("provider") or ""),
+        "company": str(model.get("company") or ""),
+        "family": str(model.get("family") or ""),
+        "route_enabled": bool(model.get("route_enabled")),
+        "access_status": str(model.get("access_status") or ""),
+        "health": health,
+    }
 
 
 class IrcBridgeConfigStore:
@@ -317,10 +346,18 @@ class IrcClientSession:
         self.joined = False
         self.selected_model_ids: list[str] = []
         self.everyone_pending = False
+        self.closing = False
         peer = writer.get_extra_info("peername")
         self.peer = "%s:%s" % peer[:2] if isinstance(peer, tuple) and len(peer) >= 2 else "unknown"
 
+    def close(self) -> None:
+        self.closing = True
+        self.writer.close()
+
     async def send(self, line: str) -> None:
+        is_closing = getattr(self.writer, "is_closing", lambda: False)
+        if self.closing or bool(is_closing()):
+            return
         self.writer.write((line + "\r\n").encode("utf-8", errors="replace"))
         await self.writer.drain()
 
@@ -361,7 +398,7 @@ class IrcClientSession:
             return False
         if not self.authenticated:
             await self.send(f":{SERVER_NAME} 464 {self.nick} :Password incorrect or missing")
-            self.writer.close()
+            self.close()
             return False
         self.registered = True
         await self.send(f":{SERVER_NAME} 001 {self.nick} :Welcome to the Matts LLM IRC bridge")
@@ -403,7 +440,7 @@ class IrcClientSession:
         self.authenticated = bool(token and owner and secrets.compare_digest(token, owner))
         if not self.authenticated:
             await self.send(f":{SERVER_NAME} 464 * :Password incorrect")
-            self.writer.close()
+            self.close()
 
     async def handle_command(self, command: str, params: list[str]) -> None:
         if command == "PASS":
@@ -433,7 +470,7 @@ class IrcClientSession:
         elif command == "PRIVMSG":
             await self.privmsg(params[0] if params else "", params[1] if len(params) > 1 else "")
         elif command == "QUIT":
-            self.writer.close()
+            self.close()
         else:
             await self.send(f":{SERVER_NAME} 421 {self.nick} {command} :Unknown command")
 
@@ -566,13 +603,15 @@ class IrcClientSession:
 
     async def run(self) -> None:
         await self.send(f":{SERVER_NAME} NOTICE * :PASS with the owner console token is required.")
-        while not self.reader.at_eof():
+        while not self.closing and not self.reader.at_eof():
             raw = await self.reader.readline()
             if not raw:
                 break
             command, params = parse_irc_line(raw.decode("utf-8", errors="replace"))
             if command:
                 await self.handle_command(command, params)
+            if self.closing:
+                break
 
 
 class IrcBridgeServer:
@@ -580,7 +619,8 @@ class IrcBridgeServer:
         self.config = config or IrcBridgeConfigStore().load()
         self.directory = IrcModelDirectory()
         self.chat = IrcModelChat()
-        self.metadata_log = IrcMetadataLog(Path(str(self.config.get("metadata_log") or "")))
+        metadata_log = str(self.config.get("metadata_log") or IrcBridgeConfigStore().defaults()["metadata_log"])
+        self.metadata_log = IrcMetadataLog(Path(metadata_log))
 
     def ssl_context(self) -> ssl.SSLContext | None:
         if not bool_value(self.config.get("tls_enabled")):
@@ -624,8 +664,9 @@ class IrcBridgeServer:
 
 
 class IrcBridgeManager:
-    def __init__(self, store: IrcBridgeConfigStore | None = None) -> None:
+    def __init__(self, store: IrcBridgeConfigStore | None = None, directory: IrcModelDirectory | None = None) -> None:
         self.store = store or IrcBridgeConfigStore()
+        self.directory = directory or IrcModelDirectory()
 
     def config(self) -> dict[str, Any]:
         return self.store.load()
@@ -672,10 +713,11 @@ class IrcBridgeManager:
         except OSError:
             return False
 
-    def status(self) -> dict[str, Any]:
+    def status(self, *, include_models: bool = True, tail_limit: int = STATUS_TAIL_BYTES) -> dict[str, Any]:
         config = self.config()
         session_name = str(config.get("session_name") or DEFAULT_SESSION_NAME)
         tmux_running = self.has_session(session_name)
+        models = self.directory.models() if include_models else []
         return {
             "generated_at": time.time(),
             "config": config,
@@ -683,33 +725,34 @@ class IrcBridgeManager:
                 "session_name": session_name,
                 "running": tmux_running,
                 "tmux_tmpdir": str(tmux_tmpdir()),
-                "tail": self.capture(session_name) if tmux_running else "",
+                "tail": tail_text(self.capture(session_name), tail_limit) if tmux_running else "",
             },
             "listening": self.listening(config),
-            "models": IrcModelDirectory().models(),
+            "models": [compact_model_contact(model) for model in models],
+            "model_count": len(models),
             "metadata_log": str(config.get("metadata_log") or self.store.metadata_path),
         }
 
     def ensure_tmux(self) -> dict[str, Any]:
         config = self.config()
         if not bool_value(config.get("enabled"), True):
-            return {"ok": False, "skipped": True, "reason": "irc bridge disabled", "status": self.status()}
+            return {"ok": False, "skipped": True, "reason": "irc bridge disabled", "status": self.status(include_models=False)}
         session_name = str(config.get("session_name") or DEFAULT_SESSION_NAME)
         if self.has_session(session_name):
-            return {"ok": True, "changed": False, "status": self.status()}
+            return {"ok": True, "changed": False, "status": self.status(include_models=False)}
         cmd = self.command()
         quoted = " ".join(shlex.quote(part) for part in cmd)
         code, out, err = self.tmux(["new-session", "-d", "-s", session_name, quoted])
         if code != 0:
-            return {"ok": False, "changed": False, "error": err or out, "status": self.status()}
-        return {"ok": True, "changed": True, "status": self.status()}
+            return {"ok": False, "changed": False, "error": err or out, "status": self.status(include_models=False)}
+        return {"ok": True, "changed": True, "status": self.status(include_models=False)}
 
     def stop(self) -> dict[str, Any]:
         session_name = str(self.config().get("session_name") or DEFAULT_SESSION_NAME)
         code, out, err = self.tmux(["kill-session", "-t", session_name])
         if code not in {0, 1}:
-            return {"ok": False, "error": err or out, "status": self.status()}
-        return {"ok": True, "status": self.status()}
+            return {"ok": False, "error": err or out, "status": self.status(include_models=False)}
+        return {"ok": True, "status": self.status(include_models=False)}
 
     def restart(self) -> dict[str, Any]:
         self.stop()

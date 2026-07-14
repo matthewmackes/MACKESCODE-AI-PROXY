@@ -20,6 +20,28 @@ SYSTEMD_ACTIONS = {"start", "stop", "restart", "enable", "disable", "is-active",
 CORE_CONFIRM_ACTIONS = {"stop", "restart"}
 
 
+def command_process_status(executable_name: str, required_args: set[str] | None = None, proc_root: Path = Path("/proc")) -> dict[str, Any]:
+    required = required_args or set()
+    try:
+        entries = list(proc_root.iterdir())
+    except OSError:
+        return {"running": False, "source": "process_scan"}
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        parts = [part.decode("utf-8", errors="replace") for part in raw.split(b"\0") if part]
+        if not parts:
+            continue
+        has_executable = any(Path(part).name == executable_name for part in parts)
+        if has_executable and required.issubset(set(parts)):
+            return {"running": True, "pid": int(entry.name), "command": parts, "source": "process_scan"}
+    return {"running": False, "source": "process_scan"}
+
+
 def load_json(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -207,7 +229,7 @@ class StartupServiceManager:
                 status["active_state"] = "local"
                 status["errors"] = []
         elif definition["kind"] == "tmux":
-            irc_status = self.irc.status()
+            irc_status = self.irc.status(include_models=False)
             status = {
                 "running": bool((irc_status.get("tmux") or {}).get("running")),
                 "listening": bool(irc_status.get("listening")),
@@ -241,7 +263,13 @@ class StartupServiceManager:
         try:
             from backend.v2.api.tui import tui_session
 
-            return {**tui_session.status(), "errors": []}
+            status = {**tui_session.status(), "errors": []}
+            if status.get("running"):
+                return status
+            external = command_process_status("matts-proxy-tui", {"--interactive"})
+            if external.get("running"):
+                return {**status, **external, "errors": [], "managed_by": "console_process"}
+            return status
         except Exception as exc:
             return {"running": False, "errors": [str(exc)]}
 
