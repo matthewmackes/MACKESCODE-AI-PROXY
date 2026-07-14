@@ -10899,6 +10899,35 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 ---
 
+### Task: V2-086
+
+**Title:** Advanced-area redesign (audit + 50-Q survey → Big Bang rebuild)
+**Status:** ✅ `COMPLETED`
+**Priority:** P1
+**Assigned To:** Claude (audit + survey + orchestration) + 5 file-disjoint sub-agents
+**Start Time:** 2026-07-13
+**Completion Time:** 2026-07-13
+
+**Description:** Operator asked to review/understand the Advanced workflow, its audience, and outcomes; audit all Advanced-tab content; then answer a 50-question needs survey and rebuild ("Big Bang, make it awesome"). A three-agent read-only audit + rendered-screenshot pass produced the report; a 50-question multiple-choice survey (FULL Q&A preserved in the plan file `immutable-coalescing-stonebraker.md`) drove the design.
+
+**Delivered (commits `41519a7e` gate + `3fc54e74` batch, on main):**
+- **E (dark gate):** global chrome overflow (redundant voice status chip removed, chrome widened), clipped "Owner/Admin Operations" eyebrow (top offset), and the Model Inspector/artwork/compare surfaces rebuilt on theme tokens (were white-in-dark).
+- **A:** six flat lowercase tabs → workflow groups (Configure: Models/Run/Console · Monitor: Observe · Govern: Operate) with humanized labels + Carbon icons + hints; Overview folded into Models (readiness pulse + derived counts on the landing; hardcoded 4/6 card removed); default tab Models; `aria-current` (not role=tab).
+- **B:** Console → **System Operations** — duplicate TUI terminal/TMux/Code-launcher removed (Code owns them per ADR-0002), kept status/palette/operational-state + Restart, no raw JSON (697→157 lines).
+- **C:** "What's New" apostrophe; Discover confirms live-probe impact + prompts sign-in on 403; readiness pulse on landing.
+- **D:** loading/empty/error across Run's 5 queries; Operate table loading + per-service error alerts; Observe per-section errors + audit-Explain guard.
+- **F:** Run free-text model inputs → registry multi-selects; `money()` everywhere; structured previews (Descriptions) + raw behind `<details>`; Operate summary cards → jump-links, drift table compact+expandable, handoff one Collapse; Observe trace/audit filters. Prefilled drift reason KEPT (operator choice).
+- **G:** docs updated (Console scope, key-audit is backend, Create image-only); bundle cap 180k→190k (entry shrank to 177,367 B); browser smoke reworked for grouped tabs + System-Ops console + expandable drift.
+
+**Deferred (logged, task #17, non-blocking):** Models grid-click→shared modal; sortable Health column; brand-art coverage script; shared empty-state component; Observe→Run "Replay this trace" deep link; record the 50-Q survey into this worklist (currently in the plan file); dedicated per-tab dark smoke.
+
+**Verification:** `npm run build` (tsc clean); `check-v2-frontend-bundles.py` (177,367 B); `scripts/v2-browser-smoke.py --required` green; dark+light screenshots of all six tabs; live console restarted; CI release-check on main.
+
+**Dependencies:** V2-081/084/085 (unified card + prior polish)
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-085 chat model-card overlap + dark consistency COMPLETED 2026-07-13.*
+*Last updated by: Claude; V2-086 Advanced-area redesign COMPLETED 2026-07-13.*
 *Timestamp: 2026-07-13*
