@@ -10928,6 +10928,36 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 ---
 
+### Task: V2-087
+
+**Title:** AI Performance Analyst + platform data-layer re-architecture (planned)
+**Status:** 📋 `TODO` (planned; NOT started — recorded per operator "write all to worklist but take no action")
+**Priority:** P1
+**Assigned To:** unassigned
+**Start Time:** —
+**Completion Time:** —
+
+**Description:** Operator asked for a low-cost, A-rated, fit-for-purpose LLM to evaluate the telemetry the Advanced area gathers and give real-time feedback on proxy + monitored-LLM performance. A 51-question survey (FULL Q&A + reuse map + field inventory preserved in the plan file `/root/.claude/plans/immutable-coalescing-stonebraker.md`) plus three mid-survey directives (pull in DigitalOcean-side data; reconsider the platform DB/single-source-of-truth; increase artwork quality) expanded this into a **four-workstream initiative**. Delivery preference: one big batch (to be internally sequenced + CI-gated for safety).
+
+**Reuse map (from read-only exploration):** LLM calls via `LegacyConsoleAdapter.chat_completion` (routes through the local proxy → auto cost + budget); model pick by extending `ResearchSearchService._low_cost_text_models` + a `health.grade=="A"` predicate; budget via `enforce_cost_pause(..., "llm_service")`; redaction via `DecisionExplanationService.redact`; telemetry is already redacted + aggregated (analytics/`_HealthIndex`/scorecards). Scheduling gap: v2 backend is request-driven (no worker home) — precedent is the legacy `dedicated_policy_worker` daemon thread.
+
+**Workstreams:**
+- **W1 — Unified SQLite data foundation + registry-SoT migration (do first; HIGHEST RISK).** One SQLite store (WAL, time-based retention + indexes) as the operational SoT: traces/usage/audit/analyst/DO snapshots + runtime-state JSON + RunStore + research. Backfill JSONL/JSON → SQLite with a parity test; hard-cut reads; keep JSONL writers as a rollback seam. **Retire `config/models.json` → DB registry SoT** with a git-tracked bidirectional export snapshot; requires a **DECISIONS.md ADR** + source-of-truth consistency tests (`--list-models`/`/v1/models`/selectors agree). Crosses a `GOVERNANCE.md` lock → operator confirms the cutover before flipping.
+- **W2 — Deep DigitalOcean integration.** DO Monitoring API (dedicated GPU util/uptime/throughput) + status/incidents feed (slow cached cadence, reuse `DIGITALOCEAN_TOKEN`); proxy-vs-upstream latency attribution; DO-billed vs local-estimate cost cross-check; DO catalog↔registry reconcile; graceful degrade.
+- **W3 — AI Performance Analyst (depends on W1).** `PerformanceAnalystService` + `/v2/analyst`; cheapest routable grade-A model (fallback B/C); dedicated analyst spend cap + skip-if-unchanged cache; input = all aggregated summaries (recent vs baseline) + all routable models + history digest + a broad public web sweep (`ResearchSearchService`); strict-JSON SRE-persona output — holistic hard-capped proxy grade + per-model grades + High/Med/Low findings citing metric+value+source, advisory actions; persist runs (finding lifecycle). Always-on daemon-thread worker (model `dedicated_policy_worker`), adaptive interval, alert-on-new/changed + ack-to-mute, external push on High, zero config. UI: persistent pulse → detail (Summary→Proxy→Per-LLM→Findings→Trend) + lazy time-series charts.
+- **W4 — Visual identity pass.** Higher-fidelity brand marks (`brandMarkArt.ts`/`LOCAL_BRAND_MARKS`), nation flags (`NATION_FLAG_ASSETS`), artwork tiles/galleries; broader model-surface polish; wire the brand-art coverage check (task #17); keep art lazy (190k budget).
+
+**Key survey decisions:** early-warning-first; proxy + per-LLM two sections; auto cheapest grade-A model; adaptive periodic cadence; LLM-judges-everything with findings linked to data; analyst grades everything; persistent pulse + detail; High/Med/Low; all aggregated summaries, all routable models, short-vs-long window; keep history + trends; server daemon thread; dedicated cap; skip-if-unchanged; keep running through pause; deep DO (Monitoring API); DO incidents first-class; strict JSON + SRE persona; broad public web sweep each run; zero config; external push on High; FULL data re-architecture (SQLite, backfill+hard-cut, everything into one store, `config/models.json` retired); one big batch; full visual identity pass; success = a genuinely "alive", premium console.
+
+**Risks:** (1) retiring the `config/models.json` SoT lock is highest-risk/hardest-to-reverse — ADR + export snapshot + consistency tests + operator-confirmed cutover; (2) backfill+hard-cut (no dual-write) — parity test + rollback seam; (3) new daemon-thread lifecycle in the v2 backend; (4) cost of broad web sweep + per-run LLM analysis — bounded by dedicated cap + cheap model + skip-if-unchanged; (5) one-big-batch across four workstreams + a governance migration — internal sequencing W1→W2/W3→W4 with CI-green gates; (6) charts + richer artwork vs the 190k bundle budget (lazy chunks).
+
+**Verification (when built):** migration parity test; registry DB↔file export round-trip + source-of-truth consistency; analyst unit tests (grade-A selection/fallback, cost-cap/pause, fingerprint cache, JSON schema validate/repair, redaction); DO graceful-degrade; `v2-browser-smoke.py --required` (pulse + detail + dark); bundle ≤190k (charts/art lazy); `release-check.sh`; CI green.
+
+**Dependencies:** builds on V2-086 (Advanced redesign). W3 depends on W1.
+**Blocks:** None
+
+---
+
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-086 Advanced-area redesign COMPLETED 2026-07-13.*
+*Last updated by: Claude; V2-087 AI Performance Analyst + data re-architecture RECORDED (planned, not started) 2026-07-13.*
 *Timestamp: 2026-07-13*
