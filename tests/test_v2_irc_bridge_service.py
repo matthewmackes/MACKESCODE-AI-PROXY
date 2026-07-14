@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.v2.services.irc_bridge import IrcBridgeConfigStore, IrcMetadataLog, IrcModelDirectory, parse_irc_line, text_chunks
+from backend.v2.services.irc_bridge import IrcBridgeConfigStore, IrcBridgeServer, IrcMetadataLog, IrcModelDirectory, parse_irc_line, text_chunks
 
 
 class FakeShowcase:
@@ -16,6 +16,37 @@ class FakeShowcase:
                 {"id": "disabled", "display_name": "Disabled", "type": "text", "route_enabled": False},
             ]
         }
+
+
+class ResetReader:
+    def at_eof(self):
+        return False
+
+    async def readline(self):
+        raise ConnectionResetError("reset by peer")
+
+
+class FakeWriter:
+    def __init__(self):
+        self.closed = False
+        self.waited = False
+
+    def get_extra_info(self, name):
+        if name == "peername":
+            return ("127.0.0.1", 12345)
+        return None
+
+    def write(self, _data):
+        pass
+
+    async def drain(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    async def wait_closed(self):
+        self.waited = True
 
 
 class IrcBridgeServiceTests(unittest.TestCase):
@@ -68,6 +99,17 @@ class IrcBridgeServiceTests(unittest.TestCase):
 
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(len(chunk.encode("utf-8")) <= 200 for chunk in chunks))
+
+
+class IrcBridgeServerAsyncTests(unittest.IsolatedAsyncioTestCase):
+    async def test_handle_client_treats_connection_reset_as_disconnect(self):
+        writer = FakeWriter()
+        server = IrcBridgeServer(config={"channel": "#llms", "metadata_log": ""})
+
+        await server.handle_client(ResetReader(), writer)
+
+        self.assertTrue(writer.closed)
+        self.assertTrue(writer.waited)
 
 
 if __name__ == "__main__":

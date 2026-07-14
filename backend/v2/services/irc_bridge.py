@@ -604,6 +604,8 @@ class IrcBridgeServer:
         )
         try:
             await session.run()
+        except (ConnectionResetError, BrokenPipeError, ConnectionAbortedError):
+            pass
         finally:
             writer.close()
             try:
