@@ -180,6 +180,23 @@ function authLikeError(error: unknown): boolean {
   return /403|missing_permission|anonymous|token/i.test(errorText(error));
 }
 
+function analystErrorState(error: unknown): { label: string; detail: string } {
+  const detail = errorText(error);
+  if (authLikeError(error)) {
+    return {
+      label: 'Analyst Sign-In Required',
+      detail: 'Sign in with a console token to view analyst telemetry.',
+    };
+  }
+  if (/api[_\s-]?endpoint[_\s-]?not[_\s-]?found|not found/i.test(detail)) {
+    return {
+      label: 'Analyst Route Needs Restart',
+      detail: 'Restart the V2 console so /v2/analyst is available.',
+    };
+  }
+  return { label: 'Analyst Unavailable', detail };
+}
+
 function numeric(value: unknown): number {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -4079,10 +4096,11 @@ function PerformanceAnalystPulse({
   const low = nonNegativeMetric(counts.low);
   const grade = compactText(proxy.grade || summary.proxy_grade, loading ? '...' : '?');
   const score = Number(proxy.score);
+  const analystError = error ? analystErrorState(error) : null;
   const status = error ? 'error' : loading ? 'syncing' : high > 0 ? 'blocking' : medium > 0 ? 'advisory' : grade === 'A' ? 'ready' : 'review';
-  const label = error ? 'Analyst Unavailable' : loading ? 'Analyst Syncing' : high > 0 ? 'High Finding' : medium > 0 ? 'Watchlist' : grade === 'A' ? 'Analyst Clear' : 'Analyst Review';
+  const label = analystError ? analystError.label : loading ? 'Analyst Syncing' : high > 0 ? 'High Finding' : medium > 0 ? 'Watchlist' : grade === 'A' ? 'Analyst Clear' : 'Analyst Review';
   const detail = error
-    ? errorText(error)
+    ? analystError?.detail
     : loading
       ? 'Reading proxy telemetry'
       : compactText(summary.top_finding, compactText(proxy.narrative, 'No active findings'));
@@ -4189,7 +4207,7 @@ export function ModelsPage() {
     window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
       detail: {
         title: 'Console Access Required',
-        detail: 'Sign in with a console token to load the model catalog and run discovery.',
+        detail: 'Sign in with a console token to load models, analyst telemetry, and discovery.',
       },
     }));
   }, [models.error, discover.error, operate.error, analyst.error, analystRun.error, analystAck.error]);

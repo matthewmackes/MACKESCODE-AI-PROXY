@@ -5936,6 +5936,261 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   background: linear-gradient(180deg, #ffffff, #f8f8f8);
 }
 
+html[data-theme="dark"] .lexisResearchHero {
+  --research-red: #ff5b70;
+  --research-red-dark: #d94a62;
+  --research-black: #090909;
+  --research-rule: #3d3d3d;
+  --research-cream: #181818;
+  background:
+    linear-gradient(180deg, #161616 0, #111111 58%, #0f0f0f 100%);
+  color: var(--cds-text);
+}
+
+html[data-theme="dark"] .lexisResearchHero .heroHeader {
+  border-top-color: #ff5b70;
+  border-bottom-color: #393939;
+  background:
+    linear-gradient(180deg, rgba(31,31,31,.96), rgba(22,22,22,.92));
+}
+
+html[data-theme="dark"] .lexisResearchHero .heroHeader h1 {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .lexisResearchHero .heroHeader p:not(.eyebrow),
+html[data-theme="dark"] .researchBriefDock > span,
+html[data-theme="dark"] .researchSearchStatus span,
+html[data-theme="dark"] .lexisResearchHero .engineControls span,
+html[data-theme="dark"] .sourceClassChip small,
+html[data-theme="dark"] .lexisResultRow summary span,
+html[data-theme="dark"] .lexisResultDetail dt,
+html[data-theme="dark"] .claimMapHeader span,
+html[data-theme="dark"] .claimRow span,
+html[data-theme="dark"] .claimRow p,
+html[data-theme="dark"] .sourceRegistryCard span,
+html[data-theme="dark"] .sourceRegistryCard small,
+html[data-theme="dark"] .sourceRegistryCard p {
+  color: #c6c6c6;
+}
+
+html[data-theme="dark"] .lexisResearchHero .eyebrow {
+  color: #ffb3b8;
+}
+
+html[data-theme="dark"] .researchTabs {
+  border-color: #393939;
+  background: #393939;
+}
+
+html[data-theme="dark"] .researchTabs button {
+  border-right-color: #393939;
+  background: #1b1b1b;
+  color: #e8e8e8;
+}
+
+html[data-theme="dark"] .researchTabs button:hover:not(:disabled),
+html[data-theme="dark"] .researchTabs button:focus-visible {
+  background: #262626;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .researchTabs button.active {
+  background: #262626;
+  color: #ffb3b8;
+  box-shadow: inset 0 -3px 0 #ff5b70;
+}
+
+html[data-theme="dark"] .researchTabs button:disabled {
+  color: #6f6f6f;
+  background: #161616;
+}
+
+html[data-theme="dark"] .lexisSearchLine,
+html[data-theme="dark"] .researchReportActions,
+html[data-theme="dark"] .researchSearchStatus,
+html[data-theme="dark"] .lexisResearchHero .engineControls,
+html[data-theme="dark"] .lexisResultTable,
+html[data-theme="dark"] .claimMapHeader,
+html[data-theme="dark"] .claimRow,
+html[data-theme="dark"] .researchAuditPanel,
+html[data-theme="dark"] .sourceRegistryCard,
+html[data-theme="dark"] .synthesisPanel,
+html[data-theme="dark"] .researchTeamPanel,
+html[data-theme="dark"] .researchBriefDock {
+  border-color: #393939;
+  background: #1f1f1f;
+  color: var(--cds-text);
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .lexisSearchLine,
+html[data-theme="dark"] .claimMapHeader {
+  border-top-color: #ff5b70;
+}
+
+html[data-theme="dark"] .lexisSearchLine input,
+html[data-theme="dark"] .lexisSearchLine select {
+  border-color: #525252;
+  background: #161616;
+  color: #f4f4f4;
+}
+
+html[data-theme="dark"] .lexisSearchLine input::placeholder {
+  color: #8d8d8d;
+}
+
+html[data-theme="dark"] .lexisResearchHero .primaryButton {
+  border-color: #ff5b70;
+  background: #c92f45;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .lexisResearchHero .primaryButton:hover:not(:disabled),
+html[data-theme="dark"] .lexisResearchHero .primaryButton:focus-visible {
+  background: #e0485c;
+}
+
+html[data-theme="dark"] .lexisResearchHero .secondaryButton,
+html[data-theme="dark"] .lexisResearchHero .engineChip,
+html[data-theme="dark"] .lexisResearchHero .researchFilters button,
+html[data-theme="dark"] .lexisResearchHero .researchBriefActions button,
+html[data-theme="dark"] .lexisResearchHero .researchBriefDock button,
+html[data-theme="dark"] .lexisResearchHero .resultCopyButton,
+html[data-theme="dark"] .lexisResearchHero .pinButton {
+  border-color: #525252;
+  background: #262626;
+  color: #f4f4f4;
+}
+
+html[data-theme="dark"] .lexisResearchHero .secondaryButton:hover:not(:disabled),
+html[data-theme="dark"] .lexisResearchHero .secondaryButton:focus-visible,
+html[data-theme="dark"] .lexisResearchHero .engineChip:hover,
+html[data-theme="dark"] .lexisResearchHero .engineChip:focus-visible,
+html[data-theme="dark"] .lexisResearchHero .researchFilters button:hover,
+html[data-theme="dark"] .lexisResearchHero .researchFilters button:focus-visible,
+html[data-theme="dark"] .lexisResearchHero .resultCopyButton:hover,
+html[data-theme="dark"] .lexisResearchHero .resultCopyButton:focus-visible,
+html[data-theme="dark"] .lexisResearchHero .pinButton:hover,
+html[data-theme="dark"] .lexisResearchHero .pinButton:focus-visible {
+  border-color: #ff8389;
+  background: #333333;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .lexisResearchHero .engineChip.active {
+  border-color: #ff8389;
+  background: #2d1719;
+  color: #ffffff;
+  box-shadow: inset 0 -2px 0 #ff5b70;
+}
+
+html[data-theme="dark"] .lexisResearchHero .engineChip span {
+  color: #c6c6c6;
+}
+
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-needs_key,
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-not_indexed,
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-unavailable {
+  border-color: #8d6d00;
+}
+
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-needs_key span,
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-not_indexed span,
+html[data-theme="dark"] .lexisResearchHero .engineChip.status-unavailable span {
+  color: #fddc69;
+}
+
+html[data-theme="dark"] .sourceClassChip,
+html[data-theme="dark"] .claimEvidenceChips span,
+html[data-theme="dark"] .researchSourceMix span,
+html[data-theme="dark"] .researchTeamGuard span,
+html[data-theme="dark"] .synthesisPanel span,
+html[data-theme="dark"] .resultMeta span {
+  border-color: #393939;
+  background: #262626;
+  color: #f4f4f4;
+}
+
+html[data-theme="dark"] .lexisResultHeader {
+  background: #111111;
+  color: #f4f4f4;
+}
+
+html[data-theme="dark"] .lexisResultRow {
+  border-top-color: #393939;
+}
+
+html[data-theme="dark"] .lexisResultRow summary {
+  background: #1f1f1f;
+}
+
+html[data-theme="dark"] .lexisResultRow summary:hover {
+  background: #292929;
+}
+
+html[data-theme="dark"] .lexisResultRow summary strong,
+html[data-theme="dark"] .lexisResultDetail p,
+html[data-theme="dark"] .lexisResultDetail dd,
+html[data-theme="dark"] .claimRow strong,
+html[data-theme="dark"] .sourceRegistryCard strong {
+  color: #f4f4f4;
+}
+
+html[data-theme="dark"] .lexisResultDetail {
+  border-top: 1px solid #393939;
+  background: #181818;
+}
+
+html[data-theme="dark"] .claimMap {
+  border-color: #393939;
+  background: #393939;
+}
+
+html[data-theme="dark"] .claimRow {
+  border-left-color: #ff5b70;
+}
+
+html[data-theme="dark"] .researchMetrics,
+html[data-theme="dark"] .sourceCoveragePanel,
+html[data-theme="dark"] .researchTeamGrid,
+html[data-theme="dark"] .analystGrid {
+  border-color: #393939;
+  background: #393939;
+}
+
+html[data-theme="dark"] .researchMetrics div,
+html[data-theme="dark"] .sourceCoverageChip,
+html[data-theme="dark"] .researchRole,
+html[data-theme="dark"] .analystOutput,
+html[data-theme="dark"] .coordinatedAnswer {
+  background: #1f1f1f;
+}
+
+html[data-theme="dark"] .sourceCoverageChip:hover:not(:disabled),
+html[data-theme="dark"] .sourceCoverageChip:focus-visible {
+  background: #292929;
+}
+
+html[data-theme="dark"] .sourceCoverageChip.active {
+  background: #262626;
+  box-shadow: inset 0 -2px 0 #ff8389;
+}
+
+html[data-theme="dark"] .lexisResearchHero .emptyState,
+html[data-theme="dark"] .lexisResearchHero .statusPanel {
+  border-color: #393939;
+  background: #1f1f1f;
+  color: #c6c6c6;
+}
+
+html[data-theme="dark"] .lexisResearchHero .statusPanel.error {
+  border-color: #525252;
+  border-left-color: #ff8389;
+  background: #2d1719;
+  color: #ffb3b8;
+}
+
 .modelGrid {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
@@ -7223,13 +7478,31 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
     grid-template-columns: 1fr;
   }
 
+  .lexisResearchHero {
+    padding-top: 148px;
+  }
+
   .researchTabs {
-    display: flex;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
   }
 
   .researchTabs button {
     flex: 0 0 148px;
+    min-width: 0;
+    width: 100%;
+    padding-inline: 8px;
+  }
+
+  .lexisResearchHero .sourceClassStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .lexisResearchHero .sourceClassChip strong,
+  .lexisResearchHero .sourceClassChip small {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .researchReportActions {
