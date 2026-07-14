@@ -18,8 +18,9 @@ except ImportError:  # pragma: no cover - dependency is installed by the v2 setu
     StaticFiles = None  # type: ignore[assignment]
     StarletteHTTPException = Exception  # type: ignore[assignment]
 
-from backend.v2.api import analyst, auth, chat, code, console, cost_control, create, models, observe, onboarding, operate, research, run, speech, tmux_ws, tui
+from backend.v2.api import analyst, auth, chat, code, console, cost_control, create, irc, models, observe, onboarding, operate, research, run, speech, startup, tmux_ws, tui
 from backend.v2.services.performance_analyst import PerformanceAnalystService, analyst_worker
+from backend.v2.services.startup_services import ensure_console_runtime
 from src.console.services.app_config import ConsoleConfigService
 from src.console.services.runtime_config import RuntimeConfigService
 from src.console.utils.errors import error_payload, route_not_found_details
@@ -89,9 +90,27 @@ def create_app():
         app.state.analyst_worker = thread
         app.state.analyst_stop_event = analyst_stop_event
 
+    @app.on_event("startup")
+    def start_enabled_console_runtime() -> None:
+        if str(os.environ.get("MATTS_STARTUP_CONSOLE_RUNTIME_ENABLED", "1")).lower() in {"0", "false", "no", "off"}:
+            return
+        try:
+            app.state.startup_console_runtime = ensure_console_runtime()
+        except Exception as exc:
+            app.state.startup_console_runtime = {"ok": False, "error": str(exc)}
+
     @app.on_event("shutdown")
     def stop_analyst_worker() -> None:
         analyst_stop_event.set()
+
+    @app.on_event("shutdown")
+    def stop_console_runtime() -> None:
+        try:
+            from backend.v2.api.tui import tui_session
+
+            tui_session.stop()
+        except Exception:
+            pass
 
     @app.exception_handler(StarletteHTTPException)
     async def v2_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[valid-type]
@@ -147,6 +166,10 @@ def create_app():
         app.include_router(console.router)
     if cost_control.router is not None:
         app.include_router(cost_control.router)
+    if irc.router is not None:
+        app.include_router(irc.router)
+    if startup.router is not None:
+        app.include_router(startup.router)
     if observe.router is not None:
         app.include_router(observe.router)
     if onboarding.router is not None:

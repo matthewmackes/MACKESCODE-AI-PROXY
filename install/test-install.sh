@@ -40,6 +40,9 @@ check_file "/usr/lib/matts-value-set/claude-DO.sh"
 check_file "/usr/lib/matts-value-set/do-anthropic-proxy.py"
 check_file "/usr/lib/matts-value-set/image-studio.py"
 check_file "/usr/lib/matts-value-set/matts-v2-console.py"
+check_file "/usr/lib/matts-value-set/matts-irc-bridge.py"
+check_file "/usr/lib/matts-value-set/matts-startup-service.py"
+check_file "/usr/lib/matts-value-set/matts-startup-helper.py"
 
 echo -e "\nWrapper scripts:"
 check_file "/usr/lib/matts-value-set/claude-deepseek"
@@ -88,6 +91,9 @@ check_symlink "/usr/bin/claude-do" "/usr/lib/matts-value-set/claude-DO.sh"
 check_symlink "/usr/bin/matts-value-set-proxy" "/usr/lib/matts-value-set/do-anthropic-proxy.py"
 check_symlink "/usr/bin/matts-v2-console" "/usr/lib/matts-value-set/matts-v2-console.py"
 check_symlink "/usr/bin/matts-console" "/usr/lib/matts-value-set/matts-v2-console.py"
+check_symlink "/usr/bin/matts-irc-bridge" "/usr/lib/matts-value-set/matts-irc-bridge.py"
+check_symlink "/usr/bin/matts-startup-service" "/usr/lib/matts-value-set/matts-startup-service.py"
+check_symlink "/usr/bin/matts-startup-helper" "/usr/lib/matts-value-set/matts-startup-helper.py"
 check_symlink "/usr/bin/claude-deepseek" "/usr/lib/matts-value-set/claude-deepseek"
 check_symlink "/usr/bin/claude-deepseek-v4" "/usr/lib/matts-value-set/claude-deepseek-v4"
 check_file "/usr/bin/matts-image"  # Not checking symlink since it might be direct file
@@ -119,6 +125,8 @@ test_command() {
 test_command "claude-do" "main launcher"
 test_command "claude-deepseek" "deepseek wrapper"
 test_command "claude-glm" "glm wrapper"
+test_command "matts-irc-bridge" "IRC bridge"
+test_command "matts-startup-service" "startup service"
 
 echo -e "\n4. Testing profile script..."
 if [ -f "/etc/profile.d/matts-value-set.sh" ]; then
@@ -160,7 +168,7 @@ if [ $FILES_OK -eq $TOTAL_FILES ] && [ $SYMLINKS_OK -eq $TOTAL_SYMLINKS ]; then
     echo "1. Complete user/group setup: sudo useradd -r -g matts -s /usr/sbin/nologin matts"
     echo "2. Install systemd services"
     echo "3. Set up data directories"
-    echo "4. Start services: sudo systemctl start matts-value-set-proxy"
+    echo "4. Start services: sudo systemctl start matts-value-set-proxy matts-console"
 else
     echo -e "\n⚠️ Installation test PARTIAL"
     echo "Some components are missing or incorrect."

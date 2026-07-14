@@ -19,6 +19,7 @@ PROFILE_DIR="/etc/profile.d"
 DATA_DIR="/var/lib/matts-value-set"
 LOG_DIR="/var/log/matts-value-set"
 DOC_DIR="/usr/share/doc/matts-value-set"
+SUDOERS_DIR="/etc/sudoers.d"
 
 echo -e "${BLUE}=== MDE LLM-PROXY Installer ===${NC}"
 echo
@@ -98,6 +99,7 @@ mkdir -p "$CONFIG_DIR"
 mkdir -p "$SYSTEMD_DIR"
 mkdir -p "$PROFILE_DIR"
 mkdir -p "$DATA_DIR"/{studio,images}
+mkdir -p "$DATA_DIR/tmux"
 mkdir -p "$LOG_DIR"
 mkdir -p "$DOC_DIR"
 
@@ -113,6 +115,9 @@ cp "$PROJECT_DIR/claude-DO.sh" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/do-anthropic-proxy.py" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/image-studio.py" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/matts-v2-console.py" "$INSTALL_DIR/"
+cp "$PROJECT_DIR/matts-irc-bridge.py" "$INSTALL_DIR/"
+cp "$PROJECT_DIR/matts-startup-service.py" "$INSTALL_DIR/"
+cp "$PROJECT_DIR/matts-startup-helper.py" "$INSTALL_DIR/"
 cp "$PROJECT_DIR/requirements-v2.txt" "$INSTALL_DIR/" 2>/dev/null || true
 
 # Wrapper scripts
@@ -168,6 +173,9 @@ ln -sf ../lib/matts-value-set/do-anthropic-proxy.py "$BIN_DIR/matts-value-set-pr
 ln -sf ../lib/matts-value-set/matts-v2-console.py "$BIN_DIR/matts-v2-console"
 ln -sf ../lib/matts-value-set/matts-v2-console.py "$BIN_DIR/matts-console"
 ln -sf ../lib/matts-value-set/image-studio.py "$BIN_DIR/matts-image-studio"
+ln -sf ../lib/matts-value-set/matts-irc-bridge.py "$BIN_DIR/matts-irc-bridge"
+ln -sf ../lib/matts-value-set/matts-startup-service.py "$BIN_DIR/matts-startup-service"
+ln -sf ../lib/matts-value-set/matts-startup-helper.py "$BIN_DIR/matts-startup-helper"
 
 for model in deepseek deepseek-v4 glm mistral codex sd35; do
     if [ -f "$INSTALL_DIR/claude-$model" ]; then
@@ -212,8 +220,19 @@ fi
 chown -R matts:matts "$DATA_DIR"
 chown -R matts:matts "$LOG_DIR"
 chmod 750 "$DATA_DIR"
+chmod 750 "$DATA_DIR/tmux"
 chmod 750 "$LOG_DIR"
 chmod 640 "$CONFIG_DIR/environment.conf"
+
+# Narrow privileged helper for Advanced > Startup systemd actions. The helper
+# validates an explicit action/unit allowlist before invoking systemctl.
+if command -v sudo >/dev/null 2>&1; then
+    mkdir -p "$SUDOERS_DIR"
+    cat > "$SUDOERS_DIR/matts-value-set-startup" <<EOF
+matts ALL=(root) NOPASSWD: $BIN_DIR/matts-startup-helper *
+EOF
+    chmod 440 "$SUDOERS_DIR/matts-value-set-startup"
+fi
 
 # Create token file placeholder
 if [ ! -f "$DATA_DIR/.mcnf-do-model-access-token" ]; then
@@ -226,14 +245,17 @@ fi
 # Reload systemd
 systemctl daemon-reload
 
-# Enable proxy service
+# Enable core services. IRC is enabled by the platform startup manifest and is
+# started as a proxy-owned tmux sidecar.
 systemctl enable matts-value-set-proxy.service
+systemctl enable matts-console.service
 
 echo -e "\n${GREEN}=== Installation Complete ===${NC}"
 echo
 echo "Services:"
 echo "  Proxy:      matts-value-set-proxy.service (enabled)"
-echo "  V2 Console: matts-console.service (can be started manually)"
+echo "  V2 Console: matts-console.service (enabled)"
+echo "  IRC Bridge: matts-irc-bridge (proxy-owned tmux sidecar, default port 6667)"
 echo
 echo "Quick Start:"
 echo "  1. Start services:"

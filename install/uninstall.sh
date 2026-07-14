@@ -19,6 +19,7 @@ PROFILE_DIR="/etc/profile.d"
 DATA_DIR="/var/lib/matts-value-set"
 LOG_DIR="/var/log/matts-value-set"
 DOC_DIR="/usr/share/doc/matts-value-set"
+SUDOERS_DIR="/etc/sudoers.d"
 
 echo -e "${BLUE}=== MDE LLM-PROXY Uninstaller ===${NC}"
 echo
@@ -44,6 +45,9 @@ systemctl stop matts-console.service 2>/dev/null || true
 systemctl stop matts-value-set-proxy.service 2>/dev/null || true
 systemctl disable matts-console.service 2>/dev/null || true
 systemctl disable matts-value-set-proxy.service 2>/dev/null || true
+if command -v tmux >/dev/null 2>&1; then
+    tmux kill-session -t matts-irc-bridge 2>/dev/null || true
+fi
 
 # Remove symlinks
 echo "Removing symlinks..."
@@ -52,6 +56,9 @@ rm -f "$BIN_DIR/matts-value-set-proxy"
 rm -f "$BIN_DIR/matts-v2-console"
 rm -f "$BIN_DIR/matts-console"
 rm -f "$BIN_DIR/matts-image-studio"
+rm -f "$BIN_DIR/matts-irc-bridge"
+rm -f "$BIN_DIR/matts-startup-service"
+rm -f "$BIN_DIR/matts-startup-helper"
 
 for model in deepseek deepseek-v4 glm mistral codex sd35; do
     rm -f "$BIN_DIR/claude-$model"
@@ -71,6 +78,9 @@ rm -f "$SYSTEMD_DIR/matts-console.service"
 
 # Remove profile script
 rm -f "$PROFILE_DIR/matts-value-set.sh"
+
+# Remove privileged helper allowlist
+rm -f "$SUDOERS_DIR/matts-value-set-startup"
 
 # Remove log and data directories (ask first)
 echo

@@ -425,6 +425,65 @@ export type TmuxWorkspacePayload = {
   errors: Record<string, string>;
 };
 
+export type IrcBridgeConfig = {
+  schema_version: number;
+  enabled: boolean;
+  host: string;
+  port: number;
+  tls_enabled: boolean;
+  tls_cert_file: string;
+  tls_key_file: string;
+  session_name: string;
+  channel: string;
+  metadata_log: string;
+  restart_delay_seconds: number;
+};
+
+export type IrcBridgePayload = {
+  generated_at: number;
+  config: IrcBridgeConfig;
+  tmux: {
+    session_name: string;
+    running: boolean;
+    tmux_tmpdir: string;
+    tail: string;
+  };
+  listening: boolean;
+  models: Array<Record<string, unknown>>;
+  metadata_log: string;
+};
+
+export type StartupServicePayload = {
+  id: string;
+  label: string;
+  kind: string;
+  critical: boolean;
+  description: string;
+  boot_enabled: boolean;
+  configured_enabled: boolean;
+  running: boolean;
+  status: Record<string, unknown>;
+  errors: string[];
+  unit?: string;
+  session_name?: string;
+};
+
+export type StartupPayload = {
+  generated_at: number;
+  config: {
+    schema_version: number;
+    services: Record<string, { enabled: boolean } & Record<string, unknown>>;
+  };
+  services: StartupServicePayload[];
+  summary: {
+    services: number;
+    boot_enabled: number;
+    running: number;
+    errors: number;
+  };
+  tmux_tmpdir: string;
+};
+
 export type ConsoleCommand = {
   id: string;
   title: string;
@@ -848,6 +907,47 @@ export function rollbackOperateModelDeprecation(payload: { migration_id?: string
 
 export function getConsoleOverview(): Promise<ConsoleOverviewPayload> {
   return requestJson('/v2/console/overview');
+}
+
+export function getIrcBridge(): Promise<IrcBridgePayload> {
+  return requestJson('/v2/irc');
+}
+
+export function updateIrcBridgeConfig(payload: Partial<IrcBridgeConfig>): Promise<{ config: IrcBridgeConfig; status: IrcBridgePayload }> {
+  return requestJson('/v2/irc/config', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function startIrcBridge(): Promise<Record<string, unknown>> {
+  return requestJson('/v2/irc/start', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function stopIrcBridge(): Promise<Record<string, unknown>> {
+  return requestJson('/v2/irc/stop', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function restartIrcBridge(): Promise<Record<string, unknown>> {
+  return requestJson('/v2/irc/restart', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export function getStartup(): Promise<StartupPayload> {
+  return requestJson('/v2/startup');
+}
+
+export function updateStartupConfig(payload: { services?: Record<string, { enabled: boolean } & Record<string, unknown>> }): Promise<{ config: StartupPayload['config']; results: Record<string, unknown>; payload: StartupPayload }> {
+  return requestJson('/v2/startup/config', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function runStartupServiceAction(serviceId: string, action: string, payload: Record<string, unknown> = {}): Promise<{ service_id: string; action: string; result: Record<string, unknown>; payload: StartupPayload }> {
+  return requestJson(`/v2/startup/services/${encodeURIComponent(serviceId)}/${encodeURIComponent(action)}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 }
 
 export function getConsoleCommands(query = '', context: { session?: string; trace_id?: string; model?: string } = {}): Promise<ConsoleCommandsPayload> {

@@ -10,6 +10,7 @@ BuildRequires:  python3
 Requires:       python3
 Requires:       tmux
 Requires:       bash
+Requires:       sudo
 Requires(post): systemd
 Requires(postun): systemd
 
@@ -42,8 +43,9 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/etc/matts-value-set
 mkdir -p %{buildroot}/usr/lib/systemd/system
 mkdir -p %{buildroot}/etc/profile.d
+mkdir -p %{buildroot}/etc/sudoers.d
 mkdir -p %{buildroot}/var/log/matts-value-set
-mkdir -p %{buildroot}/var/lib/matts-value-set/{studio,images}
+mkdir -p %{buildroot}/var/lib/matts-value-set/{studio,images,tmux}
 mkdir -p %{buildroot}/%{_docdir}/%{name}
 
 # Install main scripts
@@ -51,6 +53,9 @@ install -m 755 claude-DO.sh %{buildroot}/usr/lib/matts-value-set/
 install -m 755 do-anthropic-proxy.py %{buildroot}/usr/lib/matts-value-set/
 install -m 755 image-studio.py %{buildroot}/usr/lib/matts-value-set/
 install -m 755 matts-v2-console.py %{buildroot}/usr/lib/matts-value-set/
+install -m 755 matts-irc-bridge.py %{buildroot}/usr/lib/matts-value-set/
+install -m 755 matts-startup-service.py %{buildroot}/usr/lib/matts-value-set/
+install -m 755 matts-startup-helper.py %{buildroot}/usr/lib/matts-value-set/
 if [ -f requirements-v2.txt ]; then
     install -m 644 requirements-v2.txt %{buildroot}/usr/lib/matts-value-set/
 fi
@@ -116,6 +121,9 @@ ln -sf ../lib/matts-value-set/do-anthropic-proxy.py %{buildroot}/usr/bin/matts-v
 ln -sf ../lib/matts-value-set/matts-v2-console.py %{buildroot}/usr/bin/matts-v2-console
 ln -sf ../lib/matts-value-set/matts-v2-console.py %{buildroot}/usr/bin/matts-console
 ln -sf ../lib/matts-value-set/image-studio.py %{buildroot}/usr/bin/matts-image-studio
+ln -sf ../lib/matts-value-set/matts-irc-bridge.py %{buildroot}/usr/bin/matts-irc-bridge
+ln -sf ../lib/matts-value-set/matts-startup-service.py %{buildroot}/usr/bin/matts-startup-service
+ln -sf ../lib/matts-value-set/matts-startup-helper.py %{buildroot}/usr/bin/matts-startup-helper
 
 # Create symlinks for wrapper scripts
 for model in deepseek deepseek-v4 glm mistral codex sd35; do
@@ -135,6 +143,10 @@ install -m 644 install/systemd/matts-console.service %{buildroot}/usr/lib/system
 # Install environment configuration
 install -m 640 install/environment.conf %{buildroot}/etc/matts-value-set/
 install -m 755 install/profile.d/matts-value-set.sh %{buildroot}/etc/profile.d/
+cat > %{buildroot}/etc/sudoers.d/matts-value-set-startup <<'EOF'
+matts ALL=(root) NOPASSWD: /usr/bin/matts-startup-helper *
+EOF
+chmod 440 %{buildroot}/etc/sudoers.d/matts-value-set-startup
 
 # Install documentation
 install -m 644 README.md %{buildroot}/%{_docdir}/%{name}/
@@ -161,6 +173,7 @@ fi
 chown -R matts:matts /var/lib/matts-value-set
 chown -R matts:matts /var/log/matts-value-set
 chmod 750 /var/lib/matts-value-set
+chmod 750 /var/lib/matts-value-set/tmux
 chmod 750 /var/log/matts-value-set
 chmod 640 /etc/matts-value-set/environment.conf
 
@@ -174,13 +187,16 @@ fi
 # Reload systemd daemon
 systemctl daemon-reload
 
-# Enable proxy service by default (console can be started manually)
+# Enable core services by default. IRC is enabled through the platform startup
+# manifest and starts as a proxy-owned tmux sidecar.
 systemctl enable matts-value-set-proxy.service
+systemctl enable matts-console.service
 
 %preun
 # Stop services before removal
 systemctl stop matts-console.service || true
 systemctl stop matts-value-set-proxy.service || true
+tmux kill-session -t matts-irc-bridge || true
 
 %postun
 # Reload systemd after removal
@@ -205,12 +221,16 @@ fi
 %dir /var/log/matts-value-set
 %dir /var/lib/matts-value-set/studio
 %dir /var/lib/matts-value-set/images
+%dir /var/lib/matts-value-set/tmux
 
 # Main scripts
 /usr/lib/matts-value-set/claude-DO.sh
 /usr/lib/matts-value-set/do-anthropic-proxy.py
 /usr/lib/matts-value-set/image-studio.py
 /usr/lib/matts-value-set/matts-v2-console.py
+/usr/lib/matts-value-set/matts-irc-bridge.py
+/usr/lib/matts-value-set/matts-startup-service.py
+/usr/lib/matts-value-set/matts-startup-helper.py
 /usr/lib/matts-value-set/requirements-v2.txt
 /usr/lib/matts-value-set/requirements-rpm-constraints.txt
 /usr/lib/matts-value-set/vendor
@@ -242,6 +262,9 @@ fi
 /usr/bin/matts-v2-console
 /usr/bin/matts-console
 /usr/bin/matts-image-studio
+/usr/bin/matts-irc-bridge
+/usr/bin/matts-startup-service
+/usr/bin/matts-startup-helper
 /usr/bin/claude-deepseek
 /usr/bin/claude-deepseek-v4
 /usr/bin/claude-glm
@@ -256,6 +279,7 @@ fi
 
 # Configuration
 /etc/matts-value-set/environment.conf
+%config(noreplace) /etc/sudoers.d/matts-value-set-startup
 
 # Profile script
 /etc/profile.d/matts-value-set.sh

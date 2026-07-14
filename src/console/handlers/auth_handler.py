@@ -14,7 +14,7 @@ ROLE_PERMISSIONS = {
     "operator": {"view_console", "view_traces", "model_use", "tmux_control", "eval_run", "review_queue", "notification_update", "replay_run", "repository_context_import", "synthetic_load_run", "cost_control_edit"},
     "model_admin": {"view_console", "view_traces", "model_use", "model_admin", "tmux_control", "eval_run", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "synthetic_load_run", "cost_control_edit", "cost_control_override"},
     "billing_admin": {"view_console", "view_billing", "budget_admin", "cost_control_edit"},
-    "infra_admin": {"view_console", "view_traces", "model_use", "tmux_control", "dedicated_admin", "budget_admin", "config_drift_admin", "rollback_admin", "automation_admin", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "audit_view", "auth_session_admin", "policy_admin", "synthetic_load_run", "cost_control_edit", "cost_control_override"},
+    "infra_admin": {"view_console", "view_traces", "model_use", "tmux_control", "dedicated_admin", "budget_admin", "config_drift_admin", "rollback_admin", "automation_admin", "review_queue", "notification_update", "replay_run", "repository_context_import", "workspace_bundle_admin", "audit_view", "auth_session_admin", "policy_admin", "startup_admin", "synthetic_load_run", "cost_control_edit", "cost_control_override"},
 }
 
 SENSITIVE_POST_PERMISSIONS = {

@@ -349,6 +349,15 @@ start_proxy() {
   fi
 }
 
+start_proxy_sidecars() {
+  local startup_script="${MATTS_STARTUP_SERVICE_SCRIPT:-${script_dir}/matts-startup-service.py}"
+  if [[ -f "$startup_script" ]]; then
+    TMUX_TMPDIR="${TMUX_TMPDIR:-${HOME}/.cache/matts-value-set/tmux}" python3 "$startup_script" ensure-sidecars >/dev/null 2>&1 || true
+  elif command -v matts-startup-service >/dev/null 2>&1; then
+    TMUX_TMPDIR="${TMUX_TMPDIR:-${HOME}/.cache/matts-value-set/tmux}" matts-startup-service ensure-sidecars >/dev/null 2>&1 || true
+  fi
+}
+
 pretty_json() {
   python3 -m json.tool 2>/dev/null || cat
 }
@@ -424,6 +433,7 @@ PY
 }
 
 start_proxy
+start_proxy_sidecars
 
 if [[ "$show_costs" == "1" ]]; then
   curl -fsS "http://${proxy_host}:${proxy_port}/v1/claude-do/costs" | pretty_json

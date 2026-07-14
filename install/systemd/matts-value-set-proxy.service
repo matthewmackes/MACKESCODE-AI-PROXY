@@ -2,7 +2,8 @@
 Description=MDE LLM-PROXY Anthropic-compatible Proxy
 Documentation=https://github.com/matthewmackes/MACKESCODE-AI-PROXY
 After=network.target
-Wants=network.target
+Before=matts-console.service
+Wants=network.target matts-console.service
 
 [Service]
 Type=simple
@@ -11,6 +12,7 @@ Group=matts
 WorkingDirectory=/var/lib/matts-value-set
 EnvironmentFile=/etc/matts-value-set/environment.conf
 Environment=PYTHONPATH=/usr/lib/matts-value-set/vendor/python:/usr/lib/matts-value-set
+Environment=TMUX_TMPDIR=/var/lib/matts-value-set/tmux
 ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/do-anthropic-proxy.py \
   --host 127.0.0.1 \
   --port 18081 \
@@ -20,6 +22,7 @@ ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/do-anthropic-proxy.py \
   --cost-file /var/log/matts-value-set/usage.jsonl \
   --budget-file /var/lib/matts-value-set/budgets.json \
   --log-file /var/log/matts-value-set/proxy.jsonl
+ExecStartPost=-/usr/bin/python3 /usr/lib/matts-value-set/matts-startup-service.py ensure-sidecars
 Restart=always
 RestartSec=10
 StartLimitInterval=60

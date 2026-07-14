@@ -29,6 +29,9 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertTrue(payload["capabilities"]["analyst.view"]["allowed"])
         self.assertTrue(payload["capabilities"]["analyst.run"]["allowed"])
         self.assertTrue(payload["capabilities"]["analyst.ack"]["allowed"])
+        self.assertTrue(payload["capabilities"]["startup.view"]["allowed"])
+        self.assertTrue(payload["capabilities"]["startup.admin"]["allowed"])
+        self.assertTrue(payload["capabilities"]["irc.admin"]["allowed"])
         self.assertEqual(payload["actor"]["id"], "owner")
 
     def test_viewer_can_view_tui_but_cannot_control(self):
@@ -48,7 +51,19 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertTrue(payload["capabilities"]["analyst.view"]["allowed"])
         self.assertFalse(payload["capabilities"]["analyst.run"]["allowed"])
         self.assertTrue(payload["capabilities"]["analyst.ack"]["allowed"])
+        self.assertTrue(payload["capabilities"]["startup.view"]["allowed"])
+        self.assertFalse(payload["capabilities"]["startup.admin"]["allowed"])
+        self.assertFalse(payload["capabilities"]["irc.admin"]["allowed"])
         self.assertEqual(payload["capabilities"]["tui.control"]["reason"], "missing_permission:tmux_control")
+
+    def test_startup_admin_uses_dedicated_permission(self):
+        service = V2CapabilityService()
+        allowed = service.decide({"id": "infra", "permissions": ["startup_admin"]}, "startup.admin")
+        denied = service.decide({"id": "operator", "permissions": ["tmux_control"]}, "startup.admin")
+
+        self.assertTrue(allowed.allowed)
+        self.assertEqual(allowed.required_permission, "startup_admin")
+        self.assertFalse(denied.allowed)
 
     def test_cost_control_permissions_are_separate_for_edit_and_override(self):
         service = V2CapabilityService()

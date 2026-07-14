@@ -78,6 +78,21 @@ CAPABILITY_DEFINITIONS = {
         "permission": "tmux_control",
         "category": "console",
     },
+    "startup.view": {
+        "label": "View startup services",
+        "permission": "view_console",
+        "category": "admin",
+    },
+    "startup.admin": {
+        "label": "Manage startup services",
+        "permission": "startup_admin",
+        "category": "admin",
+    },
+    "irc.admin": {
+        "label": "Manage IRC bridge",
+        "permission": "startup_admin",
+        "category": "admin",
+    },
     "evals.run": {
         "label": "Run evals",
         "permission": "eval_run",

@@ -5,7 +5,7 @@
 I have successfully created a comprehensive installer system for MDE LLM-PROXY that meets all your requirements:
 
 ### **A. Service Setup with Watchdog** ✅
-Created two systemd services with auto-restart and security hardening:
+Created two core systemd services plus a proxy-owned IRC sidecar with auto-restart and security hardening:
 
 1. **`matts-value-set-proxy.service`** - Proxy server (port 18081)
    - Auto-restart on failure with exponential backoff
@@ -19,12 +19,17 @@ Created two systemd services with auto-restart and security hardening:
    - Same security hardening as proxy
    - Binds to `0.0.0.0:18182` with authentication
 
+3. **`matts-irc-bridge`** - IRC LLM bridge sidecar (port 6667 by default)
+   - Starts from the proxy service boot hook in tmux
+   - Authenticates remote IRC clients with the owner console token via `PASS`
+   - Managed from Advanced > Startup
+
 ### **B. RPM Package Installer/Uninstaller** ✅
 Created complete RPM packaging system:
 
 1. **`matts-value-set.spec`** - Comprehensive RPM spec file
    - BuildRequires: `python3-devel`, `python3-requests`
-   - Requires: `python3`, `tmux`, `bash`, `systemd`
+   - Requires: `python3`, `tmux`, `bash`, `sudo`, `systemd`
    - Proper file placement and permissions
    - Post-install scripts for user/group creation
    - Pre-uninstall scripts for service cleanup
@@ -114,6 +119,7 @@ sudo systemctl start matts-console
 
 # Enable auto-start
 sudo systemctl enable matts-value-set-proxy
+sudo systemctl enable matts-console
 
 # Check status
 sudo systemctl status matts-value-set-proxy

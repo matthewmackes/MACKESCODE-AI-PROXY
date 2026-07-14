@@ -11,6 +11,7 @@ Group=matts
 WorkingDirectory=/var/lib/matts-value-set
 EnvironmentFile=/etc/matts-value-set/environment.conf
 Environment=PYTHONPATH=/usr/lib/matts-value-set/vendor/python:/usr/lib/matts-value-set
+Environment=TMUX_TMPDIR=/var/lib/matts-value-set/tmux
 ExecStart=/usr/bin/python3 /usr/lib/matts-value-set/matts-v2-console.py \
   --host 0.0.0.0 \
   --port 18182

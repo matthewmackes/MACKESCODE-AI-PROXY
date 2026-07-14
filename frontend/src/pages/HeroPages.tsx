@@ -94,6 +94,7 @@ const ConsolePage = lazy(() => delayedAdvancedImport(() => import('./ConsolePage
 const ObservePage = lazy(() => delayedAdvancedImport(() => import('./ObservePage')));
 const OperatePage = lazy(() => delayedAdvancedImport(() => import('./OperatePage')));
 const RunPage = lazy(() => delayedAdvancedImport(() => import('./RunPage')));
+const StartupPage = lazy(() => delayedAdvancedImport(() => import('./StartupPage')));
 const AdvancedThemeProvider = lazy(() => delayedAdvancedImport(() => import('../components/AdvancedThemeProvider')));
 const TuiTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TuiTerminal')));
 const TmuxTerminal = lazy(() => delayedAdvancedImport(() => import('../components/TmuxTerminal')));
@@ -4361,6 +4362,7 @@ const ADVANCED_TAB_DEFS: AdvancedTabDef[] = [
   { key: 'models', label: 'Models', icon: 'apps/chat-bot.svg', group: 'Configure', hint: 'LLM catalog — measured health, pricing, access state, discovery' },
   { key: 'run', label: 'Run', icon: 'actions/system-run-symbolic.svg', group: 'Configure', hint: 'Prompt templates, run profiles, eval gates, replay' },
   { key: 'console', label: 'Console', icon: 'apps/settings.svg', group: 'Configure', hint: 'System operations — proxy status, command palette, live state' },
+  { key: 'startup', label: 'Startup', icon: 'apps/preferences-system.svg', group: 'Configure', hint: 'Boot services, live startup controls, IRC bridge management' },
   { key: 'observe', label: 'Observe', icon: 'actions/system-search-symbolic.svg', group: 'Monitor', hint: 'Traces, cost, provider health, audit, reporting' },
   { key: 'operate', label: 'Operate', icon: 'apps/ai-governance--tracked.svg', group: 'Govern', hint: 'Release readiness, cost guard, config drift, automation' },
 ];
@@ -4519,10 +4521,11 @@ export function AdvancedPage() {
       </div>
       {tab === 'models' ? <ModelsPage /> : null}
       <Suspense fallback={<AdvancedLoading label={tab} />}>
-        {tab === 'console' || tab === 'run' || tab === 'observe' || tab === 'operate' ? (
+        {tab === 'console' || tab === 'run' || tab === 'startup' || tab === 'observe' || tab === 'operate' ? (
           <AdvancedThemeProvider>
             {tab === 'console' ? <ConsolePage /> : null}
             {tab === 'run' ? <RunPage /> : null}
+            {tab === 'startup' ? <StartupPage /> : null}
             {tab === 'observe' ? <ObservePage /> : null}
             {tab === 'operate' ? <OperatePage /> : null}
           </AdvancedThemeProvider>

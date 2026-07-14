@@ -42,6 +42,7 @@ sudo ./uninstall.sh
 ### Systemd Services
 - `systemd/matts-value-set-proxy.service` - Proxy server (port 18081)
 - `systemd/matts-console.service` - V2 React console (port 18182)
+- `matts-irc-bridge` - Proxy-owned tmux sidecar for remote IRC LLM chat (port 6667 by default)
 
 ### Configuration
 - `environment.conf` - Environment variables for services
@@ -64,7 +65,7 @@ sudo systemctl start matts-console
 
 # Enable auto-start on boot
 sudo systemctl enable matts-value-set-proxy
-sudo systemctl enable matts-console  # Optional
+sudo systemctl enable matts-console
 
 # Check status
 sudo systemctl status matts-value-set-proxy
@@ -124,6 +125,9 @@ export MATTS_VALUE_SET_NO_WELCOME=1
 - `claude-do` - Main launcher
 - `matts-value-set-proxy` - Start proxy directly
 - `matts-v2-console` / `matts-console` - Start the V2 React console directly
+- `matts-irc-bridge` - Run/status/control the IRC bridge sidecar
+- `matts-startup-service` - Apply configured proxy-boot sidecar startup
+- `matts-startup-helper` - Allowlisted systemd helper used by Advanced > Startup
 - `claude-deepseek`, `claude-glm`, `claude-mistral`, `claude-codex` - Model wrappers
 - `matts-image` - Image generator CLI
 
@@ -180,8 +184,10 @@ DigitalOcean billing reports need `DIGITALOCEAN_TOKEN` and, for daily spend insi
    ```
 
 4. Open the AgentBoard tab to inspect and control all local tmux sessions. It uses the existing console token and reads local tmux state plus proxy logs; no separate AgentBoard service is installed.
-5. Open Console > LLM Management to audit the model key and sync allowed/forbidden model states before relying on Code/Create selectors.
-6. Open Console > Inference Hosting Lifecycle to build, monitor, keep alive, or tear down Dedicated Inference.
+5. Open Advanced > Startup to manage boot-enabled services, live start/stop/restart actions, and IRC bridge host/port/TLS settings.
+6. Connect an IRC client to `host:6667` and send `PASS YOUR_CONSOLE_OWNER_TOKEN` before `NICK`/`USER` to list and chat with routable text LLM contacts.
+7. Open Console > LLM Management to audit the model key and sync allowed/forbidden model states before relying on Code/Create selectors.
+8. Open Console > Inference Hosting Lifecycle to build, monitor, keep alive, or tear down Dedicated Inference.
 
 ## Troubleshooting
 
