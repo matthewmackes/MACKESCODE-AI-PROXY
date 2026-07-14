@@ -114,6 +114,9 @@ class RuntimeConfigService:
     def log_file(self):
         return self.configured_path("proxy_log_file", ".cache/matts-value-set/proxy.jsonl", "MATTS_VALUE_SET_LOG_FILE", self.home_dir())
 
+    def operational_db(self):
+        return self.configured_path("operational_db", ".cache/matts-value-set/studio/operational.sqlite3", "MATTS_OPERATIONAL_DB", self.home_dir())
+
     def digitalocean_token_file(self):
         return Path(self.env.get("DIGITALOCEAN_TOKEN_FILE", self.home_dir() / ".config/digitalocean/token"))
 

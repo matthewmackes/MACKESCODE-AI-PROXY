@@ -16,9 +16,11 @@ operations clearer, safer, or more reliable.
 
 ## Source Of Truth
 
-- `config/models.json` is the active source of truth for model ids, aliases,
-  enabled state, access status, pricing, origin, metadata, and Dedicated
-  Inference routing state.
+- The operational SQLite store is the active runtime source of truth for model
+  ids, aliases, enabled state, pricing, origin, metadata, and non-sensitive
+  Dedicated Inference routing facts. `config/models.json` is the git-tracked
+  export snapshot for review, bootstrap, rollback, and proxy compatibility
+  (ADR-0006).
 - `config/default-models.json` is bootstrap fallback data only.
 - Code, Create, Console selectors, `/v1/models`, model hero cards, key audit,
   and proxy sync must all derive from the same registry.

@@ -173,7 +173,7 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
         self.assertEqual(third, {"grade": "D", "success_rate": 0.2, "p50_latency_ms": 12000, "requests": 5, "measured": True})
         self.assertEqual(len(read_calls), 2)
 
-    def test_payload_records_generated_fallback_when_logo_missing(self):
+    def test_payload_records_bundled_art_when_public_logo_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.json"
             access_state = Path(tmp) / "model-access-state.json"
@@ -198,9 +198,11 @@ class V2ModelShowcaseServiceTests(unittest.TestCase):
         card = payload["models"][0]
         self.assertEqual(card["company"], "Zhipu AI")
         self.assertEqual(card["artwork"]["logo"], "")
-        self.assertEqual(card["artwork"]["render"]["mode"], "generated_initials")
+        self.assertEqual(card["artwork"]["render"]["mode"], "bundled_svg")
+        self.assertEqual(card["artwork"]["render"]["key"], "zhipu")
         self.assertEqual(card["artwork"]["sources"][0]["kind"], "fallback")
-        self.assertIn("generated family initial", card["artwork"]["sources"][0]["usage_notes"])
+        self.assertEqual(card["artwork"]["sources"][0]["source"], "Local bundled brand art")
+        self.assertIn("local bundled brand art", card["artwork"]["sources"][0]["usage_notes"])
 
 
 if __name__ == "__main__":

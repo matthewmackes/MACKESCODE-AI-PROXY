@@ -105,7 +105,9 @@ export MATTS_VALUE_SET_COST_FILE="$RELEASE_RUNTIME_ROOT/usage.jsonl"
 export MATTS_VALUE_SET_BUDGET_FILE="$RELEASE_RUNTIME_ROOT/budgets.json"
 export MATTS_VALUE_SET_LOG_FILE="$RELEASE_RUNTIME_ROOT/proxy.jsonl"
 export MATTS_WALLPAPER_CACHE_DIR="$RELEASE_RUNTIME_ROOT/wallpapers"
-export MATTS_V2_RUN_DB="$MATTS_STUDIO_DIR/v2-run.sqlite3"
+export MATTS_OPERATIONAL_DB="$MATTS_STUDIO_DIR/operational.sqlite3"
+export MATTS_V2_RUN_DB="$MATTS_OPERATIONAL_DB"
+export MATTS_V2_RESEARCH_DB="$MATTS_OPERATIONAL_DB"
 export MATTS_V2_RAG_CONFIG_FILE="$MATTS_STUDIO_DIR/v2-rag-config.json"
 export MATTS_V2_RAG_INDEX_FILE="$MATTS_STUDIO_DIR/v2-rag-index.json"
 
@@ -155,6 +157,7 @@ python3 -m py_compile \
   backend/v2/api/code.py \
   backend/v2/api/console.py \
   backend/v2/api/create.py \
+  backend/v2/api/analyst.py \
   backend/v2/api/models.py \
   backend/v2/api/observe.py \
   backend/v2/api/operate.py \
@@ -165,6 +168,7 @@ python3 -m py_compile \
   backend/v2/services/code_attachments.py \
   backend/v2/services/legacy_console.py \
   backend/v2/services/model_showcase.py \
+  backend/v2/services/performance_analyst.py \
   backend/v2/services/proxy_cli.py \
   backend/v2/services/research_search.py \
   backend/v2/services/run_store.py \
@@ -198,6 +202,7 @@ python3 -m py_compile \
   src/console/services/model_registry.py \
   src/console/services/notifications.py \
   src/console/services/offline_mode.py \
+  src/console/services/operational_store.py \
   src/console/services/opentelemetry.py \
   src/console/services/persistence.py \
   src/console/services/plugins.py \
@@ -252,6 +257,7 @@ python3 -m py_compile \
   tests/test_notification_center_service.py \
   tests/test_offline_mode_service.py \
   tests/test_opentelemetry_service.py \
+  tests/test_operational_store.py \
   tests/test_persistence_service.py \
   tests/test_plugin_service.py \
   tests/test_provider_health_service.py \
@@ -277,9 +283,11 @@ python3 -m py_compile \
   tests/test_usage_service.py \
   tests/test_v2_capabilities_service.py \
   tests/test_v2_code_attachments.py \
+  tests/test_v2_analyst_api.py \
   tests/test_v2_legacy_console.py \
   tests/test_v2_model_showcase_service.py \
   tests/test_v2_openapi_generation.py \
+  tests/test_performance_analyst_service.py \
   tests/test_v2_proxy_cli_service.py \
   tests/test_v2_research_api.py \
   tests/test_v2_research_search_service.py \
@@ -292,6 +300,7 @@ python3 -m py_compile \
   tests/test_websocket_service.py \
   scripts/coverage-report.py \
   scripts/check-v2-frontend-audit.py \
+  scripts/check-v2-brand-art.py \
   scripts/check-v2-frontend-bundles.py \
   scripts/generate-v2-openapi.py \
   scripts/v2-browser-smoke.py \
@@ -313,6 +322,7 @@ if command -v npm >/dev/null 2>&1; then
   npm run build --prefix frontend
   python3 scripts/check-v2-frontend-bundles.py
   python3 scripts/check-v2-frontend-audit.py
+  python3 scripts/check-v2-brand-art.py
 else
   if [[ "${MATTS_BROWSER_SMOKE_REQUIRED:-0}" == "1" ]]; then
     echo "React frontend build requires npm when MATTS_BROWSER_SMOKE_REQUIRED=1. Install Node.js/npm and rerun release-check." >&2

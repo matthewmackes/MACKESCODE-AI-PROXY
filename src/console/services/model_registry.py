@@ -3,17 +3,19 @@ import colorsys
 import hashlib
 import json
 import os
+from pathlib import Path
 import tempfile
 import threading
 import time
 
+from src.console.services.operational_store import OperationalStore, operational_db_path
+
 
 NEW_MODEL_SECONDS = 7 * 24 * 60 * 60
 
-# Serializes registry writes within this process. config/models.json is the
-# governance-locked source of truth, mutated from request threads, the dedicated
-# lifecycle worker, and catalog sync; without this a concurrent writer could
-# interleave with another and a reader could observe a torn file.
+# Serializes registry export writes within this process. SQLite is the runtime
+# source of truth; config/models.json remains a git-tracked export snapshot for
+# proxy compatibility, review, and rollback.
 _REGISTRY_WRITE_LOCK = threading.Lock()
 
 
@@ -181,25 +183,79 @@ class ModelRegistryService:
             raise ValueError("Model registry models must be a list.")
         return models, schema_version, issues
 
+    def _operational_store(self, path):
+        if os.environ.get("MATTS_OPERATIONAL_DB"):
+            return OperationalStore(operational_db_path())
+        path = Path(path)
+        if path.name == "models.json" and path.parent.name == "config":
+            return OperationalStore()
+        return OperationalStore(path.parent / ".model-registry.sqlite3")
+
+    def _read_file_document(self, path):
+        models = self.default_registry
+        status = {
+            "exists": path.exists(),
+            "schema_version": self.schema_version,
+            "valid": True,
+            "issues": [],
+        }
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                models, schema_version, issues = self.models_from_document(data)
+                status.update({"schema_version": schema_version, "issues": issues})
+            except (OSError, ValueError) as exc:
+                status.update({"valid": False, "issues": [str(exc)]})
+        else:
+            status["issues"].append("Model registry snapshot is missing; seeded from bundled defaults.")
+        normalized = [item for item in (self.normalize(model) for model in models) if item]
+        if not normalized:
+            status["valid"] = False
+            status["issues"].append("Model registry did not contain any valid model entries; using bundled defaults.")
+            normalized = [item for item in (self.normalize(model) for model in self.default_registry) if item]
+        return normalized, status
+
     def load_with_status(self, path, include_disabled=True, access_state=None):
+        path = Path(path)
         status = {
             "config_file": str(path),
             "exists": path.exists(),
             "schema_version": self.schema_version,
             "valid": True,
-            "source": "defaults",
+            "source": "operational_db",
             "issues": [],
         }
-        models = self.default_registry
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                models, schema_version, issues = self.models_from_document(data)
-                status.update({"source": "file", "schema_version": schema_version, "issues": issues})
-            except (OSError, ValueError) as exc:
-                status.update({"valid": False, "source": "defaults_after_error", "issues": [str(exc)]})
-        normalized = [item for item in (self.normalize(model) for model in models) if item]
-        normalized = self.apply_access_state(normalized, access_state)
+        file_models, file_status = self._read_file_document(path)
+        status.update({
+            "exists": file_status["exists"],
+            "schema_version": file_status["schema_version"],
+            "snapshot_valid": file_status["valid"],
+            "snapshot_issues": list(file_status.get("issues") or []),
+            "issues": list(file_status.get("issues") or []),
+        })
+        store = self._operational_store(path)
+        status["database_file"] = str(store.db_path)
+        normalized = []
+        try:
+            source_path = store.get_runtime_state("model_registry_source_path", "")
+            normalized = [item for item in (self.normalize(model) for model in store.load_model_registry()) if item]
+            if not normalized or source_path != str(path):
+                normalized = store.save_model_registry(
+                    [self.strip_runtime_access(model) for model in file_models],
+                    route_enabled=self.route_enabled,
+                )
+                store.upsert_runtime_state("model_registry_source_path", str(path))
+                status["seeded_from_snapshot"] = True
+                if not file_status["valid"]:
+                    status.update({"valid": False, "source": "defaults_after_snapshot_error"})
+            else:
+                status["seeded_from_snapshot"] = False
+                status["valid"] = True
+        except Exception as exc:
+            status.update({"valid": False, "source": "file_after_db_error"})
+            status["issues"].append("Operational model registry unavailable: %s" % exc)
+            normalized = file_models
+        normalized = self.apply_access_state([item for item in (self.normalize(model) for model in normalized) if item], access_state)
         if not normalized:
             status["valid"] = False
             status["issues"].append("Model registry did not contain any valid model entries; using bundled defaults.")
@@ -215,9 +271,16 @@ class ModelRegistryService:
         return self.load_with_status(path, include_disabled=include_disabled, access_state=access_state)["models"]
 
     def save(self, path, models):
+        path = Path(path)
         normalized = [item for item in (self.normalize(model) for model in models) if item]
         normalized = [self.strip_runtime_access(model) for model in normalized]
         payload = json.dumps(self.document_from_models(normalized), indent=2, sort_keys=True) + "\n"
+        store = self._operational_store(path)
+        try:
+            store.save_model_registry(normalized, route_enabled=self.route_enabled)
+            store.upsert_runtime_state("model_registry_source_path", str(path))
+        except Exception:
+            pass
         path.parent.mkdir(parents=True, exist_ok=True)
         # Centralized no-op guard: if the on-disk content already equals what we
         # would write, skip the write entirely. This makes the registry write path

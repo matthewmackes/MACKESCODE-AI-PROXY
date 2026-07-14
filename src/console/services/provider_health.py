@@ -33,6 +33,7 @@ class ProviderHealthService:
             "models": model_rows,
             "failure_categories": failure_categories,
             "dedicated": self.dedicated_health(dedicated),
+            "digitalocean_monitoring": (do_health.get("monitoring") if isinstance(do_health, dict) else {}) or {},
             "account": do_health.get("account") if isinstance(do_health, dict) else None,
             "billing": do_health.get("prepay") if isinstance(do_health, dict) else None,
             "findings": findings,
@@ -141,6 +142,22 @@ class ProviderHealthService:
             findings.append({"severity": "high", "type": provider["issue_type"], "title": "DigitalOcean provider health needs attention", "detail": provider["status"]})
         for incident in ((do_health.get("platform") or {}).get("unresolved_incidents") or [])[:3]:
             findings.append({"severity": "high" if incident.get("impact") in {"major", "critical"} else "medium", "type": "provider_outage", "title": incident.get("name") or "DigitalOcean incident", "detail": incident.get("shortlink") or ""})
+        monitoring = do_health.get("monitoring") if isinstance(do_health, dict) else {}
+        if isinstance(monitoring, dict) and monitoring.get("errors"):
+            findings.append({
+                "severity": "low" if not monitoring.get("configured") else "medium",
+                "type": "digitalocean_monitoring_gap",
+                "title": "DigitalOcean Monitoring source is incomplete",
+                "detail": "; ".join(str(item) for item in monitoring.get("errors", [])[:2]),
+            })
+        if isinstance(monitoring, dict):
+            cpu = (monitoring.get("metrics") or {}).get("cpu") if isinstance(monitoring.get("metrics"), dict) else {}
+            try:
+                cpu_avg = float((cpu or {}).get("average"))
+            except (TypeError, ValueError):
+                cpu_avg = 0.0
+            if cpu_avg > 0 and cpu_avg >= 85:
+                findings.append({"severity": "high", "type": "digitalocean_monitoring_pressure", "title": "Dedicated host CPU pressure is high", "detail": "CPU metric average %.1f" % cpu_avg})
         if not proxy.get("in_sync"):
             findings.append({"severity": "medium", "type": "local_proxy_issue", "title": "Proxy registry is not synced", "detail": (proxy.get("details") or {}).get("reason") or ""})
         for row in models:

@@ -5,10 +5,13 @@ run records, conversation branches, and session snapshots in a local SQLite
 runtime database. The default path is:
 
 ```text
-~/.cache/matts-value-set/studio/v2-run.sqlite3
+~/.cache/matts-value-set/studio/operational.sqlite3
 ```
 
-Set `MATTS_V2_RUN_DB` to point the V2 console at a different runtime database.
+The Run tables now share the operational store (`MATTS_OPERATIONAL_DB`) with
+trace backfills, model registry rows, research dossiers, DigitalOcean snapshots,
+and analyst runs. Set `MATTS_V2_RUN_DB` only when intentionally splitting the
+Run workspace onto a legacy or diagnostic database.
 This state is operator data, not release configuration, and should be handled by
 runtime backup/restore processes rather than committed to the repository.
 
@@ -70,10 +73,11 @@ keeps later profile/template edits from changing the historical record.
 
 ## Runtime-State Boundary
 
-The Run workspace database is local runtime state. It can contain prompts,
+The operational database is local runtime state. It can contain prompts,
 operator notes, trace IDs, session IDs, and workflow metadata, so it must be
 treated as sensitive. It is intentionally separate from release config such as
-`config/models.json`, source files, and generated frontend client artifacts.
+the git-tracked `config/models.json` export snapshot, source files, and
+generated frontend client artifacts.
 
 Do not store provider API keys, access tokens, or long-lived secrets in prompt
 templates, run profiles, run records, branches, or snapshots.

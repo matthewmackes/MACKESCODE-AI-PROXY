@@ -177,8 +177,9 @@ class UsageServiceTests(unittest.TestCase):
             report = service.local_usage_report(datetime.date(2026, 7, 8), datetime.date(2026, 7, 8))
             since_total = service.local_usage_since(now - 86400, now)
 
-        # Both aggregates over the same log come from a single read+decode pass.
-        self.assertEqual(parses["count"], 1)
+        # SQLite backfill now serves both aggregates without using the legacy
+        # tail parser at all.
+        self.assertEqual(parses["count"], 0)
         self.assertEqual(report["total_usd"], 0.5)
         self.assertEqual(since_total, 0.5)
 

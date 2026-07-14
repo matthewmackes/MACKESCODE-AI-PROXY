@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from src.console.services.eval_gates import EvalGateBlocked, EvalGateService
+from src.console.services.operational_store import operational_db_path
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
-DEFAULT_DB = Path.home() / ".cache" / "matts-value-set" / "studio" / "v2-run.sqlite3"
+DEFAULT_DB = operational_db_path()
 TEMPLATE_VARIABLE_RE = re.compile(r"{{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*}}")
 
 

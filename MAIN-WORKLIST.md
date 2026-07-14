@@ -3,7 +3,7 @@
 **Purpose:** Central tracking document for all development work in the MDE LLM-PROXY project. All AI assistants should document planned work here before execution and update status during/after completion.
 
 **Created:** 2026-07-07
-**Last Updated:** 2026-07-12
+**Last Updated:** 2026-07-14
 
 ## Work Tracking System
 
@@ -10475,10 +10475,10 @@ development worklist does not pretend they are locally closable.
 4. Update `SECURITY.md`/threat-model notes per the governance rule for security-surface changes.
 
 **Completion Criteria:**
-- [ ] Non-https image URLs are rejected with a clear error
-- [ ] Response size and content-type are validated before writing
-- [ ] Tests cover rejection and happy paths
-- [ ] Security docs updated
+- [x] Non-https image URLs are rejected with a clear error
+- [x] Response size and content-type are validated before writing
+- [x] Tests cover rejection and happy paths
+- [x] Security docs updated
 
 **Dependencies:** None
 **Blocks:** None
@@ -10502,9 +10502,9 @@ development worklist does not pretend they are locally closable.
 3. Verify the launcher and proxy start cleanly with the new defaults (`--doctor`, smoke launch).
 
 **Completion Criteria:**
-- [ ] No fixed `/tmp` log paths remain as defaults in launchers
-- [ ] Env override still works; docs match
-- [ ] Launcher verification evidence recorded
+- [x] No fixed `/tmp` log paths remain as defaults in launchers
+- [x] Env override still works; docs match
+- [x] Launcher verification evidence recorded
 
 **Dependencies:** None
 **Blocks:** None
@@ -10596,9 +10596,9 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 3. Confirm bundle/audit gates and browser smoke pass, and the packaged install ships the fonts.
 
 **Completion Criteria:**
-- [ ] No external font host referenced anywhere in the built frontend
-- [ ] IBM Plex renders offline; license attribution included
-- [ ] Build, bundle boundary, audit, and required V2 browser smoke pass
+- [x] No external font host referenced anywhere in the built frontend
+- [x] IBM Plex renders offline; license attribution included
+- [x] Build, bundle boundary, audit, and required V2 browser smoke pass
 
 **Dependencies:** None
 **Blocks:** None
@@ -10621,8 +10621,8 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 2. Keep or add browser-smoke coverage proving the Console still refreshes session state.
 
 **Completion Criteria:**
-- [ ] Console steady-state polling reduced to one cadence (documented exceptions allowed for active control)
-- [ ] Required V2 browser smoke passes
+- [x] Console steady-state polling reduced to one cadence (documented exceptions allowed for active control)
+- [x] Required V2 browser smoke passes
 
 **Dependencies:** None
 **Blocks:** None
@@ -10930,14 +10930,14 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 ### Task: V2-087
 
-**Title:** AI Performance Analyst + platform data-layer re-architecture (planned)
-**Status:** 📋 `TODO` (planned; NOT started — recorded per operator "write all to worklist but take no action")
+**Title:** AI Performance Analyst + platform data-layer re-architecture
+**Status:** ✅ `COMPLETED`
 **Priority:** P1
-**Assigned To:** unassigned
-**Start Time:** —
-**Completion Time:** —
+**Assigned To:** Codex
+**Start Time:** 2026-07-14
+**Completion Time:** 2026-07-14
 
-**Description:** Operator asked for a low-cost, A-rated, fit-for-purpose LLM to evaluate the telemetry the Advanced area gathers and give real-time feedback on proxy + monitored-LLM performance. A 51-question survey (FULL Q&A + reuse map + field inventory preserved in the plan file `/root/.claude/plans/immutable-coalescing-stonebraker.md`) plus three mid-survey directives (pull in DigitalOcean-side data; reconsider the platform DB/single-source-of-truth; increase artwork quality) expanded this into a **four-workstream initiative**. Delivery preference: one big batch (to be internally sequenced + CI-gated for safety).
+**Description:** Operator asked for a low-cost, A-rated, fit-for-purpose LLM to evaluate the telemetry the Advanced area gathers and give real-time feedback on proxy + monitored-LLM performance. A 51-question survey (FULL Q&A + reuse map + field inventory preserved in the plan file `/root/.claude/plans/immutable-coalescing-stonebraker.md`) plus three mid-survey directives (pull in DigitalOcean-side data; reconsider the platform DB/single-source-of-truth; increase artwork quality) expanded this into a **four-workstream initiative**. Delivery preference: one big batch (internally sequenced + CI-gated for safety).
 
 **Reuse map (from read-only exploration):** LLM calls via `LegacyConsoleAdapter.chat_completion` (routes through the local proxy → auto cost + budget); model pick by extending `ResearchSearchService._low_cost_text_models` + a `health.grade=="A"` predicate; budget via `enforce_cost_pause(..., "llm_service")`; redaction via `DecisionExplanationService.redact`; telemetry is already redacted + aggregated (analytics/`_HealthIndex`/scorecards). Scheduling gap: v2 backend is request-driven (no worker home) — precedent is the legacy `dedicated_policy_worker` daemon thread.
 
@@ -10951,7 +10951,22 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 
 **Risks:** (1) retiring the `config/models.json` SoT lock is highest-risk/hardest-to-reverse — ADR + export snapshot + consistency tests + operator-confirmed cutover; (2) backfill+hard-cut (no dual-write) — parity test + rollback seam; (3) new daemon-thread lifecycle in the v2 backend; (4) cost of broad web sweep + per-run LLM analysis — bounded by dedicated cap + cheap model + skip-if-unchanged; (5) one-big-batch across four workstreams + a governance migration — internal sequencing W1→W2/W3→W4 with CI-green gates; (6) charts + richer artwork vs the 190k bundle budget (lazy chunks).
 
-**Verification (when built):** migration parity test; registry DB↔file export round-trip + source-of-truth consistency; analyst unit tests (grade-A selection/fallback, cost-cap/pause, fingerprint cache, JSON schema validate/repair, redaction); DO graceful-degrade; `v2-browser-smoke.py --required` (pulse + detail + dark); bundle ≤190k (charts/art lazy); `release-check.sh`; CI green.
+**Delivered (2026-07-14):**
+- W1: Added a unified WAL SQLite operational store for traces, audit, usage backfill/read paths, runtime JSON state, model registry, DigitalOcean snapshots, analyst runs/findings, V2 RunStore, and V2 research dossiers; runtime-state backup now includes the operational DB. `config/models.json` is now a git-tracked export snapshot while the SQLite `model_registry` table is the runtime source of truth; ADR-0006 records the cutover.
+- W2: Added DigitalOcean Monitoring metric fetches for dedicated infrastructure with graceful degradation, snapshot persistence, provider-health findings, and a local-estimate cross-check surface for cost reporting.
+- W3: Added `PerformanceAnalystService`, daemon lifecycle, `/v2/analyst` APIs, capabilities, cost cap, fingerprint cache, deterministic preview/fallback, finding ack lifecycle, high-severity automation event emission, and an Advanced/Models analyst pulse/detail UI.
+- W4: Expanded bundled model-brand artwork, added custom local SVG marks for missing providers, and wired `scripts/check-v2-brand-art.py` into the release gate so backend artwork keys and frontend local marks stay in parity.
+- Docs updated: `docs/operational-store.md`, `docs/ai-performance-analyst.md`, ADR-0006, governance/runtime-state/provider-health/model-card/run-experience/compliance/requirements docs, and README.
+
+**Completion Criteria:**
+- [x] Unified SQLite operational store exists with backfill/parity coverage and runtime-state backup support
+- [x] Model registry runtime source of truth moved to SQLite with git-tracked export snapshot and consistency tests
+- [x] DigitalOcean Monitoring integration degrades cleanly and feeds provider health/cost cross-checks
+- [x] AI Performance Analyst service/API/UI delivers proxy grade, per-model grades, findings, ack lifecycle, cache/cost controls, and worker lifecycle
+- [x] Brand artwork quality pass ships local marks and release-gate coverage
+- [x] Generated OpenAPI/client artifacts, frontend dist assets, docs, and release gate are current
+
+**Verification:** Targeted Python tests for operational store, usage, model registry, DigitalOcean, analyst service/API, capabilities, model showcase, and release-script coverage passed (103 tests). Full `python3 -m unittest discover -s tests -v` passed (637 tests in the final release gate). `python3 scripts/generate-v2-openapi.py --check`, `npm run build --prefix frontend`, `python3 scripts/check-v2-frontend-bundles.py` (entry `assets/index-b59a3ec9.js` = 182,619 bytes), `python3 scripts/check-v2-frontend-audit.py`, `python3 scripts/check-v2-brand-art.py`, standalone `MATTS_ANALYST_WORKER_ENABLED=0 python3 scripts/v2-browser-smoke.py --required`, and full `MATTS_BROWSER_SMOKE_REQUIRED=1 MATTS_ANALYST_WORKER_ENABLED=0 ./scripts/release-check.sh` all passed. Release-check log: `/tmp/release-check-v2087.log`.
 
 **Dependencies:** builds on V2-086 (Advanced redesign). W3 depends on W1.
 **Blocks:** None
@@ -10959,5 +10974,5 @@ tests.test_dedicated_service -v` (35 tests OK) plus full-suite discover
 ---
 
 *This document should be updated by all AI assistants working on the project.*
-*Last updated by: Claude; V2-087 AI Performance Analyst + data re-architecture RECORDED (planned, not started) 2026-07-13.*
-*Timestamp: 2026-07-13*
+*Last updated by: Codex; V2-087 AI Performance Analyst + platform data-layer re-architecture COMPLETED and release-gated 2026-07-14.*
+*Timestamp: 2026-07-14*

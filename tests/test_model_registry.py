@@ -122,10 +122,11 @@ class ModelRegistryTests(unittest.TestCase):
             with patch.dict(studio.os.environ, {"MATTS_MODEL_CONFIG_FILE": str(path)}):
                 malformed = studio.model_registry_status(include_disabled=True)
 
-            self.assertFalse(malformed["valid"])
-            self.assertEqual(malformed["source"], "defaults_after_error")
+            self.assertTrue(malformed["valid"])
+            self.assertFalse(malformed["snapshot_valid"])
+            self.assertEqual(malformed["source"], "operational_db")
             self.assertIn("schema_version 99 is not supported", malformed["issues"][0])
-            self.assertTrue(malformed["models"])
+            self.assertEqual(malformed["models"][0]["id"], "legacy-text")
 
     def test_admin_save_models_payload_persists_edits_and_syncs_proxy(self):
         with tempfile.TemporaryDirectory() as tmp:

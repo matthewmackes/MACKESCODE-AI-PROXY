@@ -707,6 +707,10 @@ def log_file():
     return runtime_config_service().log_file()
 
 
+def operational_db():
+    return runtime_config_service().operational_db()
+
+
 def digitalocean_token_file():
     return runtime_config_service().digitalocean_token_file()
 
@@ -992,6 +996,7 @@ def digitalocean_health_service():
         digitalocean_token=digitalocean_token,
         cache=DO_HEALTH_CACHE,
         clock=time.time,
+        load_dedicated_config=load_dedicated_config,
     )
 
 
@@ -2312,7 +2317,7 @@ def offline_mode_payload():
 
 
 def v2_run_store():
-    return RunStore(Path(os.environ.get("MATTS_V2_RUN_DB", home_dir() / ".cache/matts-value-set/studio/v2-run.sqlite3")), clock=time.time)
+    return RunStore(Path(os.environ.get("MATTS_V2_RUN_DB", operational_db())), clock=time.time)
 
 
 def model_deprecation_service():

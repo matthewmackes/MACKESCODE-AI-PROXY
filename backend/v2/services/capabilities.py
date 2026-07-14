@@ -128,6 +128,21 @@ CAPABILITY_DEFINITIONS = {
         "permission": "view_billing",
         "category": "report",
     },
+    "analyst.view": {
+        "label": "View AI performance analyst",
+        "permission": "view_console",
+        "category": "monitor",
+    },
+    "analyst.run": {
+        "label": "Run AI performance analyst",
+        "permission": "model_use",
+        "category": "monitor",
+    },
+    "analyst.ack": {
+        "label": "Acknowledge analyst findings",
+        "permission": "view_console",
+        "category": "monitor",
+    },
     "dedicated.admin": {
         "label": "Manage Dedicated Inference",
         "permission": "dedicated_admin",

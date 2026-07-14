@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from unittest.mock import patch
 import unittest
@@ -8,6 +9,11 @@ from src.console.services.model_registry import ModelRegistryService
 
 
 class ModelRegistryServiceTests(unittest.TestCase):
+    def setUp(self):
+        self._env_patch = patch.dict(os.environ, {"MATTS_OPERATIONAL_DB": ""})
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+
     def service(self, threshold=0.45):
         return ModelRegistryService(
             default_registry=[{"id": "fallback", "type": "text", "enabled": True, "pricing": {"input": 0.1}}],
@@ -56,12 +62,15 @@ class ModelRegistryServiceTests(unittest.TestCase):
             path = Path(tmp) / "models.json"
             service.save(path, [{"id": "a", "type": "text", "enabled": True, "pricing": {"input": 0.1}}])
             service.save(path, [{"id": "b", "type": "text", "enabled": True, "pricing": {"input": 0.1}}])
-            # The final file parses cleanly and no .models-*.tmp scratch file survives.
+            # The final export snapshot parses cleanly and no .models-*.tmp
+            # scratch file survives. The colocated SQLite registry is expected
+            # for non-default temp registries.
             import json as _json
             doc = _json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual([m["id"] for m in doc["models"]], ["b"])
-            leftovers = [p.name for p in Path(tmp).iterdir() if p.name != "models.json"]
+            leftovers = [p.name for p in Path(tmp).iterdir() if p.name.startswith(".models-")]
             self.assertEqual(leftovers, [])
+            self.assertTrue((Path(tmp) / ".model-registry.sqlite3").exists())
 
     def test_save_is_a_noop_when_content_is_unchanged(self):
         service = self.service()
@@ -84,6 +93,23 @@ class ModelRegistryServiceTests(unittest.TestCase):
                 service.save(path, models + [{"id": "b", "type": "text", "enabled": True, "pricing": {"input": 0.2}}])
 
         self.assertEqual(replaced["n"], 1)
+
+    def test_sqlite_registry_is_source_of_truth_over_export_snapshot(self):
+        service = self.service()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "models.json"
+            service.save(path, [
+                {"id": "first", "type": "text", "enabled": True, "pricing": {"input": 0.1}},
+                {"id": "second", "type": "image", "enabled": True, "pricing": {"image": 0.1}},
+            ])
+            path.write_text('{"schema_version": 99, "models": []}', encoding="utf-8")
+
+            status = service.load_with_status(path, include_disabled=True)
+
+        self.assertTrue(status["valid"])
+        self.assertFalse(status["snapshot_valid"])
+        self.assertEqual(status["source"], "operational_db")
+        self.assertEqual([model["id"] for model in status["models"]], ["first", "second"])
 
     def test_save_replaces_via_temp_so_a_reader_never_sees_a_torn_file(self):
         service = self.service()

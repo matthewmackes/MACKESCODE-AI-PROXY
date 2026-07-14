@@ -158,3 +158,42 @@ Do not edit old entries except to fix typos. Supersede them with a newer entry.
   state, that full probe detail lands in the runtime JSONL, and that
   `register_model` entries contain no `endpoint`/`inference_id`/`server_id`
   keys while routing still resolves identifiers from runtime state.
+
+## ADR-0006 - Operational SQLite Store Is Runtime Source Of Truth (2026-07-14)
+
+- **Symptom:** The V2 console had several durable runtime ledgers with related
+  operational meaning but separate persistence paths: trace/audit/usage JSONL,
+  V2 run and research SQLite databases, runtime JSON state files, DigitalOcean
+  health snapshots, and the model registry JSON file. `config/models.json` also
+  carried source-of-truth duties even though ADR-0005 moved sensitive live
+  access and Dedicated identifiers out of committed config. That left selectors,
+  `/v1/models`, proxy sync, research/run history, analyst state, and rollback
+  tooling with too many persistence boundaries.
+- **Decision:** Introduce one operational SQLite store
+  (`MATTS_OPERATIONAL_DB`, default
+  `~/.cache/matts-value-set/studio/operational.sqlite3`) as the runtime source
+  of truth for operational records, runtime JSON mirrors, model registry rows,
+  DigitalOcean snapshots, V2 run/research tables, and AI Performance Analyst
+  runs/findings. `config/models.json` remains a git-tracked export snapshot for
+  code review, bootstrap, rollback, and proxy compatibility, not the live
+  authority once the SQLite registry has been seeded. JSONL writers remain in
+  place as the rollback/export seam while reads hard-cut to SQLite after
+  backfill.
+- **Affected:** `src/console/services/operational_store.py`,
+  `src/console/store/*`, `src/console/services/model_registry.py`,
+  `src/console/services/usage.py`, V2 run/research stores, release/runtime
+  backup scripts, DigitalOcean health, provider health, `/v2/analyst`, V2
+  Models UI, and generated OpenAPI artifacts.
+- **Consequences:** Runtime backup/restore must include `operational_db`.
+  `MATTS_V2_RUN_DB` and `MATTS_V2_RESEARCH_DB` default to the operational DB
+  unless explicitly overridden for a legacy/diagnostic split. Corrupt or stale
+  `config/models.json` snapshots are reported as snapshot issues but do not
+  replace a healthy SQLite registry for the same path. Existing proxy consumers
+  continue to read the export snapshot.
+- **Verification:** Backfill parity tests cover JSONL-to-SQLite trace/usage
+  rows and source-path isolation; registry tests cover ordered DB round trips
+  and export-snapshot fallback behavior; analyst tests cover model selection,
+  unchanged-fingerprint skipping, caps, lifecycle, and API permissions; Digital
+  Ocean tests cover monitoring degradation and metric parsing; release checks
+  must run the operational DB, OpenAPI, React build, bundle/audit, brand-art,
+  and browser-smoke gates.

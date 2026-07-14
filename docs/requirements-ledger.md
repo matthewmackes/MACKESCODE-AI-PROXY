@@ -67,7 +67,7 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 
 | Decision | Evidence | Owner |
 | --- | --- | --- |
-| `config/models.json` is the private-operator source of truth for model availability metadata, pricing, and enabled policy; key-specific access state is runtime-owned and merged at read time. | Confirmed | `INT-015`, `INT-018`, `DRN-005` |
+| The operational registry is the private-operator source of truth for model availability metadata, pricing, and enabled policy; `config/models.json` is the git-tracked export snapshot, and key-specific access state is runtime-owned and merged at read time. | Confirmed | `INT-015`, `INT-018`, `DRN-005`, `ADR-0006` |
 | Serverless catalog sync should add all DigitalOcean models, retain removed models as unavailable records, and avoid routing disabled or forbidden models. | Confirmed | `INT-015` |
 | Newly discovered DigitalOcean text LLMs should become routable when registry policy enables them and runtime access state shows a successful live probe; failed probes remain visible but unroutable regardless of price. | Confirmed | `INT-015`, `V2-007`, `DRN-005` |
 | Model labels should include human-readable cost, training-origin country, brand/provider identity, access state, and use-case/comparison context. | Confirmed | `INT-015`, `INT-017` |

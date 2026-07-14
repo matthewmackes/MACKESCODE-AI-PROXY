@@ -21,6 +21,8 @@ def env_path(name, default):
 def default_items(include_secrets=False):
     home = Path(os.environ.get("HOME") or str(Path.home())).expanduser()
     app_dir = env_path("MATTS_STUDIO_DIR", home / ".cache/matts-value-set/studio")
+    operational_db = env_path("MATTS_OPERATIONAL_DB", app_dir / "operational.sqlite3")
+    legacy_run_db = env_path("MATTS_V2_RUN_DB", operational_db)
     items = [
         ("model_registry", env_path("MATTS_MODEL_CONFIG_FILE", ROOT / "config/models.json")),
         ("gateway_policy", env_path("MATTS_GATEWAY_POLICY_FILE", ROOT / "config/gateway-policy.json")),
@@ -35,7 +37,7 @@ def default_items(include_secrets=False):
         ("model_access_drift", env_path("MATTS_MODEL_ACCESS_DRIFT_FILE", app_dir / "model-access-drift.json")),
         ("trace_log", env_path("MATTS_TRACE_FILE", app_dir / "traces.jsonl")),
         ("tmux_registry", env_path("MATTS_TMUX_SESSION_REGISTRY_FILE", app_dir / "tmux-sessions.json")),
-        ("v2_run_db", env_path("MATTS_V2_RUN_DB", app_dir / "v2-run.sqlite3")),
+        ("operational_db", operational_db),
         ("image_history", app_dir / "history.jsonl"),
         ("images", app_dir / "images"),
         ("chats", app_dir / "chats"),
@@ -51,6 +53,8 @@ def default_items(include_secrets=False):
         ("budgets", env_path("MATTS_VALUE_SET_BUDGET_FILE", home / ".cache/matts-value-set/budgets.json")),
         ("wallpapers", env_path("MATTS_WALLPAPER_CACHE_DIR", home / ".cache/matts-value-set/wallpapers")),
     ]
+    if legacy_run_db != operational_db:
+        items.insert(16, ("v2_run_db", legacy_run_db))
     if include_secrets:
         items.extend([
             ("model_access_token", env_path("MATTS_VALUE_SET_TOKEN_FILE", home / ".mcnf-do-model-access-token")),

@@ -1,16 +1,19 @@
 import unittest
 
 from src.console.services.digitalocean import DigitalOceanHealthService
+from src.console.services.operational_store import OperationalStore
 
 
 class DigitalOceanHealthServiceTests(unittest.TestCase):
-    def service(self, public_json=None, do_get=None, token="do-token", cache=None, now=1000):
+    def service(self, public_json=None, do_get=None, token="do-token", cache=None, now=1000, load_dedicated_config=None, operational_store=None):
         return DigitalOceanHealthService(
             public_json_url=public_json or (lambda url, timeout=12: (200, {})),
             do_get=do_get or (lambda path, token, query=None, timeout=30: (200, {})),
             digitalocean_token=lambda: token,
             cache=cache if cache is not None else {"ts": 0, "payload": None},
             clock=lambda: now,
+            load_dedicated_config=load_dedicated_config,
+            operational_store=operational_store,
         )
 
     def test_mask_email_preserves_domain_and_masks_name(self):
@@ -61,6 +64,18 @@ class DigitalOceanHealthServiceTests(unittest.TestCase):
         self.assertEqual(second, first)
         self.assertEqual(len(calls), 2)
 
+    def test_missing_token_snapshot_is_persisted(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = OperationalStore(Path(tmp) / "ops.sqlite3", clock=lambda: 1000)
+            self.service(token="", operational_store=store).snapshot()
+            snapshots = store.latest_digitalocean_snapshots(limit=5)
+
+        self.assertEqual(len(snapshots), 1)
+        self.assertFalse(snapshots[0]["configured"])
+
     def test_snapshot_loads_account_and_prepay_status(self):
         calls = []
 
@@ -94,6 +109,29 @@ class DigitalOceanHealthServiceTests(unittest.TestCase):
         self.assertEqual(payload["prepay"]["account_balance"], -5.25)
         self.assertEqual(payload["prepay"]["status"], "credit_available")
         self.assertEqual([call[0] for call in calls], ["/v2/account", "/v2/customers/my/balance"])
+
+    def test_monitoring_metrics_parse_prometheus_values(self):
+        calls = []
+
+        def do_get(path, token, query=None, timeout=30):
+            calls.append((path, query))
+            return 200, {"data": {"result": [{"values": [[900, "1.5"], [1000, "2.5"]]}]}}
+
+        payload = self.service(
+            do_get=do_get,
+            load_dedicated_config=lambda: {"server_id": "droplet-1", "state": "active"},
+        ).monitoring_metrics("do-token", now=1000)
+
+        self.assertTrue(payload["configured"])
+        self.assertEqual(payload["metrics"]["cpu"]["samples"], 2)
+        self.assertEqual(payload["metrics"]["cpu"]["average"], 2.0)
+        self.assertEqual(calls[0][1], {"host_id": "droplet-1", "start": -2600, "end": 1000})
+
+    def test_monitoring_metrics_degrades_without_host_id(self):
+        payload = self.service(load_dedicated_config=lambda: {"state": "deleted"}).monitoring_metrics("do-token", now=1000)
+
+        self.assertFalse(payload["configured"])
+        self.assertIn("No Dedicated Inference host id", payload["errors"][0])
 
     def test_snapshot_records_account_and_balance_errors(self):
         service = self.service(

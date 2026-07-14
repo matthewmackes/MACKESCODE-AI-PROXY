@@ -1,16 +1,20 @@
 """DigitalOcean platform, account, and balance health helpers."""
 import time
 
+from src.console.services.operational_store import OperationalStore
+
 
 class DigitalOceanHealthService:
     """Builds the DigitalOcean health snapshot shown in Console and lifecycle UI."""
 
-    def __init__(self, public_json_url, do_get, digitalocean_token, cache=None, clock=None):
+    def __init__(self, public_json_url, do_get, digitalocean_token, cache=None, clock=None, load_dedicated_config=None, operational_store=None):
         self.public_json_url = public_json_url
         self.do_get = do_get
         self.digitalocean_token = digitalocean_token
         self.cache = cache if cache is not None else {"ts": 0, "payload": None}
         self.clock = clock or time.time
+        self.load_dedicated_config = load_dedicated_config
+        self.operational_store = operational_store if operational_store is not None else OperationalStore(clock=self.clock)
 
     def mask_email(self, value):
         email = str(value or "")
@@ -77,10 +81,15 @@ class DigitalOceanHealthService:
             "platform": self.platform_status(),
             "account": None,
             "prepay": None,
+            "monitoring": {"configured": False, "metrics": {}, "errors": ["DigitalOcean token is not configured."]},
             "errors": [],
         }
         if not token:
             payload["errors"].append("DigitalOcean token is not configured.")
+            try:
+                self.operational_store.save_digitalocean_snapshot(payload, source="digitalocean_health")
+            except Exception:
+                pass
             self.cache.update({"ts": now, "payload": payload})
             return payload
         status, account = self.do_get("/v2/account", token, timeout=20)
@@ -109,5 +118,87 @@ class DigitalOceanHealthService:
             }
         else:
             payload["errors"].append({"balance_status": status, "response": balance})
+        payload["monitoring"] = self.monitoring_metrics(token, now)
+        try:
+            self.operational_store.save_digitalocean_snapshot(payload, source="digitalocean_health")
+        except Exception:
+            pass
         self.cache.update({"ts": now, "payload": payload})
         return payload
+
+    def monitoring_host_id(self):
+        if self.load_dedicated_config is None:
+            return "", {}
+        try:
+            cfg = self.load_dedicated_config()
+        except Exception:
+            return "", {}
+        cfg = cfg if isinstance(cfg, dict) else {}
+        for key in ("server_id", "droplet_id", "host_id", "resource_id"):
+            value = str(cfg.get(key) or "").strip()
+            if value:
+                return value, cfg
+        raw = cfg.get("raw") if isinstance(cfg.get("raw"), dict) else {}
+        for key in ("server_id", "droplet_id", "host_id", "id"):
+            value = str(raw.get(key) or "").strip()
+            if value:
+                return value, cfg
+        return "", cfg
+
+    def monitoring_metrics(self, token, now=None):
+        now = float(now if now is not None else self.clock())
+        host_id, cfg = self.monitoring_host_id()
+        result = {
+            "configured": bool(token and host_id),
+            "host_id": host_id,
+            "checked_at": now,
+            "window_seconds": 3600,
+            "dedicated_state": cfg.get("state") if isinstance(cfg, dict) else "",
+            "metrics": {},
+            "errors": [],
+            "docs": {
+                "droplet_metrics": "https://docs.digitalocean.com/products/monitoring/concepts/metrics/",
+                "api": "https://docs.digitalocean.com/reference/api/",
+            },
+        }
+        if not token:
+            result["errors"].append("DigitalOcean token is not configured.")
+            return result
+        if not host_id:
+            result["errors"].append("No Dedicated Inference host id is available for Monitoring API queries.")
+            return result
+        start = int(now - 3600)
+        end = int(now)
+        metric_paths = {
+            "cpu": "/v2/monitoring/metrics/droplet/cpu",
+            "memory_available": "/v2/monitoring/metrics/droplet/memory_available",
+            "load_1": "/v2/monitoring/metrics/droplet/load_1",
+            "bandwidth": "/v2/monitoring/metrics/droplet/bandwidth",
+        }
+        for metric, path in metric_paths.items():
+            status, payload = self.do_get(path, token, {"host_id": host_id, "start": start, "end": end}, timeout=20)
+            if status >= 400:
+                result["errors"].append({"metric": metric, "status": status, "response": payload})
+                continue
+            values = self.metric_values(payload)
+            result["metrics"][metric] = {
+                "samples": len(values),
+                "latest": values[-1] if values else None,
+                "average": round(sum(values) / len(values), 4) if values else None,
+                "raw": payload if len(str(payload)) < 4000 else {"truncated": True},
+            }
+        return result
+
+    def metric_values(self, payload):
+        data = payload.get("data") if isinstance(payload, dict) else {}
+        result = data.get("result") if isinstance(data, dict) else []
+        values = []
+        for series in result if isinstance(result, list) else []:
+            for sample in ((series.get("values") or []) if isinstance(series, dict) else []):
+                if not isinstance(sample, (list, tuple)) or len(sample) < 2:
+                    continue
+                try:
+                    values.append(float(sample[1]))
+                except (TypeError, ValueError):
+                    continue
+        return values

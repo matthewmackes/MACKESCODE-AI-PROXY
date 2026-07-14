@@ -370,6 +370,64 @@ export type CostControlPayload = {
   provider?: Record<string, unknown>;
 };
 
+export type PerformanceAnalystFinding = {
+  id: string;
+  fingerprint?: string;
+  severity: 'high' | 'medium' | 'low' | string;
+  title: string;
+  metric?: string;
+  value?: unknown;
+  source?: string;
+  source_link?: string;
+  suggested_action?: string;
+  lifecycle_status?: string;
+  acknowledged?: boolean;
+  acknowledged_at?: number;
+  acknowledged_by?: string;
+};
+
+export type PerformanceAnalystModelAssessment = {
+  model: string;
+  display_name?: string;
+  grade: string;
+  score?: number;
+  narrative?: string;
+  measured?: boolean;
+  metrics?: Record<string, unknown>;
+};
+
+export type PerformanceAnalystPayload = {
+  schema_version?: number;
+  run_id?: string;
+  generated_at?: number;
+  status: string;
+  mode?: string;
+  model_id?: string;
+  model_label?: string;
+  model_policy?: string;
+  proxy?: {
+    grade?: string;
+    score?: number;
+    narrative?: string;
+    hard_cap_reason?: string;
+  };
+  models?: PerformanceAnalystModelAssessment[];
+  findings?: PerformanceAnalystFinding[];
+  summary?: {
+    proxy_grade?: string;
+    top_finding?: string;
+    finding_count?: number;
+    severity_counts?: Record<string, number>;
+  };
+  trend?: Record<string, unknown>;
+  sources?: Array<Record<string, unknown>>;
+  public_context?: Record<string, unknown>;
+  cadence?: Record<string, unknown>;
+  cap?: Record<string, unknown>;
+  cache?: Record<string, unknown>;
+  next_run_at?: number;
+};
+
 export type HealthPayload = {
   status: string;
   version: string;
@@ -389,6 +447,18 @@ export function getWhatsNew(): Promise<WhatsNewPayload> {
 
 export function discoverModels(): Promise<Record<string, unknown>> {
   return requestJson<Record<string, unknown>>('/v2/models/discover', { method: 'POST' });
+}
+
+export function getPerformanceAnalyst(force = false): Promise<PerformanceAnalystPayload> {
+  return requestJson<PerformanceAnalystPayload>(`/v2/analyst${force ? '?force=true' : ''}`);
+}
+
+export function runPerformanceAnalyst(): Promise<PerformanceAnalystPayload> {
+  return requestJson<PerformanceAnalystPayload>('/v2/analyst/run', { method: 'POST', body: JSON.stringify({ force: true }) });
+}
+
+export function ackPerformanceAnalystFinding(findingId: string): Promise<{ finding: PerformanceAnalystFinding }> {
+  return requestJson<{ finding: PerformanceAnalystFinding }>(`/v2/analyst/findings/${encodeURIComponent(findingId)}/ack`, { method: 'POST', body: JSON.stringify({}) });
 }
 
 export function getChatPayload(): Promise<ChatPayload> {

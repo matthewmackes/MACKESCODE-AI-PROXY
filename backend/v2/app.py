@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import threading
 
 try:
     from fastapi import FastAPI, Request
@@ -17,7 +18,8 @@ except ImportError:  # pragma: no cover - dependency is installed by the v2 setu
     StaticFiles = None  # type: ignore[assignment]
     StarletteHTTPException = Exception  # type: ignore[assignment]
 
-from backend.v2.api import auth, chat, code, console, cost_control, create, models, observe, onboarding, operate, research, run, speech, tmux_ws, tui
+from backend.v2.api import analyst, auth, chat, code, console, cost_control, create, models, observe, onboarding, operate, research, run, speech, tmux_ws, tui
+from backend.v2.services.performance_analyst import PerformanceAnalystService, analyst_worker
 from src.console.services.app_config import ConsoleConfigService
 from src.console.services.runtime_config import RuntimeConfigService
 from src.console.utils.errors import error_payload, route_not_found_details
@@ -71,6 +73,26 @@ def create_app():
     def health() -> dict[str, str]:
         return {"status": "ok", "version": "2.2.0"}
 
+    analyst_stop_event = threading.Event()
+
+    @app.on_event("startup")
+    def start_analyst_worker() -> None:
+        if str(os.environ.get("MATTS_ANALYST_WORKER_ENABLED", "1")).lower() in {"0", "false", "no", "off"}:
+            return
+        thread = threading.Thread(
+            target=analyst_worker,
+            args=(lambda: PerformanceAnalystService(), analyst_stop_event),
+            name="performance-analyst-worker",
+            daemon=True,
+        )
+        thread.start()
+        app.state.analyst_worker = thread
+        app.state.analyst_stop_event = analyst_stop_event
+
+    @app.on_event("shutdown")
+    def stop_analyst_worker() -> None:
+        analyst_stop_event.set()
+
     @app.exception_handler(StarletteHTTPException)
     async def v2_http_exception_handler(request: Request, exc: StarletteHTTPException):  # type: ignore[valid-type]
         status_code = int(getattr(exc, "status_code", 500))
@@ -117,6 +139,8 @@ def create_app():
         app.include_router(create.router)
     if models.router is not None:
         app.include_router(models.router)
+    if analyst.router is not None:
+        app.include_router(analyst.router)
     if run.router is not None:
         app.include_router(run.router)
     if console.router is not None:

@@ -36,7 +36,9 @@ The grade is trace-derived and advisory, like the 0-100 scorecard score (`docs/m
 
 ## Data Sources
 
-- registry model payload: `config/models.json` merged with runtime access state, served as `ModelCard` objects (`frontend/src/api/v2.ts`)
+- registry model payload: operational SQLite registry rows exported through
+  `config/models.json` for compatibility and merged with runtime access state,
+  served as `ModelCard` objects (`frontend/src/api/v2.ts`)
 - health object: recent proxy traces, aggregated as above
 - brand identity: official simple-icons hex colors and local brand SVG art (`frontend/src/brandMarkArt.ts`); the logo tile falls back from local brand SVG → brand short text → attributed same-origin public logo → generated initials
 - flags: bundled flag-icons square SVGs keyed by `training_nation`

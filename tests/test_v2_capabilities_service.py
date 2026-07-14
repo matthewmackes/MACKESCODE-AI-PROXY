@@ -26,6 +26,9 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertTrue(payload["capabilities"]["operate.config_drift.admin"]["allowed"])
         self.assertTrue(payload["capabilities"]["cost_control.edit"]["allowed"])
         self.assertTrue(payload["capabilities"]["cost_control.override"]["allowed"])
+        self.assertTrue(payload["capabilities"]["analyst.view"]["allowed"])
+        self.assertTrue(payload["capabilities"]["analyst.run"]["allowed"])
+        self.assertTrue(payload["capabilities"]["analyst.ack"]["allowed"])
         self.assertEqual(payload["actor"]["id"], "owner")
 
     def test_viewer_can_view_tui_but_cannot_control(self):
@@ -42,6 +45,9 @@ class V2CapabilityServiceTests(unittest.TestCase):
         self.assertFalse(payload["capabilities"]["operate.config_drift.admin"]["allowed"])
         self.assertFalse(payload["capabilities"]["cost_control.edit"]["allowed"])
         self.assertFalse(payload["capabilities"]["cost_control.override"]["allowed"])
+        self.assertTrue(payload["capabilities"]["analyst.view"]["allowed"])
+        self.assertFalse(payload["capabilities"]["analyst.run"]["allowed"])
+        self.assertTrue(payload["capabilities"]["analyst.ack"]["allowed"])
         self.assertEqual(payload["capabilities"]["tui.control"]["reason"], "missing_permission:tmux_control")
 
     def test_cost_control_permissions_are_separate_for_edit_and_override(self):

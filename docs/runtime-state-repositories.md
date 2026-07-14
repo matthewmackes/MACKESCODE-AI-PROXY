@@ -2,6 +2,10 @@
 
 Runtime state repositories live under `src/console/store/` and provide shared file primitives for local console state.
 
+The operational SQLite store (`src/console/services/operational_store.py`) is
+the runtime source of truth for typed operational reads. JSON/JSONL files remain
+as append/export rollback seams and are backfilled into SQLite before reads.
+
 ## Base Repository
 
 `RuntimeStateRepository` owns the common behavior:
@@ -14,15 +18,18 @@ Runtime state repositories live under `src/console/store/` and provide shared fi
 - SHA-256 source fingerprints
 - backup and archive candidate discovery
 - migration hooks for JSON reads
+- SQLite runtime-state mirroring for JSON documents
 
 Repositories are local file abstractions. They do not decide policy, call providers, or emit events.
 
 ## Migrated State
 
-The first migrated repositories are:
+The migrated repositories are:
 
-- `TraceRepository`: backs `TraceService` append/read operations for `traces.jsonl`.
-- `AuditRepository`: backs `AuditService` append operations for `audit.jsonl`.
+- `TraceRepository`: writes `traces.jsonl`, mirrors to `operational_records(kind='traces')`, backfills existing JSONL rows, and reads from SQLite with source-path filters.
+- `AuditRepository`: writes `audit.jsonl`, mirrors to `operational_records(kind='audit')`, backfills existing JSONL rows, and reads from SQLite with source-path filters.
+- `UsageService`: backfills the proxy cost JSONL into `operational_records(kind='usage')` before local usage reports and 24-hour cost estimates.
+- Runtime JSON repositories: write the file and mirror the redacted payload into `runtime_state` so a missing file can be restored from SQLite.
 
 The shared console `tail_jsonl` helper now uses the same bounded JSONL reader, so existing read-only services get consistent malformed-line handling while they await full typed repository migration.
 

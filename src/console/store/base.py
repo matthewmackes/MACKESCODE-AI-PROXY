@@ -8,6 +8,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from src.console.services.operational_store import OperationalStore
+
 
 class RuntimeStateRepository:
     """Small file-backed repository for local JSON and JSONL runtime state."""
@@ -19,6 +21,7 @@ class RuntimeStateRepository:
         self.retention = retention or {}
         self.redacted_keys = {str(key).lower() for key in (redacted_keys or [])}
         self.clock = clock or time.time
+        self.operational_store = OperationalStore(clock=self.clock)
 
     def file_path(self):
         path = self.path() if callable(self.path) else self.path
@@ -54,7 +57,11 @@ class RuntimeStateRepository:
         path = self.file_path()
         fallback = {} if fallback is None else fallback
         if not path.exists():
-            return fallback
+            try:
+                stored = self.operational_store.get_runtime_state(self.runtime_state_key(), None)
+                return fallback if stored is None else stored
+            except Exception:
+                return fallback
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -80,7 +87,14 @@ class RuntimeStateRepository:
             finally:
                 if os.path.exists(tmp_name):
                     os.unlink(tmp_name)
+        try:
+            self.operational_store.upsert_runtime_state(self.runtime_state_key(), payload)
+        except Exception:
+            pass
         return payload
+
+    def runtime_state_key(self):
+        return "%s:%s" % (self.name, self.file_path())
 
     def append_jsonl(self, record, mode=0o600):
         path = self.file_path()

@@ -54,7 +54,8 @@ class TraceService:
 
     def read(self, limit=200, model=None, status=None, session=None, min_cost=None):
         rows = []
-        for row in self.repository.read(limit=limit or 200):
+        filters = {"model": model, "status": status, "session": session, "min_cost": min_cost}
+        for row in self.repository.read(limit=limit or 200, filters=filters):
             try:
                 row = TraceRecord.from_dict(row).to_dict()
             except ValueError:

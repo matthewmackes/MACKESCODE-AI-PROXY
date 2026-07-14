@@ -8,8 +8,9 @@ import time
 from pathlib import Path
 from typing import Any
 
+from src.console.services.operational_store import operational_db_path
 
-DEFAULT_DB = Path.home() / ".cache" / "matts-value-set" / "studio" / "v2-research.sqlite3"
+DEFAULT_DB = operational_db_path()
 
 
 class ResearchDossierStore:

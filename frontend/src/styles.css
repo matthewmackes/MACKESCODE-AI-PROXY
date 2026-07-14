@@ -758,6 +758,210 @@ button {
   font-size: 11px;
 }
 
+.modelOpsPulses {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.analystPulse {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  border-left-color: #8a3ffc;
+}
+
+.analystPulse.ready {
+  border-left-color: var(--cds-green);
+}
+
+.analystPulse.advisory,
+.analystPulse.syncing,
+.analystPulse.review {
+  border-left-color: var(--cds-yellow);
+}
+
+.analystPulse.blocking,
+.analystPulse.error {
+  border-left-color: var(--cds-red);
+}
+
+.analystActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.analystActions .secondaryButton,
+.analystFindingRow .secondaryButton {
+  min-height: 34px;
+  border-color: #525252;
+  background: #393939;
+  color: #ffffff;
+}
+
+.analystActions .secondaryButton .carbonIcon,
+.analystFindingRow .secondaryButton .carbonIcon {
+  filter: invert(1);
+}
+
+.analystMetrics {
+  grid-column: 1 / -1;
+}
+
+.analystDetailPanel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.analystProxyGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid #393939;
+  background: #393939;
+}
+
+.analystProxyGrid div {
+  min-height: 54px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  padding: 8px;
+  background: #161616;
+}
+
+.analystProxyGrid span,
+.analystTrend > span,
+.analystFindingRow span {
+  color: #c6c6c6;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.analystProxyGrid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analystModelRows,
+.analystFindingRows {
+  display: grid;
+  gap: 1px;
+  border: 1px solid #393939;
+  background: #393939;
+}
+
+.analystModelRow,
+.analystFindingRow {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  min-height: 54px;
+  padding: 8px;
+  background: #161616;
+}
+
+.analystModelRow {
+  grid-template-columns: minmax(130px, .8fr) minmax(0, 1fr) 34px;
+}
+
+.analystModelRow strong,
+.analystFindingRow strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analystModelRow span,
+.analystFindingRow p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #c6c6c6;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analystModelRow b {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: #262626;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.analystTrend {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #393939;
+  background: #161616;
+}
+
+.analystTrendBars {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(8px, 1fr));
+  gap: 3px;
+  height: 58px;
+  align-items: end;
+}
+
+.analystTrendBars i {
+  display: block;
+  min-height: 8px;
+  height: var(--bar-height, 8%);
+  background: linear-gradient(180deg, #78a9ff, #33b1ff);
+}
+
+.analystFindingRow {
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) auto;
+  border-left: 3px solid #8d8d8d;
+}
+
+.analystFindingRow.high {
+  border-left-color: var(--cds-red);
+}
+
+.analystFindingRow.medium {
+  border-left-color: var(--cds-yellow);
+}
+
+.analystFindingRow.low {
+  border-left-color: var(--cds-blue);
+}
+
+.analystFindingRow a,
+.analystFindingRow > span {
+  color: #78a9ff;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.analystEmptyFinding {
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  padding: 8px;
+  border: 1px solid #393939;
+  background: #161616;
+  color: #c6c6c6;
+  font-size: 12px;
+}
+
 .homeSummary {
   display: grid;
   gap: 8px;
@@ -4377,7 +4581,7 @@ html[data-theme="dark"] .createBriefDock > span {
   display: block;
 }
 
-.modelLogo .modelBrandSvg svg :where(path, circle, rect, polygon) {
+.modelLogo .modelBrandSvg svg :where(path, circle, rect, polygon, text) {
   fill: currentColor;
 }
 
@@ -6785,11 +6989,29 @@ html[data-theme="dark"] .whatsNewJumpStrip .carbonIcon {
   .modelInspectorHeader,
   .artworkIdentity,
   .modelControls,
+  .modelOpsPulses,
+  .analystPulse,
+  .analystModelRow,
+  .analystFindingRow,
   .voiceConsole,
   .transcriptToolbar,
   .codeOutputHeader,
   .codeTerminalHeader {
     grid-template-columns: 1fr;
+  }
+
+  .analystPulse .readinessPulseMark,
+  .analystPulse .readinessPulseBody,
+  .analystActions {
+    grid-column: auto;
+  }
+
+  .analystActions {
+    justify-content: flex-start;
+  }
+
+  .analystProxyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .voiceControls,

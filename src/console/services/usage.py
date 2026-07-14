@@ -5,6 +5,8 @@ import threading
 import time
 from urllib.parse import quote
 
+from src.console.services.operational_store import OperationalStore
+
 
 class _TTLCache:
     """Thread-safe expiring cache keyed on an explicit clock value.
@@ -69,6 +71,7 @@ class UsageService:
         clock=None,
         insights_cache=None,
         usage_rows_cache=None,
+        operational_store=None,
         insights_cache_ttl=90.0,
         insights_cache_negative_ttl=15.0,
         usage_rows_cache_ttl=5.0,
@@ -87,6 +90,7 @@ class UsageService:
         # per-request instance churn; tests pass fresh caches for isolation.
         self.insights_cache = insights_cache if insights_cache is not None else _INSIGHTS_TTL_CACHE
         self.usage_rows_cache = usage_rows_cache if usage_rows_cache is not None else _USAGE_ROWS_CACHE
+        self.operational_store = operational_store if operational_store is not None else OperationalStore(clock=self.clock)
         self.insights_cache_ttl = insights_cache_ttl
         self.insights_cache_negative_ttl = insights_cache_negative_ttl
         self.usage_rows_cache_ttl = usage_rows_cache_ttl
@@ -119,6 +123,15 @@ class UsageService:
             cached = self.usage_rows_cache.get(signature, now)
             if cached is not None:
                 return cached
+        try:
+            self.operational_store.backfill_jsonl("usage", path, limit=limit)
+            rows = self.operational_store.read_records("usage", limit=limit, filters={"source_path": str(path)})
+            if rows:
+                if signature is not None:
+                    self.usage_rows_cache.set(signature, rows, now + self.usage_rows_cache_ttl)
+                return rows
+        except Exception:
+            pass
         rows = self.tail_jsonl(path, limit=limit)
         if signature is not None:
             self.usage_rows_cache.set(signature, rows, now + self.usage_rows_cache_ttl)
@@ -150,6 +163,22 @@ class UsageService:
 
     def local_usage_since(self, since_ts, now=None):
         now = now or self.clock()
+        try:
+            path = self.cost_file()
+            self.operational_store.backfill_jsonl("usage", path, limit=100000)
+            total = 0.0
+            for row in self.operational_store.read_records("usage", limit=100000, filters={"source_path": str(path)}):
+                try:
+                    ts = float(row.get("ts", 0))
+                except (TypeError, ValueError):
+                    continue
+                if ts < since_ts or ts > now:
+                    continue
+                cost = row.get("cost") if isinstance(row.get("cost"), dict) else {}
+                total += float(cost.get("total_cost_usd") or row.get("cost_usd") or 0.0)
+            return round(total, 8)
+        except Exception:
+            pass
         total = 0.0
         for row in self._read_usage_rows(limit=100000):
             try:
@@ -223,6 +252,17 @@ class UsageService:
         month_total = None
         if isinstance(prepay, dict) and isinstance(prepay.get("month_to_date_usage"), (int, float)):
             month_total = float(prepay.get("month_to_date_usage"))
+        local_plus_dedicated_24h = round(local_24h + dedicated["last_24h_cost_usd"], 8)
+        divergence = None
+        if day_source == "digitalocean_billing_insights":
+            delta = round(float(day_total or 0) - local_plus_dedicated_24h, 8)
+            divergence = {
+                "digitalocean_billed_24h_usd": day_total,
+                "local_estimate_24h_usd": local_plus_dedicated_24h,
+                "delta_usd": delta,
+                "delta_percent": round((delta / day_total) * 100, 2) if day_total else 0.0,
+                "status": "diverged" if abs(delta) >= 1.0 and abs(delta) >= max(0.1, float(day_total or 0) * 0.15) else "aligned",
+            }
         return {
             "checked_at": now,
             "digitalocean_configured": bool(token),
@@ -237,6 +277,8 @@ class UsageService:
             "digitalocean": {
                 "account": health.get("account") if isinstance(health, dict) else None,
                 "prepay": prepay,
+                "monitoring": health.get("monitoring") if isinstance(health, dict) else None,
+                "local_estimate_cross_check": divergence,
                 "errors": health.get("errors", []) if isinstance(health, dict) else [],
             },
         }

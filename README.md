@@ -48,6 +48,8 @@ release-readiness documents:
 - `docs/domain-models.md` - dataclass domain records, validation, and JSON compatibility conventions
 - `docs/policy-service.md` - centralized policy decisions, precedence, and side-effect boundaries
 - `docs/runtime-state-repositories.md` - shared runtime JSON/JSONL repositories, metadata, redaction, and backup conventions
+- `docs/operational-store.md` - unified SQLite operational store, registry snapshot, and rollback seam
+- `docs/ai-performance-analyst.md` - AI Performance Analyst loop, persistence, caps, and permissions
 - `docs/event-envelope.md` - unified local event envelope, redaction, sinks, and correlation semantics
 - `docs/run-experience.md` - V2 prompt template, run profile, run record, and runtime-state boundaries
 - `docs/opentelemetry.md` - optional OTLP/HTTP trace and metrics export setup and privacy notes
@@ -165,7 +167,7 @@ V2 workspaces:
 - **Code** - Claude Code/tmux session launch, the TMux/TUI console, terminal input, command output history, per-event copy packets, Code Brief export, and screenshot/image review. Use Ctrl/Command+Enter to send terminal input; paste, drop, or attach PNG/JPEG/WebP/GIF images so a selected model can inspect UI, terminal, or code screenshots.
 - **Research** - Bing-style search line with Enter-to-search, custom engine selection, at least two search engines per run, required source packs, three low-cost fast analyst LLMs, and a fourth coordinator LLM. Evidence includes search results, image sources, examples, mapping coordinates, Wikipedia, technical documentation, DigitalOcean LLM references, and local RAG when enabled. Research briefs and individual source packets are copyable.
 - **Create** - image-only generation studio with image model selection, generated asset rendering, output metadata, Ctrl/Command+Enter submit, and image history restore/copy packets.
-- **Advanced** - operational surfaces grouped into Monitor (Observe), Configure (Models, Run, Console), and Govern (Operate), with Overview folded into the Models landing. The Models tab is the centerpiece LLM showcase: route status, pricing, access state, measured Health grades, brand identity and flags, model comparison, discovery, and a startup **Whats New** modal with DigitalOcean LLM links. The Console tab is a lean System Operations dashboard (proxy/TUI status, command palette, operational state), while accounting, reporting, governance, evals, and deprecations live across the Operate, Observe, and Models tabs. Terminal and tmux/TUI controls belong in Code.
+- **Advanced** - operational surfaces grouped into Monitor (Observe), Configure (Models, Run, Console), and Govern (Operate), with Overview folded into the Models landing. The Models tab is the centerpiece LLM showcase: route status, pricing, access state, measured Health grades, brand identity and flags, AI Performance Analyst pulse, model comparison, discovery, and a startup **Whats New** modal with DigitalOcean LLM links. The Console tab is a lean System Operations dashboard (proxy/TUI status, command palette, operational state), while accounting, reporting, governance, evals, and deprecations live across the Operate, Observe, and Models tabs. Terminal and tmux/TUI controls belong in Code.
 
 Model cards should remain a showcase for the available LLMs. Every surface renders one unified model identity card — brand accent, national-flag badge, status/cost/context facts, a measured Health letter grade (A-D from recent trace success rate and p50 latency), and a favorite star — and clicking a card opens the shared model-detail dialog (`docs/unified-model-card.md`). Favorites lead every list: Chat keeps a Pinned contact strip over a collapsed all-contacts drawer, dropdowns tuck non-favorites behind a "More models" expander, and the Models grid leads with favorite cards. When model metadata includes public company artwork or brand URLs, V2 displays that artwork with tracked source notes; otherwise it falls back to local brand marks or generated initials. Nation palettes are based on the model training nation, so USA, China, and other model families stay visually distinct.
 
@@ -190,6 +192,7 @@ The console includes:
 - Local eval datasets and model comparison runs with cost, latency, failures, selected answers, and baseline deltas
 - global model management with key audit, allowed/forbidden states, enriched model labels, and detailed model hero cards
 - model quality scorecards with eval, trace, usage, registry, latency, cost, and confidence data
+- AI Performance Analyst with persisted proxy grade, per-model assessments, finding lifecycle, external high-severity push, and cost-capped model use
 - eval-on-change gates for model registry, gateway policy, prompt template, and run profile changes
 - human review queue for failed gates, high-cost runs, routing uncertainty, and manual flags
 - trace and saved-chat replay with target model selection, diffs, cost, latency, and routing comparisons
@@ -206,7 +209,7 @@ The console includes:
 - notification center for review, provider, release, eval, automation, Dedicated, cost, quota, and security events
 - offline/degraded mode with cached Serverless catalogs, local registry/eval workflows, cache age, and live-cloud action guards
 - workspace bundle export/import for profiles, templates, eval datasets, reports, model registry snapshots, and gateway policy with redaction and dry-run validation
-- provider health dashboard for DigitalOcean status, account, model access, proxy sync, Dedicated readiness, and local telemetry
+- provider health dashboard for DigitalOcean status, account, Monitoring API host metrics, billed-vs-local spend checks, model access, proxy sync, Dedicated readiness, and local telemetry
 - model access drift alerts for allowed-to-forbidden, rate-limited, probe-failed, removed, and restored Serverless models
 - Serverless and Dedicated Inference lifecycle controls with build, health, budget, idle teardown, and fallback routing feedback
 
@@ -258,9 +261,9 @@ Console runtime defaults are stored in:
 config/console.json
 ```
 
-Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON config. Environment variables such as `MATTS_STUDIO_PORT`, `MATTS_VALUE_SET_PROXY_PORT`, `MATTS_MODEL_AUTO_ENABLE_MAX_USD`, and `MATTS_CONSOLE_LOG_LEVEL` still override the file. The `paths` section controls template, default model registry, active model registry, Dedicated, Serverless cache, tmux registry, wallpaper, usage, budget, and log locations; existing path-specific environment variables still take precedence. Model pricing comes from the configured model registry data. Secrets and tokens remain file/env based and are not stored in this config.
+Use `MATTS_CONSOLE_CONFIG_FILE=/path/to/console.json` to point at another JSON config. Environment variables such as `MATTS_STUDIO_PORT`, `MATTS_VALUE_SET_PROXY_PORT`, `MATTS_MODEL_AUTO_ENABLE_MAX_USD`, and `MATTS_CONSOLE_LOG_LEVEL` still override the file. The `paths` section controls template, default model registry, model registry export snapshot, Dedicated, Serverless cache, tmux registry, wallpaper, usage, budget, and log locations; existing path-specific environment variables still take precedence. Model pricing comes from the configured model registry data. Secrets and tokens remain file/env based and are not stored in this config.
 
-The active model registry is `config/models.json`. `./claude-DO.sh --list-models`, the proxy `/v1/models` endpoint, Code/Create selectors, model hero cards, and the Advanced Models tab all derive from that registry. Serverless catalog refresh can add new DigitalOcean-hosted models, and models priced below the configured auto-enable threshold are enabled by registry policy. Key-specific access audit results are runtime state under `$HOME/.cache/matts-value-set/studio/model-access-state.json` and are merged into UI/proxy reads without being committed to the registry.
+The active runtime model registry lives in the operational SQLite store (`MATTS_OPERATIONAL_DB`, default `$HOME/.cache/matts-value-set/studio/operational.sqlite3`). `config/models.json` is the git-tracked export snapshot for review, bootstrap, rollback, and proxy compatibility. `./claude-DO.sh --list-models`, the proxy `/v1/models` endpoint, Code/Create selectors, model hero cards, and the Advanced Models tab all derive from the same registry export/runtime pair. Serverless catalog refresh can add new DigitalOcean-hosted models, and models priced below the configured auto-enable threshold are enabled by registry policy. Key-specific access audit results are runtime state under `$HOME/.cache/matts-value-set/studio/model-access-state.json` and are merged into UI/proxy reads without being committed to the registry.
 
 Run the backend/CLI key audit to probe Serverless text models with a tiny request. The result marks models as allowed, forbidden, rate-limited, or probe-failed in runtime state, surfaces as access-state on the Advanced Models tab, syncs the proxy, and prevents Code/Create from showing stale selectable models. Chat message `Show Detail` exposes requested model, routed model, backend, trace ID, usage, cost, upstream ID, and fallback/routing reason. `Model Info` opens the richer model profile.
 
@@ -274,7 +277,8 @@ Release config and runtime state are intentionally separate:
 | --- | --- | --- |
 | Console defaults | `config/console.json` | `MATTS_CONSOLE_CONFIG_FILE` override when needed |
 | Default model bootstrap | `config/default-models.json` | Active registry below |
-| Active model registry | `config/models.json` | Operator-edited source of truth; schema_version `1` |
+| Operational SQLite store | none | `$HOME/.cache/matts-value-set/studio/operational.sqlite3` |
+| Active model registry export | `config/models.json` | Git-tracked snapshot exported from the operational registry; schema_version `1` |
 | Model access audit state | none | `$HOME/.cache/matts-value-set/studio/model-access-state.json` |
 | Dedicated Inference | `config/dedicated-inference.example.json` | `$HOME/.cache/matts-value-set/studio/dedicated-inference.json` |
 | Serverless catalog cache | none | `$HOME/.cache/matts-value-set/studio/serverless-model-catalog.json` |

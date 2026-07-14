@@ -417,7 +417,10 @@ class ReleaseCheckScriptTests(unittest.TestCase):
         self.assertIn("export MATTS_MODEL_ACCESS_STATE_FILE=\"$MATTS_STUDIO_DIR/model-access-state.json\"", script)
         self.assertIn("release_check_seed", script)
         self.assertIn("export MATTS_VALUE_SET_BUDGET_FILE=\"$RELEASE_RUNTIME_ROOT/budgets.json\"", script)
-        self.assertIn("export MATTS_V2_RUN_DB=\"$MATTS_STUDIO_DIR/v2-run.sqlite3\"", script)
+        self.assertIn("export MATTS_OPERATIONAL_DB=\"$MATTS_STUDIO_DIR/operational.sqlite3\"", script)
+        self.assertIn("export MATTS_V2_RUN_DB=\"$MATTS_OPERATIONAL_DB\"", script)
+        self.assertIn("export MATTS_V2_RESEARCH_DB=\"$MATTS_OPERATIONAL_DB\"", script)
+        self.assertIn("python3 scripts/check-v2-brand-art.py", script)
 
     def test_release_gate_coverage_floor_is_configurable(self):
         script = (ROOT / "scripts" / "release-check.sh").read_text(encoding="utf-8")

@@ -47,15 +47,22 @@ BUNDLED_ARTWORK_KEYS: dict[str, str] = {
     "Alibaba": "alibaba",
     "Alibaba Qwen": "alibaba",
     "Anthropic": "anthropic",
+    "Arcee AI": "arcee",
+    "BAAI": "baai",
+    "Black Forest Labs": "blackforest",
     "DeepSeek": "deepseek",
     "DigitalOcean": "digitalocean",
     "Google": "google",
     "Meta": "meta",
+    "Microsoft": "microsoft",
     "MiniMax": "minimax",
     "Mistral AI": "mistral",
     "Moonshot AI": "moonshot",
     "NVIDIA": "nvidia",
+    "OpenAI": "openai",
+    "Stability AI": "stability",
     "Xiaomi": "xiaomi",
+    "Zhipu AI": "zhipu",
 }
 
 DIGITALOCEAN_LLM_LINKS = [
@@ -260,9 +267,9 @@ class ModelShowcaseService:
             sources.append({
                 "kind": "fallback",
                 "url": "",
-                "source": "Generated model initials",
+                "source": "Local bundled brand art" if render_key else "Generated model initials",
                 "source_url": "",
-                "usage_notes": "No public logo URL is configured for this brand; the UI renders a generated family initial over the training-nation palette.",
+                "usage_notes": "No public logo URL is configured for this brand; the UI renders local bundled brand art over the training-nation palette." if render_key else "No public logo URL is configured for this brand; the UI renders a generated family initial over the training-nation palette.",
             })
         if brand_url:
             sources.append({

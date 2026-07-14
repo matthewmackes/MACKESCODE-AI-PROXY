@@ -1,6 +1,7 @@
 import { ChangeEvent, ClipboardEvent, DragEvent, Fragment, KeyboardEvent, Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ackPerformanceAnalystFinding,
   CodeAttachment,
   discoverModels,
   getChatPayload,
@@ -8,10 +9,12 @@ import {
   getCreatePayload,
   getResearchReport,
   getModels,
+  getPerformanceAnalyst,
   getResearchPayload,
   getSpeechStatus,
   getWhatsNew,
   ModelCard,
+  PerformanceAnalystPayload,
   ResearchClaim,
   ResearchDossier,
   ResearchEvidence,
@@ -26,6 +29,7 @@ import {
   reviewCodeImages,
   runChat,
   runCreateImages,
+  runPerformanceAnalyst,
   runResearchSearch,
   SpeechStatusPayload,
   synthesizeSpeech,
@@ -192,6 +196,12 @@ function recordValues(value: unknown): Array<Record<string, unknown>> {
 function nonNegativeMetric(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function numberSeries(value: unknown): number[] {
+  return Array.isArray(value)
+    ? value.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item >= 0)
+    : [];
 }
 
 function pluralize(count: number, singular: string, pluralLabel = `${singular}s`): string {
@@ -4037,10 +4047,117 @@ function openModelInChat(model: ModelCard): void {
   window.location.hash = '#chat';
 }
 
+function PerformanceAnalystPulse({
+  payload,
+  loading,
+  error,
+  runPending,
+  ackPending,
+  onRun,
+  onAck,
+}: {
+  payload?: PerformanceAnalystPayload;
+  loading: boolean;
+  error: unknown;
+  runPending: boolean;
+  ackPending: boolean;
+  onRun: () => void;
+  onAck: (findingId: string) => void;
+}) {
+  const proxy = recordValue(payload?.proxy);
+  const summary = recordValue(payload?.summary);
+  const counts = recordValue(summary.severity_counts);
+  const findings = (payload?.findings || []).filter(Boolean);
+  const modelRows = (payload?.models || []).filter(Boolean).slice(0, 4);
+  const trend = recordValue(payload?.trend);
+  const history = recordValue(trend.history);
+  const highSeries = numberSeries(history.high_findings_recent);
+  const bars = highSeries.length ? highSeries.slice(0, 8).reverse() : [nonNegativeMetric(counts.high), nonNegativeMetric(counts.medium), nonNegativeMetric(counts.low)];
+  const maxBar = Math.max(1, ...bars);
+  const high = nonNegativeMetric(counts.high);
+  const medium = nonNegativeMetric(counts.medium);
+  const low = nonNegativeMetric(counts.low);
+  const grade = compactText(proxy.grade || summary.proxy_grade, loading ? '...' : '?');
+  const score = Number(proxy.score);
+  const status = error ? 'error' : loading ? 'syncing' : high > 0 ? 'blocking' : medium > 0 ? 'advisory' : grade === 'A' ? 'ready' : 'review';
+  const label = error ? 'Analyst Unavailable' : loading ? 'Analyst Syncing' : high > 0 ? 'High Finding' : medium > 0 ? 'Watchlist' : grade === 'A' ? 'Analyst Clear' : 'Analyst Review';
+  const detail = error
+    ? errorText(error)
+    : loading
+      ? 'Reading proxy telemetry'
+      : compactText(summary.top_finding, compactText(proxy.narrative, 'No active findings'));
+  return (
+    <section className={`readinessPulse analystPulse ${status}`} aria-label="AI performance analyst">
+      <span className="readinessPulseMark analystPulseMark">
+        <CarbonIcon path="apps/ai-governance--tracked.svg" label="Analyst" />
+      </span>
+      <span className="readinessPulseBody">
+        <strong>{label}</strong>
+        <small>{detail}</small>
+      </span>
+      <div className="analystActions" aria-label="AI performance analyst actions">
+        <button className="secondaryButton" type="button" onClick={onRun} disabled={runPending}>
+          <CarbonIcon path="actions/system-run-symbolic.svg" label="Run" />{runPending ? 'Running' : 'Run'}
+        </button>
+      </div>
+      <span className="readinessPulseMetrics analystMetrics" aria-label={`${high} high, ${medium} medium, ${low} low findings`}>
+        <span><b>{grade}</b> grade</span>
+        <span><b>{Number.isFinite(score) ? Math.round(score) : '-'}</b> score</span>
+        <span><b>{high + medium + low}</b> findings</span>
+      </span>
+      <div className="analystDetailPanel">
+        <div className="analystProxyGrid" aria-label="Proxy analyst summary">
+          <div><span>Mode</span><strong>{compactText(payload?.mode, 'n/a')}</strong></div>
+          <div><span>Model</span><strong>{compactText(payload?.model_label || payload?.model_id, 'deterministic')}</strong></div>
+          <div><span>Cache</span><strong>{compactText(recordValue(payload?.cache).status, compactText(payload?.status, 'n/a'))}</strong></div>
+          <div><span>Next</span><strong>{payload?.next_run_at ? new Date(payload.next_run_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'adaptive'}</strong></div>
+        </div>
+        {modelRows.length ? (
+          <div className="analystModelRows" aria-label="Per-model analyst grades">
+            {modelRows.map((model) => (
+              <div className="analystModelRow" key={`${model.model}-${model.grade}`}>
+                <strong>{model.display_name || model.model}</strong>
+                <span>{compactText(model.narrative, model.measured === false ? 'Unmeasured' : 'Measured')}</span>
+                <b>{model.grade}</b>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="analystTrend" aria-label="Analyst high-finding trend">
+          <span>High finding trend</span>
+          <div className="analystTrendBars">
+            {bars.map((value, index) => (
+              <i key={`${index}-${value}`} style={{ ['--bar-height' as string]: `${Math.max(8, Math.round((value / maxBar) * 100))}%` }} aria-label={`${value} high findings`} />
+            ))}
+          </div>
+        </div>
+        {findings.length ? (
+          <div className="analystFindingRows" aria-label="Analyst findings">
+            {findings.slice(0, 4).map((finding) => (
+              <div className={`analystFindingRow ${finding.severity || 'low'}`} key={finding.id || finding.title}>
+                <div>
+                  <span>{compactText(finding.severity, 'low')} · {compactText(finding.lifecycle_status, 'new')}</span>
+                  <strong>{finding.title}</strong>
+                  <p>{finding.suggested_action || compactText(finding.metric, 'Review source data')}</p>
+                </div>
+                {finding.source_link ? <a href={finding.source_link}>{compactText(finding.source, 'source')}</a> : <span>{compactText(finding.source, 'source')}</span>}
+                <button className="secondaryButton" type="button" onClick={() => onAck(finding.id)} disabled={!finding.id || ackPending || finding.acknowledged}>
+                  <CarbonIcon path="apps/checkmark--outline.svg" label="Acknowledge" />Ack
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : <div className="analystEmptyFinding">No active findings</div>}
+      </div>
+    </section>
+  );
+}
+
 export function ModelsPage() {
   const queryClient = useQueryClient();
   const models = useQuery({ queryKey: ['models'], queryFn: getModels });
   const whatsNew = useQuery({ queryKey: ['whats-new'], queryFn: getWhatsNew });
+  const analyst = useQuery({ queryKey: ['performance-analyst'], queryFn: () => getPerformanceAnalyst(), refetchInterval: 60000, retry: false });
   const { favorites } = useModelFavorites();
   const [gridExpanded, setGridExpanded] = useState(false);
   const restoredShowcase = useMemo(loadModelsShowcaseState, []);
@@ -4051,6 +4168,14 @@ export function ModelsPage() {
   const [inspectedModelId, setInspectedModelId] = useState(restoredShowcase.inspectedModelId);
   const [compareIds, setCompareIds] = useState<string[]>(restoredShowcase.compareIds);
   const discover = useMutation({ mutationFn: discoverModels, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['models'] }); queryClient.invalidateQueries({ queryKey: ['whats-new'] }); } });
+  const analystRun = useMutation({
+    mutationFn: runPerformanceAnalyst,
+    onSuccess: (payload) => queryClient.setQueryData(['performance-analyst'], payload),
+  });
+  const analystAck = useMutation({
+    mutationFn: ackPerformanceAnalystFinding,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['performance-analyst'] }),
+  });
   // Models is the Advanced landing (the former Overview folds in here): surface
   // the cross-tab release-readiness pulse and prompt for auth on load failures.
   const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000, retry: false });
@@ -4059,7 +4184,7 @@ export function ModelsPage() {
   const authPrompted = useRef(false);
   useEffect(() => {
     if (authPrompted.current) return;
-    if (![models.error, discover.error, operate.error].some(authLikeError)) return;
+    if (![models.error, discover.error, operate.error, analyst.error, analystRun.error, analystAck.error].some(authLikeError)) return;
     authPrompted.current = true;
     window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
       detail: {
@@ -4067,7 +4192,7 @@ export function ModelsPage() {
         detail: 'Sign in with a console token to load the model catalog and run discovery.',
       },
     }));
-  }, [models.error, discover.error, operate.error]);
+  }, [models.error, discover.error, operate.error, analyst.error, analystRun.error, analystAck.error]);
   const runDiscover = () => { setConfirmDiscover(false); discover.mutate(); };
   const allCards = models.data?.models || [];
   const attentionCount = allCards.filter((model) => !model.route_enabled || ['not_checked', 'forbidden', 'rate_limited', 'probe_failed', 'removed'].includes(model.access_status)).length;
@@ -4116,7 +4241,18 @@ export function ModelsPage() {
           <button className="primaryButton" type="button" onClick={() => setConfirmDiscover(true)} disabled={discover.isPending}>Discover Models</button>
         </div>
       </div>
-      <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={openOperate} />
+      <div className="modelOpsPulses">
+        <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={openOperate} />
+        <PerformanceAnalystPulse
+          payload={analyst.data}
+          loading={analyst.isLoading}
+          error={analyst.error}
+          runPending={analystRun.isPending}
+          ackPending={analystAck.isPending}
+          onRun={() => analystRun.mutate()}
+          onAck={(findingId) => analystAck.mutate(findingId)}
+        />
+      </div>
       {confirmDiscover ? (
         <div className="discoverConfirm" role="alertdialog" aria-label="Confirm model discovery">
           <div>
@@ -4132,6 +4268,8 @@ export function ModelsPage() {
       {models.isLoading ? <StatusPanel tone="loading" title="Loading model showcase" /> : null}
       {models.error ? <StatusPanel tone="error" title="Model registry unavailable" detail={errorText(models.error)} /> : null}
       {whatsNew.error ? <StatusPanel tone="error" title="What's New unavailable" detail={errorText(whatsNew.error)} /> : null}
+      {analystRun.error ? <StatusPanel tone="error" title="Analyst run failed" detail={errorText(analystRun.error)} /> : null}
+      {analystAck.error ? <StatusPanel tone="error" title="Analyst acknowledgement failed" detail={errorText(analystAck.error)} /> : null}
       {discover.isPending ? <StatusPanel tone="loading" title="Discovering DigitalOcean models" detail="Live access checks decide which newly discovered text LLMs become routable." /> : null}
       {discover.error ? <StatusPanel tone="error" title="Model discovery failed" detail={errorText(discover.error)} /> : null}
       <div className="modelCommandBoard">
