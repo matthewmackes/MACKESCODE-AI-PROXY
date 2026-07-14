@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Form, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Empty, Form, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import {
   activateRunProfile,
@@ -48,7 +48,7 @@ import {
 import { getModels, ModelCard } from '../api/v2';
 import { ModelCardSelect } from '../components/modelCard';
 import { errorText } from '../utils/errors';
-import { recordValue, timestampLabel } from '../utils/format';
+import { money, recordValue, timestampLabel } from '../utils/format';
 
 function useNarrowViewport(maxWidth = 980): boolean {
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(`(max-width: ${maxWidth}px)`).matches);
@@ -71,6 +71,11 @@ function ModelCardSelectField({ testId, models, allowClear = false, value = '', 
 
 function csv(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function modelList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return csv(String(value ?? ''));
 }
 
 function jsonObject(value: string): Record<string, unknown> {
@@ -333,7 +338,7 @@ export default function RunPage() {
     mutationFn: (values: Record<string, string>) => runReplay({
       source: { type: values.source_type || 'trace', id: values.source_id || '' },
       target: values.target || 'original',
-      models: csv(values.models || ''),
+      models: modelList(values.models),
       baseline_text: values.baseline_text || '',
       max_tokens: optionalNumber(values.max_tokens),
       temperature: values.temperature ?? ''
@@ -385,7 +390,7 @@ export default function RunPage() {
       action: values.action || 'chat',
       payload: {
         model: values.model || '',
-        models: csv(values.models || ''),
+        models: modelList(values.models),
         messages: [
           ...(values.system_prompt ? [{ role: 'system', content: values.system_prompt }] : []),
           { role: 'user', content: values.prompt || '' }
@@ -432,7 +437,7 @@ export default function RunPage() {
       <Card>
         <Space direction="vertical" size={8}>
           <Typography.Title level={3}>Run</Typography.Title>
-          <Typography.Text type="secondary">Prompt templates and run profiles persisted through the v2 SQLite repository.</Typography.Text>
+          <Typography.Text type="secondary">Prompt templates, run profiles, and run records persisted in the v2 repository.</Typography.Text>
           <Space wrap>
             <Tag color={canEdit ? 'blue' : 'default'}>{canEdit ? 'Edit allowed' : 'Read-only'}</Tag>
             <Tag color={canChat ? 'blue' : 'default'}>{canChat ? 'Chat allowed' : 'Chat disabled'}</Tag>
@@ -448,7 +453,11 @@ export default function RunPage() {
           </Space>
         </Space>
       </Card>
-      {!canEdit ? <Alert type="info" showIcon message="You can inspect Run assets, but editing requires model_use permission." /> : null}
+      {capabilities.error ? <Alert type="error" showIcon data-testid="run-capabilities-error" message={errorText(capabilities.error)} /> : null}
+      {workspace.error ? <Alert type="error" showIcon data-testid="run-workspace-error" message={errorText(workspace.error)} /> : null}
+      {models.error ? <Alert type="error" showIcon data-testid="run-models-error" message={errorText(models.error)} /> : null}
+      {workspace.isLoading ? <Alert type="info" showIcon data-testid="run-workspace-loading" message="Loading run workspace data." /> : null}
+      {!canEdit ? <Alert type="info" showIcon message="You can inspect Run assets, but editing requires the run.edit capability." /> : null}
       <Tabs
         tabPosition={narrow ? 'top' : 'left'}
         items={[
@@ -502,7 +511,7 @@ export default function RunPage() {
                         <Space wrap>
                           {chatModel ? <Tag>{chatModel}</Tag> : null}
                           {chatBackend ? <Tag>{chatBackend}</Tag> : null}
-                          {chatCostUsd !== undefined ? <Tag>${String(chatCostUsd)}</Tag> : null}
+                          {chatCostUsd !== undefined ? <Tag>{money(chatCostUsd)}</Tag> : null}
                         </Space>
                       ) : null}
                       {chatText ? (
@@ -628,6 +637,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={filteredTemplates}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={templateSearch ? 'No templates match your search.' : 'No prompt templates yet.'} /> }}
                   columns={[
                     { title: 'Name', dataIndex: 'name' },
                     { title: 'Version', dataIndex: 'version', width: 90 },
@@ -777,6 +788,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={filteredProfiles}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={profileSearch ? 'No profiles match your search.' : 'No run profiles yet.'} /> }}
                   columns={[
                     { title: 'Name', dataIndex: 'name' },
                     { title: 'Model', dataIndex: 'model' },
@@ -895,6 +908,8 @@ export default function RunPage() {
                 rowKey="id"
                 dataSource={gateRecords}
                 pagination={false}
+                loading={workspace.isLoading}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No eval gate records yet." /> }}
                 columns={[
                   { title: 'Surface', dataIndex: 'surface' },
                   { title: 'Target', dataIndex: 'target_id' },
@@ -941,7 +956,13 @@ export default function RunPage() {
                       </Form.Item>
                     </Space>
                     <Form.Item name="models" label="Comparison Models">
-                      <Input data-testid="context-models" placeholder="model-a, model-b" />
+                      <Select
+                        data-testid="context-models"
+                        mode="multiple"
+                        allowClear
+                        placeholder="Select comparison models"
+                        options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))}
+                      />
                     </Form.Item>
                     <Form.Item name="system_prompt" label="System Prompt">
                       <Input.TextArea data-testid="context-system-prompt" rows={3} />
@@ -1057,6 +1078,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={records}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No run records yet." /> }}
                   columns={[
                     { title: 'Title', dataIndex: 'title' },
                     { title: 'Trace', dataIndex: 'trace_id' },
@@ -1112,6 +1135,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={branches}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No conversation branches yet." /> }}
                   columns={[
                     { title: 'Title', dataIndex: 'title' },
                     { title: 'Root Session', dataIndex: 'root_session_id' },
@@ -1179,6 +1204,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={snapshots}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No session snapshots yet." /> }}
                   columns={[
                     { title: 'Title', dataIndex: 'title' },
                     { title: 'Session', dataIndex: 'session_id' },
@@ -1274,6 +1301,8 @@ export default function RunPage() {
                   rowKey={(row) => `${String(row.path || '')}:${String(row.chunk || '')}:${String(row.hash || '')}`}
                   dataSource={ragSearchResults?.matches || []}
                   pagination={false}
+                  loading={ragSearchMutation.isPending}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Run a search to see matching chunks." /> }}
                   columns={[
                     { title: 'Score', dataIndex: 'score', width: 90 },
                     { title: 'Source', render: (_value, row) => <Tag>{String(row.path || '')}#{String(row.chunk || '')}</Tag> },
@@ -1284,6 +1313,8 @@ export default function RunPage() {
                   rowKey={(row) => String(row.id)}
                   dataSource={localRag?.index || []}
                   pagination={false}
+                  loading={workspace.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No indexed collections yet." /> }}
                   columns={[
                     { title: 'Collection', dataIndex: 'name' },
                     { title: 'Documents', dataIndex: 'documents' },
@@ -1299,6 +1330,7 @@ export default function RunPage() {
             label: 'Trace Replay',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {replayRecords.error ? <Alert type="error" showIcon data-testid="run-replays-error" message={errorText(replayRecords.error)} /> : null}
                 {replayError ? <Alert type="error" showIcon message={replayError} /> : null}
                 <Card title="Replay Source">
                   <Form
@@ -1330,7 +1362,13 @@ export default function RunPage() {
                       </Form.Item>
                     </Space>
                     <Form.Item name="models" label="Models">
-                      <Input data-testid="replay-models" placeholder="model-a, model-b for selected/comparison" />
+                      <Select
+                        data-testid="replay-models"
+                        mode="multiple"
+                        allowClear
+                        placeholder="Select models for selected/comparison targets"
+                        options={routableTextModels.map((model) => ({ value: model.id, label: model.display_name }))}
+                      />
                     </Form.Item>
                     <Space wrap>
                       <Form.Item name="max_tokens" label="Max Tokens">
@@ -1377,7 +1415,7 @@ export default function RunPage() {
                     <Space wrap>
                       <Tag>{replayResult.id}</Tag>
                       <Tag>{String(replayResult.summary?.models || replayResult.results?.length || 0)} models</Tag>
-                      <Tag>${String(replayResult.summary?.total_cost_usd || 0)}</Tag>
+                      <Tag>{money(replayResult.summary?.total_cost_usd || 0)}</Tag>
                     </Space>
                     <Typography.Text type="secondary">{(replayResult.results || []).map((row) => `${String(row.model || 'model n/a')}: ${row.ok ? 'ok' : 'error'}`).join(', ') || 'No per-model results.'}</Typography.Text>
                     <details>
@@ -1390,12 +1428,14 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={replays}
                   pagination={false}
+                  loading={replayRecords.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No replays yet." /> }}
                   columns={[
                     { title: 'Replay', dataIndex: 'id' },
                     { title: 'Source', render: (_value, record) => `${String(record.source?.type || '')}:${String(record.source?.id || '')}` },
                     { title: 'Targets', render: (_value, record) => (record.targets || []).join(', ') },
                     { title: 'Models', render: (_value, record) => String(record.summary?.models || record.results?.length || 0) },
-                    { title: 'Cost', render: (_value, record) => `$${String(record.summary?.total_cost_usd || 0)}` },
+                    { title: 'Cost', render: (_value, record) => money(record.summary?.total_cost_usd || 0) },
                     { title: 'Created', dataIndex: 'created_at', render: (value: number) => timestampLabel(value) }
                   ]}
                 />
@@ -1407,6 +1447,7 @@ export default function RunPage() {
             label: 'Workspace Bundles',
             children: (
               <Space direction="vertical" size={16} className="pageStack">
+                {workspaceBundleRecords.error ? <Alert type="error" showIcon data-testid="run-bundles-error" message={errorText(workspaceBundleRecords.error)} /> : null}
                 {bundleError ? <Alert type="error" showIcon message={bundleError} /> : null}
                 <Card title="Bundle Controls">
                   <Space direction="vertical" size={12} className="pageStack">
@@ -1492,7 +1533,22 @@ export default function RunPage() {
                         { title: 'Severity', dataIndex: 'severity' },
                         { title: 'Code', dataIndex: 'code' },
                         { title: 'Message', dataIndex: 'message' },
-                        { title: 'Details', dataIndex: 'details', render: (value: unknown) => JSON.stringify(value || {}) }
+                        {
+                          title: 'Details',
+                          dataIndex: 'details',
+                          render: (value: unknown) => {
+                            if (value === null || value === undefined || value === '') return <Typography.Text type="secondary">None</Typography.Text>;
+                            const full = JSON.stringify(value, null, 2);
+                            const summary = value && typeof value === 'object' && !Array.isArray(value)
+                              ? Object.entries(value as Record<string, unknown>).map(([key, item]) => `${key}: ${item && typeof item === 'object' ? JSON.stringify(item) : String(item)}`).join('; ')
+                              : Array.isArray(value)
+                                ? value.map((item) => (item && typeof item === 'object' ? JSON.stringify(item) : String(item))).join(', ')
+                                : String(value);
+                            return summary
+                              ? <Typography.Text style={{ maxWidth: 360 }} ellipsis={{ tooltip: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', maxWidth: 480 }}>{full}</pre> }}>{summary}</Typography.Text>
+                              : <Typography.Text type="secondary">None</Typography.Text>;
+                          }
+                        }
                       ]}
                     />
                   </Card>
@@ -1501,6 +1557,8 @@ export default function RunPage() {
                   rowKey="id"
                   dataSource={workspaceBundles}
                   pagination={false}
+                  loading={workspaceBundleRecords.isLoading}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No workspace bundles yet." /> }}
                   columns={[
                     { title: 'Bundle', dataIndex: 'id' },
                     { title: 'Sections', render: (_value, record) => (record.sections || []).join(', ') },

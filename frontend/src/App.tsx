@@ -436,7 +436,7 @@ export default function App() {
     }
     setDrawerOpen(false);
     activate('advanced');
-    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'overview' } }));
+    window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'models' } }));
   };
   const submitConsoleToken = (token: string) => {
     rememberConsoleToken(token);

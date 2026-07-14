@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Button, Card, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Input, Select, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { DecisionExplanation, ReportingExportResult, explainObserveDecision, exportObserveReporting, getMeCapabilities, getObserve } from '../api/generated/v2Client';
 import { errorText } from '../utils/errors';
@@ -23,6 +23,15 @@ function auditExplanationRecord(row: Record<string, unknown>): Record<string, un
   };
 }
 
+function sliceErrorAlert(slice: Record<string, unknown>) {
+  const err = slice.error;
+  if (err === undefined || err === null || err === '') {
+    return null;
+  }
+  const message = typeof err === 'string' ? err : JSON.stringify(err);
+  return <Alert type="warning" showIcon message={message} style={{ marginBottom: 12 }} />;
+}
+
 export default function ObservePage() {
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const observe = useQuery({ queryKey: ['observe'], queryFn: () => getObserve(7, 50, 50), refetchInterval: 30000 });
@@ -39,6 +48,10 @@ export default function ObservePage() {
       observe.refetch();
     }
   });
+  const [traceModelFilter, setTraceModelFilter] = useState<string | undefined>(undefined);
+  const [traceStatusFilter, setTraceStatusFilter] = useState<string | undefined>(undefined);
+  const [auditOutcomeFilter, setAuditOutcomeFilter] = useState<string | undefined>(undefined);
+  const [auditActionFilter, setAuditActionFilter] = useState('');
   const canView = capabilities.data?.capabilities['billing.view']?.allowed ?? false;
   const payload = observe.data;
   const consoleStatus = recordValue(payload?.console);
@@ -63,6 +76,32 @@ export default function ObservePage() {
   const labelKeys = strings(telemetry.label_keys);
   const findings = listValue(providerHealth.findings);
   const analyticsSummary = recordValue(analytics.summary);
+  const traceModelOptions = Array.from(new Set(traces.map((row) => String(row.routed_model || row.requested_model || '')).filter(Boolean)));
+  const traceStatusOptions = Array.from(new Set(traces.map((row) => String(row.status || '')).filter(Boolean)));
+  const filteredTraces = traces.filter((row) => {
+    const model = String(row.routed_model || row.requested_model || '');
+    const status = String(row.status || '');
+    if (traceModelFilter && model !== traceModelFilter) {
+      return false;
+    }
+    if (traceStatusFilter && status !== traceStatusFilter) {
+      return false;
+    }
+    return true;
+  });
+  const auditOutcomeOptions = Array.from(new Set(auditRows.map((row) => String(row.outcome || '')).filter(Boolean)));
+  const auditActionQuery = auditActionFilter.trim().toLowerCase();
+  const filteredAuditRows = auditRows.filter((row) => {
+    const outcome = String(row.outcome || '');
+    const action = String(row.action || '').toLowerCase();
+    if (auditOutcomeFilter && outcome !== auditOutcomeFilter) {
+      return false;
+    }
+    if (auditActionQuery && !action.includes(auditActionQuery)) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <Space direction="vertical" size={16} className="pageStack">
@@ -82,6 +121,8 @@ export default function ObservePage() {
       </Card>
       {!canView ? <Alert type="info" showIcon message="Viewing reporting data requires billing/reporting permission." /> : null}
       {observe.error ? <Alert type="error" showIcon message={errorText(observe.error)} /> : null}
+      {sliceErrorAlert(cost)}
+      {sliceErrorAlert(analytics)}
       {observe.isLoading ? (
         <Alert type="info" showIcon message="Loading observability data" />
       ) : observe.error && !payload ? null : (
@@ -113,9 +154,27 @@ export default function ObservePage() {
         </Space>
       )}
       <Card title="Recent Traces" data-testid="observe-traces">
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Select
+            allowClear
+            placeholder="Model"
+            style={{ minWidth: 180 }}
+            value={traceModelFilter}
+            onChange={(value) => setTraceModelFilter(value)}
+            options={traceModelOptions.map((model) => ({ value: model, label: model }))}
+          />
+          <Select
+            allowClear
+            placeholder="Status"
+            style={{ minWidth: 140 }}
+            value={traceStatusFilter}
+            onChange={(value) => setTraceStatusFilter(value)}
+            options={traceStatusOptions.map((status) => ({ value: status, label: status }))}
+          />
+        </Space>
         <Table<Record<string, unknown>>
           rowKey={(row, index) => String(row.trace_id || index)}
-          dataSource={traces}
+          dataSource={filteredTraces}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: 'Trace', dataIndex: 'trace_id' },
@@ -157,6 +216,7 @@ export default function ObservePage() {
         </Card>
       ) : null}
       <Card title="Provider Findings" data-testid="observe-provider-findings">
+        {sliceErrorAlert(providerHealth)}
         <Table<Record<string, unknown>>
           rowKey={(row, index) => `${String(row.type || row.title || 'finding')}-${index}`}
           dataSource={findings}
@@ -171,6 +231,7 @@ export default function ObservePage() {
       </Card>
       <Card title="Eval Runs" data-testid="observe-evals">
         <Space direction="vertical" size={12} className="pageStack">
+          {sliceErrorAlert(evals)}
           <Space wrap>
             <Tag>{String(evalSummary.datasets ?? evalDatasets.length)} datasets</Tag>
             <Tag>{String(evalSummary.runs ?? evalRuns.length)} runs</Tag>
@@ -199,6 +260,7 @@ export default function ObservePage() {
       </Card>
       <Card title="Telemetry" data-testid="observe-telemetry">
         <Space direction="vertical" size={12} className="pageStack">
+          {sliceErrorAlert(telemetry)}
           <Space wrap>
             <Tag color={telemetryMetrics.reachable ? 'green' : 'orange'}>{telemetryMetrics.reachable ? 'Metrics reachable' : 'Metrics unavailable'}</Tag>
             <Tag color={telemetryExporter.enabled ? 'blue' : 'default'}>{telemetryExporter.enabled ? 'OTEL enabled' : 'OTEL disabled'}</Tag>
@@ -222,9 +284,27 @@ export default function ObservePage() {
         </Space>
       </Card>
       <Card title="Audit" data-testid="observe-audit">
+        {sliceErrorAlert(audit)}
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Select
+            allowClear
+            placeholder="Outcome"
+            style={{ minWidth: 160 }}
+            value={auditOutcomeFilter}
+            onChange={(value) => setAuditOutcomeFilter(value)}
+            options={auditOutcomeOptions.map((outcome) => ({ value: outcome, label: outcome }))}
+          />
+          <Input.Search
+            allowClear
+            placeholder="Filter actions"
+            style={{ maxWidth: 240 }}
+            value={auditActionFilter}
+            onChange={(event) => setAuditActionFilter(event.target.value)}
+          />
+        </Space>
         <Table<Record<string, unknown>>
           rowKey={(row, index) => `${String(row.timestamp || '')}-${String(row.action || '')}-${index}`}
-          dataSource={auditRows}
+          dataSource={filteredAuditRows}
           pagination={{ pageSize: 8 }}
           columns={[
             { title: 'Action', dataIndex: 'action' },
@@ -237,6 +317,7 @@ export default function ObservePage() {
                 <Button
                   data-testid="observe-explain-audit"
                   size="small"
+                  disabled={!row.action}
                   loading={explainMutation.isPending}
                   onClick={() => explainMutation.mutate({ record: auditExplanationRecord(row) })}
                 >
@@ -260,6 +341,8 @@ export default function ObservePage() {
           </Button>
         }
       >
+        {sliceErrorAlert(reportingExport)}
+        {sliceErrorAlert(reportingIntegrations)}
         {exportMutation.error ? <Alert type="error" showIcon message={errorText(exportMutation.error)} /> : null}
         {exportResult ? (
           <Alert

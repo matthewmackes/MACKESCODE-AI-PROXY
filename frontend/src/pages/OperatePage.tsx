@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Input, Space, Table, Tag, Typography } from 'antd';
+import { useEffect, useState, type KeyboardEvent } from 'react';
+import { Alert, Button, Card, Checkbox, Collapse, Descriptions, Input, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import { getMeCapabilities } from '../api/generated/v2Client';
 import { acknowledgeOperateConfigDrift, getOnboarding, getOperate, importOperateRepositoryContext, launchOperateCiTriage, markOperateConfigDriftBaseline, overrideCostControl, previewOperateCiTriage, previewOperateModelDeprecation, previewOperateRepositoryContext, previewOperateRollback, runDueOperateAutomationSchedules, saveOperateEvalDataset, seedOnboardingModelTemplates, testOperateAutomation, updateCostControlThresholds, updateOperateReview, writeOperateReleaseReport } from '../api/generated/v2Client';
@@ -23,6 +23,10 @@ function valueText(value: unknown, fallback = ''): string {
 
 function boolText(value: unknown): string {
   return value === true ? 'yes' : value === false ? 'no' : 'n/a';
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
 }
 
 function paymentStatusColor(value: unknown): string {
@@ -465,6 +469,24 @@ export default function OperatePage() {
   const monthlyPercent = numberValue(costThreshold.percent, 0);
   const providerSource = valueText(costProvider.monthly_source || recordValue(costCosts.sources).monthly, 'local_estimate');
   const providerLabel = providerSource === 'provider_billing_api' ? 'Provider billing' : 'Local estimate';
+  const reviewsError = valueText(recordValue(payload?.reviews).error);
+  const releaseError = valueText(recordValue(payload?.release_candidate).error);
+  const rollbackError = valueText(recordValue(payload?.rollback).error);
+  const configDriftError = valueText(configDrift.error);
+  const automationError = valueText(automation.error);
+  const ciTriageError = valueText(recordValue(payload?.ci_triage).error);
+  const modelDeprecationsError = valueText(recordValue(payload?.model_deprecations).error);
+  const costControlError = valueText(costControl.error);
+  const evalGateError = valueText(evalGate.error);
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const sectionKeyDown = (event: KeyboardEvent<HTMLDivElement>, id: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      scrollToSection(id);
+    }
+  };
   useEffect(() => {
     setHandoffBriefStatus(hasOperatorHandoff ? 'Brief Ready' : 'No handoff');
   }, [hasOperatorHandoff, operatorHandoffItems.length]);
@@ -573,23 +595,63 @@ export default function OperatePage() {
         copiedKey={copiedTemplateKey}
       />
       <Space wrap data-testid="operate-summary">
-        <Card className="metricCard">
+        <Card
+          className="metricCard"
+          hoverable
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => scrollToSection('operate-section-reviews')}
+          onKeyDown={(event) => sectionKeyDown(event, 'operate-section-reviews')}
+        >
           <Typography.Text type="secondary">Reviews</Typography.Text>
           <Typography.Title level={4}>{valueText(summary.open_reviews, String(reviews.length))}</Typography.Title>
         </Card>
-        <Card className="metricCard">
+        <Card
+          className="metricCard"
+          hoverable
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => scrollToSection('operate-section-release')}
+          onKeyDown={(event) => sectionKeyDown(event, 'operate-section-release')}
+        >
           <Typography.Text type="secondary">Release Checks</Typography.Text>
           <Typography.Title level={4}>{valueText(summary.release_checks, String(releaseChecks.length))}</Typography.Title>
         </Card>
-        <Card className="metricCard">
+        <Card
+          className="metricCard"
+          hoverable
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => scrollToSection('operate-section-rollback')}
+          onKeyDown={(event) => sectionKeyDown(event, 'operate-section-rollback')}
+        >
           <Typography.Text type="secondary">Rollback Targets</Typography.Text>
           <Typography.Title level={4}>{valueText(summary.rollback_targets, String(rollbackTargets.length))}</Typography.Title>
         </Card>
-        <Card className="metricCard">
+        <Card
+          className="metricCard"
+          hoverable
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => scrollToSection('operate-section-drift')}
+          onKeyDown={(event) => sectionKeyDown(event, 'operate-section-drift')}
+        >
           <Typography.Text type="secondary">Active Drift</Typography.Text>
           <Typography.Title level={4}>{valueText(summary.config_drift_items, String(activeDriftItems.length))}</Typography.Title>
         </Card>
-        <Card className="metricCard">
+        <Card
+          className="metricCard"
+          hoverable
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => scrollToSection('operate-section-ci')}
+          onKeyDown={(event) => sectionKeyDown(event, 'operate-section-ci')}
+        >
           <Typography.Text type="secondary">CI Findings</Typography.Text>
           <Typography.Title level={4}>{valueText(summary.ci_findings, String(ciFindings.length))}</Typography.Title>
         </Card>
@@ -608,6 +670,7 @@ export default function OperatePage() {
             <Tag>{monthlyPercent.toFixed(monthlyPercent >= 10 ? 0 : 1)}%</Tag>
             {costPause.active ? <Tag color="red">Paused</Tag> : null}
           </Space>
+          {costControlError ? <Alert type="warning" showIcon message="Cost control data could not be loaded" description={costControlError} /> : null}
           {paymentReviewMutation.error ? <Alert type="error" showIcon message={errorText(paymentReviewMutation.error)} /> : null}
           {operateThresholdMutation.error ? <Alert type="error" showIcon message={errorText(operateThresholdMutation.error)} /> : null}
           {operateOverrideMutation.error ? <Alert type="error" showIcon message={errorText(operateOverrideMutation.error)} /> : null}
@@ -686,6 +749,7 @@ export default function OperatePage() {
         </Space>
       </Card>
       <Card
+        id="operate-section-release"
         title="Release Candidate"
         data-testid="operate-release"
         extra={
@@ -699,6 +763,7 @@ export default function OperatePage() {
           </Button>
         }
       >
+        {releaseError ? <Alert type="warning" showIcon message="Release candidate data could not be loaded" description={releaseError} style={{ marginBottom: 12 }} /> : null}
         {releaseReportMutation.error ? <Alert type="error" showIcon message={errorText(releaseReportMutation.error)} /> : null}
         {releaseReport ? <Alert data-testid="operate-release-report-result" type="success" showIcon message="Release report written" description={valueText(releaseReport.report_file || releaseReport.path || releaseReport.label)} /> : null}
         {operatorHandoffItems.length ? (
@@ -725,86 +790,73 @@ export default function OperatePage() {
           <Button disabled={!hasOperatorHandoff} onClick={downloadHandoffBrief}>Download Handoff</Button>
         </div>
         {operatorHandoffItems.length ? (
-          <>
           <div className="operatorActionPlan" data-testid="operate-release-action-plan">
-            {operatorHandoffItems.map((row, index) => {
-              const packetKey = `packet-${valueText(row.item, 'handoff')}-${index}`;
-              const packetCopied = copiedPacketKey === packetKey;
-              return (
-                <div className="operatorActionPlanItem" data-testid="operate-release-action-plan-item" key={packetKey}>
-                  <Tag color={index === 0 ? 'red' : valueText(row.urgency) === 'high' ? 'orange' : 'blue'}>#{valueText(row.priority_rank, String(index + 1))}</Tag>
-                  <div>
-                    <strong>{valueText(row.item, 'Operator-owned item')}</strong>
-                    <span>{valueText(row.urgency, 'normal')} · {valueText(row.owner, 'Operator')} · {valueText(row.gate_type, 'operator-decision')}</span>
-                    <p>Why: {valueText(row.blocking_rationale, 'This item needs an external operator decision before the advisory ledger can be closed.')}</p>
-                  </div>
-                  <Space wrap size={8}>
-                    <Button size="small" data-testid="operate-release-copy-packet" onClick={() => void copyOperatorPacket(row, packetKey, index)}>Copy Packet</Button>
-                    {packetCopied ? <Tag color="green">Packet copied</Tag> : null}
-                    {copiedPacketKey === 'copy-failed' ? <Tag color="red">Copy failed</Tag> : null}
-                  </Space>
-                </div>
-              );
-            })}
+            <div data-testid="operate-release-handoff-list">
+              <Collapse
+                defaultActiveKey={[`${valueText(operatorHandoffItems[0].item, 'handoff')}-0`]}
+                items={operatorHandoffItems.map((row, index) => {
+                  const closureKey = `${valueText(row.item, 'handoff')}-${index}`;
+                  const packetKey = `packet-${valueText(row.item, 'handoff')}-${index}`;
+                  const packetCopied = copiedPacketKey === packetKey;
+                  const closureCopied = copiedClosureKey === closureKey;
+                  return {
+                    key: closureKey,
+                    label: (
+                      <div className="operatorActionPlanItem" data-testid="operate-release-action-plan-item">
+                        <Tag color={index === 0 ? 'red' : valueText(row.urgency) === 'high' ? 'orange' : 'blue'}>#{valueText(row.priority_rank, String(index + 1))}</Tag>
+                        <div>
+                          <strong>{valueText(row.item, 'Operator-owned item')}</strong>
+                          <span>{valueText(row.urgency, 'normal')} · {valueText(row.owner, 'Operator')} · {valueText(row.gate_type, 'operator-decision')}</span>
+                          <p>Why: {valueText(row.blocking_rationale, 'This item needs an external operator decision before the advisory ledger can be closed.')}</p>
+                        </div>
+                        <Space wrap size={8} onClick={(event) => event.stopPropagation()}>
+                          <Button size="small" data-testid="operate-release-copy-packet" onClick={(event) => { event.stopPropagation(); void copyOperatorPacket(row, packetKey, index); }}>Copy Packet</Button>
+                          {packetCopied ? <Tag color="green">Packet copied</Tag> : null}
+                          {copiedPacketKey === 'copy-failed' ? <Tag color="red">Copy failed</Tag> : null}
+                        </Space>
+                      </div>
+                    ),
+                    children: (
+                      <div className="operatorHandoffItem" data-testid="operate-release-handoff-item">
+                        <div>
+                          <span>Needs</span>
+                          <p>{valueText(row.needs, 'Operator decision or external account state')}</p>
+                        </div>
+                        <div>
+                          <span>Status</span>
+                          <p>{valueText(row.status, 'Open')}</p>
+                        </div>
+                        <div>
+                          <span>Next Action</span>
+                          <p>{valueText(row.next_action, 'Review the ledger row and record the operator decision.')}</p>
+                        </div>
+                        <div>
+                          <span>Evidence Required</span>
+                          <p>{valueText(row.evidence_required, 'Operator decision, external state, timestamp, and updated status.')}</p>
+                        </div>
+                        <div>
+                          <span>Closure Template</span>
+                          <p>{valueText(row.closure_template, 'Status cell: Closed <YYYY-MM-DD>: <outcome>. Evidence: <evidence summary>. Owner: Operator. Gate: operator-decision.')}</p>
+                          <Space wrap size={8}>
+                            <Button size="small" data-testid="operate-release-copy-packet-detail" onClick={() => void copyOperatorPacket(row, `detail-${closureKey}`, index)}>Copy Packet</Button>
+                            <Button size="small" data-testid="operate-release-copy-closure" onClick={() => void copyClosureTemplate(row, closureKey)}>Copy Closure</Button>
+                            {copiedPacketKey === `detail-${closureKey}` ? <Tag color="green">Packet copied</Tag> : null}
+                            {closureCopied ? <Tag color="green">Closure copied</Tag> : null}
+                            {copiedClosureKey === 'copy-failed' ? <Tag color="red">Copy failed</Tag> : null}
+                          </Space>
+                        </div>
+                      </div>
+                    )
+                  };
+                })}
+              />
+            </div>
           </div>
-          <div className="operatorHandoffList" data-testid="operate-release-handoff-list">
-            {operatorHandoffItems.map((row, index) => {
-              const closureKey = `${valueText(row.item, 'handoff')}-${index}`;
-              const closureCopied = copiedClosureKey === closureKey;
-              return (
-                <div className="operatorHandoffItem" data-testid="operate-release-handoff-item" key={closureKey}>
-                  <div>
-                    <span>Rank</span>
-                    <strong>#{valueText(row.priority_rank, String(index + 1))} · {valueText(row.urgency, 'normal')}</strong>
-                  </div>
-                  <div>
-                    <span>Operator Item</span>
-                    <strong>{valueText(row.item, 'Operator-owned item')}</strong>
-                  </div>
-                  <div>
-                    <span>Why This Matters</span>
-                    <p>{valueText(row.blocking_rationale, 'This item needs an external operator decision before the advisory ledger can be closed.')}</p>
-                  </div>
-                  <div>
-                    <span>Needs</span>
-                    <p>{valueText(row.needs, 'Operator decision or external account state')}</p>
-                  </div>
-                  <div>
-                    <span>Status</span>
-                    <p>{valueText(row.status, 'Open')}</p>
-                  </div>
-                  <div>
-                    <span>Gate</span>
-                    <p>{valueText(row.gate_type, 'operator-decision')} · {valueText(row.owner, 'Operator')}</p>
-                  </div>
-                  <div>
-                    <span>Next Action</span>
-                    <p>{valueText(row.next_action, 'Review the ledger row and record the operator decision.')}</p>
-                  </div>
-                  <div>
-                    <span>Evidence Required</span>
-                    <p>{valueText(row.evidence_required, 'Operator decision, external state, timestamp, and updated status.')}</p>
-                  </div>
-                  <div>
-                    <span>Closure Template</span>
-                    <p>{valueText(row.closure_template, 'Status cell: Closed <YYYY-MM-DD>: <outcome>. Evidence: <evidence summary>. Owner: Operator. Gate: operator-decision.')}</p>
-                    <Space wrap size={8}>
-                      <Button size="small" data-testid="operate-release-copy-packet-detail" onClick={() => void copyOperatorPacket(row, `detail-${closureKey}`, index)}>Copy Packet</Button>
-                      <Button size="small" data-testid="operate-release-copy-closure" onClick={() => void copyClosureTemplate(row, closureKey)}>Copy Closure</Button>
-                      {copiedPacketKey === `detail-${closureKey}` ? <Tag color="green">Packet copied</Tag> : null}
-                      {closureCopied ? <Tag color="green">Closure copied</Tag> : null}
-                      {copiedClosureKey === 'copy-failed' ? <Tag color="red">Copy failed</Tag> : null}
-                    </Space>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          </>
         ) : null}
         <Table<Record<string, unknown>>
           rowKey={(row, index) => `${valueText(row.name || row.id, 'check')}-${index}`}
           dataSource={releaseChecks}
+          loading={operate.isLoading}
           pagination={{ pageSize: 6 }}
           columns={[
             { title: 'Check', render: (_value, row) => valueText(row.name || row.id) },
@@ -814,12 +866,14 @@ export default function OperatePage() {
           ]}
         />
       </Card>
-      <Card title="Review Queue" data-testid="operate-reviews">
+      <Card id="operate-section-reviews" title="Review Queue" data-testid="operate-reviews">
+        {reviewsError ? <Alert type="warning" showIcon message="Review queue data could not be loaded" description={reviewsError} style={{ marginBottom: 12 }} /> : null}
         {reviewUpdateMutation.error ? <Alert type="error" showIcon message={errorText(reviewUpdateMutation.error)} /> : null}
         {reviewResult ? <Alert data-testid="operate-review-update-result" type="success" showIcon message={`Review ${valueText(reviewResult.id)} ${valueText(reviewResult.status)}`} /> : null}
         <Table<Record<string, unknown>>
           rowKey={(row, index) => valueText(row.id, String(index))}
           dataSource={reviews}
+          loading={operate.isLoading}
           pagination={{ pageSize: 6 }}
           columns={[
             { title: 'Review', render: (_value, row) => valueText(row.title || row.id) },
@@ -845,6 +899,7 @@ export default function OperatePage() {
       </Card>
       <Card title="Eval Gate" data-testid="operate-eval-gate">
         <Space direction="vertical" size={12} className="pageStack">
+          {evalGateError ? <Alert type="warning" showIcon message="Eval gate data could not be loaded" description={evalGateError} /> : null}
           <Space wrap>
             <Tag>{valueText(evalGate.surface, 'gateway_policy')}</Tag>
             <Tag color={evalGate.allowed === false ? 'red' : 'green'}>{valueText(evalGate.decision, 'unknown')}</Tag>
@@ -865,6 +920,8 @@ export default function OperatePage() {
       </Card>
       <Card title="Rollback and Drift" data-testid="operate-rollback">
         <Space direction="vertical" size={12} className="pageStack">
+          {rollbackError ? <Alert type="warning" showIcon message="Rollback targets could not be loaded" description={rollbackError} /> : null}
+          {configDriftError ? <Alert type="warning" showIcon message="Config drift data could not be loaded" description={configDriftError} /> : null}
           <Alert
             data-testid="operate-config-drift-summary"
             type={showingActiveDrift ? (valueText(configDriftSummary.highest_risk).match(/critical|high/i) ? 'error' : 'warning') : 'success'}
@@ -930,9 +987,11 @@ export default function OperatePage() {
               {requiresHighRiskConfirmation ? <Tag color={highRiskDriftConfirmed ? 'red' : 'orange'}>{highRiskDriftConfirmed ? 'high risk confirmed' : 'high risk locked'}</Tag> : null}
             </Space>
           </Space>
+          <div id="operate-section-rollback" style={{ scrollMarginTop: 16 }}>
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name || row.path, String(index))}
             dataSource={rollbackTargets}
+            loading={operate.isLoading}
             pagination={{ pageSize: 4 }}
             columns={[
               { title: 'Target', render: (_value, row) => valueText(row.id || row.name || row.path) },
@@ -954,41 +1013,47 @@ export default function OperatePage() {
               }
             ]}
           />
+          </div>
           {rollbackPreview ? (
             <>
-              <Typography.Text type="secondary">Rollback preview: {valueText(recordValue(rollbackPreview.summary).will_restore, '0')} items will restore</Typography.Text>
+              <Descriptions size="small" column={1} bordered>
+                <Descriptions.Item label="Target">{valueText(recordValue(rollbackPreview.target).id || recordValue(rollbackPreview.target).path, 'n/a')}</Descriptions.Item>
+                <Descriptions.Item label="Items">{valueText(recordValue(rollbackPreview.summary).items, '0')}</Descriptions.Item>
+                <Descriptions.Item label="Will restore">{valueText(recordValue(rollbackPreview.summary).will_restore, '0')}</Descriptions.Item>
+                <Descriptions.Item label="Move existing aside">{valueText(recordValue(rollbackPreview.summary).will_move_existing_aside, '0')}</Descriptions.Item>
+                <Descriptions.Item label="Includes secrets">{boolText(recordValue(rollbackPreview.summary).include_secrets)}</Descriptions.Item>
+              </Descriptions>
               <details>
                 <summary>Raw payload</summary>
                 <pre className="templatePreview">{JSON.stringify(rollbackPreview, null, 2)}</pre>
               </details>
             </>
           ) : null}
+          <div id="operate-section-drift" style={{ scrollMarginTop: 16 }}>
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.path || row.key, String(index))}
             dataSource={driftItems}
+            loading={operate.isLoading}
             pagination={{ pageSize: 4 }}
+            expandable={{
+              expandedRowRender: (row) => (
+                <Descriptions size="small" column={1} bordered>
+                  <Descriptions.Item label="Path"><code>{valueText(row.path || recordValue(row.current).path, 'n/a')}</code></Descriptions.Item>
+                  <Descriptions.Item label="Acknowledged">{boolText(row.acknowledged)}</Descriptions.Item>
+                  <Descriptions.Item label="Current Evidence"><code>{driftSnapshotText(recordValue(row.current))}</code></Descriptions.Item>
+                  <Descriptions.Item label="Baseline Evidence"><code>{driftSnapshotText(recordValue(row.baseline))}</code></Descriptions.Item>
+                  <Descriptions.Item label="Rollback Readiness">{driftRollbackReadinessText(row)}</Descriptions.Item>
+                  <Descriptions.Item label="Restore Command"><code>{valueText(driftRollbackParts(row).restoreCommand, 'No direct restore command registered.')}</code></Descriptions.Item>
+                  <Descriptions.Item label="Rollback Note">{valueText(recordValue(row.rollback).note || recordValue(recordValue(row.current).rollback).note, 'Review baseline before changing runtime state.')}</Descriptions.Item>
+                </Descriptions>
+              )
+            }}
             columns={[
               { title: showingActiveDrift ? 'Active Drift' : 'Monitored Item', render: (_value, row) => valueText(row.label || row.name || row.id || row.path || row.key) },
               { title: 'Status', render: (_value, row) => valueText(row.status, showingActiveDrift ? 'changed' : 'monitored') },
               { title: 'Risk', render: (_value, row) => <Tag color={riskColor(row.risk || row.severity)}>{valueText(row.risk || row.severity, 'unknown')}</Tag> },
-              { title: 'Acknowledged', render: (_value, row) => boolText(row.acknowledged) },
-              { title: 'Path', render: (_value, row) => <code>{valueText(row.path || recordValue(row.current).path, 'n/a')}</code> },
-              { title: 'Current Evidence', render: (_value, row) => <code>{driftSnapshotText(recordValue(row.current))}</code> },
-              { title: 'Baseline Evidence', render: (_value, row) => <code>{driftSnapshotText(recordValue(row.baseline))}</code> },
               {
-                title: 'Rollback Readiness',
-                render: (_value, row) => {
-                  const rollback = driftRollbackParts(row);
-                  return (
-                    <Space direction="vertical" size={2}>
-                      <Tag color={rollback.restoreAvailable ? 'blue' : 'orange'}>{rollback.restoreAvailable ? 'restore available' : 'manual compare'}</Tag>
-                      <span>{rollback.restoreAvailable ? valueText(rollback.backupItem, 'runtime item') : 'no direct restore target'}</span>
-                    </Space>
-                  );
-                }
-              },
-              {
-                title: 'Evidence',
+                title: 'Action',
                 render: (_value, row, index) => {
                   const evidenceKey = `${valueText(row.name || row.id || row.path, 'drift')}-${index}`;
                   const copied = copiedDriftEvidenceKey === evidenceKey;
@@ -1000,15 +1065,16 @@ export default function OperatePage() {
                     </Space>
                   );
                 }
-              },
-              { title: 'Rollback', render: (_value, row) => valueText(recordValue(row.rollback).note || recordValue(recordValue(row.current).rollback).note, 'Review baseline before changing runtime state.') }
+              }
             ]}
-            scroll={{ x: true }}
           />
+          </div>
         </Space>
       </Card>
       <Card title="Automation and CI" data-testid="operate-automation">
         <Space direction="vertical" size={12} className="pageStack">
+          {automationError ? <Alert type="warning" showIcon message="Automation data could not be loaded" description={automationError} /> : null}
+          {ciTriageError ? <Alert type="warning" showIcon message="CI triage data could not be loaded" description={ciTriageError} /> : null}
           <Space.Compact>
             <Input data-testid="operate-ci-reference" value={ciReference} onChange={(event) => setCiReference(event.target.value)} />
             <Button data-testid="operate-ci-preview" disabled={!canImportRepository} loading={ciPreviewMutation.isPending} onClick={() => ciPreviewMutation.mutate()}>Preview</Button>
@@ -1020,7 +1086,15 @@ export default function OperatePage() {
           {repositoryImportMutation.error ? <Alert type="error" showIcon message={errorText(repositoryImportMutation.error)} /> : null}
           {ciPreview ? (
             <>
-              <Typography.Text type="secondary">CI triage preview ready · {valueText(ciPreview.reference, ciReference)}</Typography.Text>
+              <Descriptions size="small" column={1} bordered>
+                <Descriptions.Item label="Reference">{valueText(ciPreview.reference, ciReference)}</Descriptions.Item>
+                <Descriptions.Item label="Repository">{valueText(recordValue(ciPreview.context).owner)}/{valueText(recordValue(ciPreview.context).repo)}{recordValue(ciPreview.context).number ? `#${valueText(recordValue(ciPreview.context).number)}` : ''}</Descriptions.Item>
+                <Descriptions.Item label="Title">{valueText(recordValue(ciPreview.context).title)}</Descriptions.Item>
+                <Descriptions.Item label="Failures">{valueText(ciPreview.failure_count, '0')}</Descriptions.Item>
+                <Descriptions.Item label="Changed files">{arrayLength(recordValue(ciPreview.context).changed_files)}</Descriptions.Item>
+                <Descriptions.Item label="Warnings">{arrayLength(ciPreview.warnings)}</Descriptions.Item>
+                <Descriptions.Item label="Degraded">{boolText(ciPreview.degraded)}</Descriptions.Item>
+              </Descriptions>
               <details>
                 <summary>Raw payload</summary>
                 <pre data-testid="operate-ci-preview-result" className="templatePreview">{JSON.stringify(ciPreview, null, 2)}</pre>
@@ -1045,6 +1119,7 @@ export default function OperatePage() {
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name, String(index))}
             dataSource={automationRules}
+            loading={operate.isLoading}
             pagination={{ pageSize: 4 }}
             columns={[
               { title: 'Rule', render: (_value, row) => valueText(row.name || row.id) },
@@ -1090,9 +1165,11 @@ export default function OperatePage() {
               <pre className="templatePreview">{JSON.stringify(automationScheduleRun, null, 2)}</pre>
             </details>
           ) : null}
+          <div id="operate-section-ci" style={{ scrollMarginTop: 16 }}>
           <Table<Record<string, unknown>>
             rowKey={(row, index) => valueText(row.id || row.name || row.check, String(index))}
             dataSource={ciFindings}
+            loading={operate.isLoading}
             pagination={{ pageSize: 4 }}
             columns={[
               { title: 'Finding', render: (_value, row) => valueText(row.title || row.name || row.check || row.id) },
@@ -1100,14 +1177,17 @@ export default function OperatePage() {
               { title: 'Severity', dataIndex: 'severity' }
             ]}
           />
+          </div>
         </Space>
       </Card>
       <Card title="Model Deprecations" data-testid="operate-deprecations">
+        {modelDeprecationsError ? <Alert type="warning" showIcon message="Model deprecation data could not be loaded" description={modelDeprecationsError} style={{ marginBottom: 12 }} /> : null}
         {modelDeprecationPreviewMutation.error ? <Alert type="error" showIcon message={errorText(modelDeprecationPreviewMutation.error)} /> : null}
         {modelDeprecationPreview ? <Alert data-testid="operate-model-deprecation-preview-result" type="info" showIcon message="Migration preview ready" description={`${valueText(modelDeprecationPreview.model)} -> ${valueText(modelDeprecationPreview.replacement_model, 'select replacement')}`} /> : null}
         <Table<Record<string, unknown>>
           rowKey={(row, index) => valueText(row.id || row.model, String(index))}
           dataSource={modelDeprecations}
+          loading={operate.isLoading}
           pagination={{ pageSize: 6 }}
           columns={[
             { title: 'Model', render: (_value, row) => valueText(row.id || row.model) },
@@ -1131,7 +1211,16 @@ export default function OperatePage() {
         />
         {modelDeprecationPreview ? (
           <>
-            <Typography.Text type="secondary">Migration preview: {valueText(modelDeprecationPreview.model)} -&gt; {valueText(modelDeprecationPreview.replacement_model, 'select replacement')}</Typography.Text>
+            <Descriptions size="small" column={1} bordered style={{ marginTop: 12 }}>
+              <Descriptions.Item label="Model">{valueText(modelDeprecationPreview.model)}</Descriptions.Item>
+              <Descriptions.Item label="Replacement">{valueText(modelDeprecationPreview.replacement_model, 'select replacement')}</Descriptions.Item>
+              <Descriptions.Item label="Status">{valueText(recordValue(modelDeprecationPreview.deprecation).status)}</Descriptions.Item>
+              <Descriptions.Item label="Severity">{valueText(recordValue(modelDeprecationPreview.deprecation).severity)}</Descriptions.Item>
+              <Descriptions.Item label="Affected artifacts">{arrayLength(modelDeprecationPreview.affected)}</Descriptions.Item>
+              <Descriptions.Item label="Planned changes">{arrayLength(modelDeprecationPreview.changes)}</Descriptions.Item>
+              <Descriptions.Item label="Recommendations">{arrayLength(modelDeprecationPreview.recommendations)}</Descriptions.Item>
+              <Descriptions.Item label="Eval recommended">{boolText(recordValue(modelDeprecationPreview.eval_gate).recommended)}</Descriptions.Item>
+            </Descriptions>
             <details>
               <summary>Raw payload</summary>
               <pre className="templatePreview">{JSON.stringify(modelDeprecationPreview, null, 2)}</pre>

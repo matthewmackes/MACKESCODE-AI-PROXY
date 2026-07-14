@@ -1,45 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Input, Space, Table, Tag, Typography } from 'antd';
 import 'antd/dist/reset.css';
 import {
-  acquireConsoleTuiControl,
   ConsoleCommand,
-  CodeSessionStartPayload,
   dispatchConsoleCommand,
   getConsoleCommands,
-  getRunWorkspace,
-  getCodeSessionDefaults,
   getConsoleOverview,
   getConsoleTuiStatus,
   getMeCapabilities,
-  getTmuxWorkspace,
-  PermissionPreview,
-  previewCodeSessionPermissions,
-  previewPromptTemplate,
-  PromptTemplate,
-  renameTmuxSession,
-  releaseConsoleTuiControl,
-  captureTmuxSession,
-  sendTmuxKey,
-  sendTmuxText,
-  startCodeSession,
-  stopTmuxSession,
-  TmuxWorkspacePayload
+  restartConsoleTui
 } from '../api/generated/v2Client';
-import { getModels, ModelCard } from '../api/v2';
-import TmuxTerminal from '../components/TmuxTerminal';
-import TuiTerminal from '../components/TuiTerminal';
-import { ModelCardSelect } from '../components/modelCard';
-import { apiEndpointUrl } from '../api/auth';
 import { errorText } from '../utils/errors';
 import { money } from '../utils/format';
-
-const iconBase = '/branding/Mackes-Carbon/scalable';
-
-function CarbonIcon({ path, label }: { path: string; label: string }) {
-  return <img className="carbonIcon" src={`${iconBase}/${path}`} alt="" title={label} aria-hidden="true" />;
-}
 
 function valueText(value: unknown, fallback = 'n/a'): string {
   if (value === null || value === undefined || value === '') return fallback;
@@ -48,440 +21,52 @@ function valueText(value: unknown, fallback = 'n/a'): string {
   return String(value);
 }
 
-function jsonObject(value: string): Record<string, unknown> | null {
-  if (!value.trim()) return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function clientId(): string {
-  const browserCrypto = globalThis.crypto;
-  if (typeof browserCrypto?.randomUUID === 'function') {
-    return browserCrypto.randomUUID();
-  }
-  if (typeof browserCrypto?.getRandomValues === 'function') {
-    const bytes = new Uint8Array(16);
-    browserCrypto.getRandomValues(bytes);
-    return `client-${Array.from(bytes, (item) => item.toString(16).padStart(2, '0')).join('')}`;
-  }
-  return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function terminalUrl(name: string, workspace?: TmuxWorkspacePayload): string {
-  const terminal = workspace?.terminal;
-  const url = new URL(apiEndpointUrl(terminal?.path || '/terminal', { defaultPort: terminal?.default_legacy_port }));
-  url.searchParams.set(terminal?.query_param || 'name', name);
-  return url.toString();
-}
-
-function ModelCardSelectField({ testId, models, allowClear = false, value = '', onChange = () => undefined }: { testId: string; models: ModelCard[]; allowClear?: boolean; value?: string; onChange?: (value: string) => void }) {
-  return (
-    <div data-testid={testId}>
-      <ModelCardSelect models={models} value={value} onChange={onChange} label="" allowClear={allowClear} />
-    </div>
-  );
-}
-
 export default function ConsolePage() {
   const queryClient = useQueryClient();
-  const client = useMemo(clientId, []);
-  const [controller, setController] = useState(false);
-  const [codeForm] = Form.useForm();
-  const [selectedSession, setSelectedSession] = useState('');
-  const [sessionInput, setSessionInput] = useState('');
-  const [sessionScreen, setSessionScreen] = useState('');
-  const [sessionRename, setSessionRename] = useState('');
-  const [tmuxAttachActive, setTmuxAttachActive] = useState(false);
-  const [templateValues, setTemplateValues] = useState('{"goal":"complete the task","audience":"operators"}');
-  const [templateApplyError, setTemplateApplyError] = useState('');
-  const [permissionPreview, setPermissionPreview] = useState<PermissionPreview | null>(null);
   const [commandQuery, setCommandQuery] = useState('');
   const [commandDispatchResult, setCommandDispatchResult] = useState('');
-  const [controlError, setControlError] = useState('');
-  const [sessionActionError, setSessionActionError] = useState('');
-  // One shared Console cadence (V2-077): poll fast only while the operator is
-  // actively controlling a session; back off to 15s when idle so three
-  // concurrent 5s/10s intervals don't triple steady-state load.
-  const activelyControlling = controller || tmuxAttachActive || Boolean(selectedSession);
-  const pollInterval = activelyControlling ? 5000 : 15000;
+  const [restartError, setRestartError] = useState('');
+  // System Operations is a read-mostly dashboard, so a single relaxed poll keeps
+  // proxy/TUI status and operational state fresh without hammering the adapters.
+  const pollInterval = 15000;
   const capabilities = useQuery({ queryKey: ['capabilities'], queryFn: getMeCapabilities, retry: false });
   const status = useQuery({ queryKey: ['tui-status'], queryFn: getConsoleTuiStatus, refetchInterval: pollInterval });
   const overview = useQuery({ queryKey: ['console-overview'], queryFn: getConsoleOverview, refetchInterval: pollInterval });
-  const tmuxWorkspace = useQuery({ queryKey: ['tmux-workspace'], queryFn: getTmuxWorkspace, refetchInterval: pollInterval });
-  const commands = useQuery({ queryKey: ['console-commands', commandQuery, selectedSession], queryFn: () => getConsoleCommands(commandQuery, { session: selectedSession }), retry: false });
-  const defaults = useQuery({ queryKey: ['code-session-defaults'], queryFn: getCodeSessionDefaults });
-  const modelsCatalog = useQuery({ queryKey: ['models'], queryFn: getModels });
-  const runWorkspace = useQuery({ queryKey: ['run-workspace'], queryFn: getRunWorkspace });
+  const commands = useQuery({ queryKey: ['console-commands', commandQuery], queryFn: () => getConsoleCommands(commandQuery), retry: false });
   const canControlTui = capabilities.data?.capabilities['tui.control']?.allowed ?? false;
-  const canControlTmux = capabilities.data?.capabilities['tmux.control']?.allowed ?? false;
-  const launcherModels = useMemo(() => (modelsCatalog.data?.models || []).filter((model: ModelCard) => model.type === 'text' && model.route_enabled), [modelsCatalog.data?.models]);
   const errors = Object.entries(overview.data?.errors ?? {});
   const summary = overview.data?.summary;
   const sessions = overview.data?.sessions ?? [];
-  const tmuxSessions = tmuxWorkspace.data?.sessions ?? sessions;
-  const tmuxSummary = tmuxWorkspace.data?.summary;
-  const tmuxAllowedKeys = tmuxWorkspace.data?.allowed_keys ?? [];
   const tasks = overview.data?.tasks ?? [];
-  const templates = runWorkspace.data?.prompt_templates ?? [];
-  useEffect(() => {
-    if (!defaults.data) return;
-    codeForm.setFieldsValue({
-      name: defaults.data.default_name,
-      project_dir: defaults.data.default_project_dir,
-      model: defaults.data.default_model,
-      permission_mode: 'acceptEdits',
-      run_mode: 'interactive',
-      profile: 'builder'
-    });
-  }, [codeForm, defaults.data]);
-  useEffect(() => {
-    setTmuxAttachActive(false);
-  }, [selectedSession]);
-  const acquire = useMutation({
-    mutationFn: () => acquireConsoleTuiControl(client),
-    onSuccess: (payload) => {
-      setControlError('');
-      setController(payload.lease.holder === client);
+  const restart = useMutation({
+    mutationFn: () => restartConsoleTui(),
+    onSuccess: () => {
+      setRestartError('');
       queryClient.invalidateQueries({ queryKey: ['tui-status'] });
     },
-    onError: (error) => setControlError(errorText(error))
-  });
-  const release = useMutation({
-    mutationFn: () => releaseConsoleTuiControl(client),
-    onSuccess: () => {
-      setControlError('');
-      setController(false);
-      queryClient.invalidateQueries({ queryKey: ['tui-status'] });
-    },
-    onError: (error) => setControlError(errorText(error))
-  });
-  const startSession = useMutation({
-    mutationFn: (payload: CodeSessionStartPayload) => startCodeSession(payload),
-    onSuccess: (payload) => {
-      const name = valueText(payload.name || payload.display_name, '');
-      if (name) {
-        setSelectedSession(name);
-        setSessionRename(name);
-      }
-      queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
-    }
-  });
-  const captureTmux = useMutation({
-    mutationFn: (name: string) => captureTmuxSession(name),
-    onSuccess: (payload) => {
-      setSessionActionError('');
-      setSessionScreen(payload.screen || '');
-    },
-    onError: (error) => setSessionActionError(errorText(error))
-  });
-  const sendTmuxInput = useMutation({
-    mutationFn: (enter: boolean) => sendTmuxText(selectedSession, sessionInput, enter),
-    onSuccess: () => {
-      setSessionActionError('');
-      setSessionInput('');
-      setTimeout(() => selectedSession && captureTmux.mutate(selectedSession), 250);
-    },
-    onError: (error) => setSessionActionError(errorText(error))
-  });
-  const sendTmuxControlKey = useMutation({
-    mutationFn: (key: string) => sendTmuxKey(selectedSession, key),
-    onSuccess: () => {
-      setSessionActionError('');
-      setTimeout(() => selectedSession && captureTmux.mutate(selectedSession), 250);
-    },
-    onError: (error) => setSessionActionError(errorText(error))
-  });
-  const renameTmux = useMutation({
-    mutationFn: () => renameTmuxSession(selectedSession, sessionRename || selectedSession, sessionRename || selectedSession),
-    onSuccess: (payload) => {
-      setSessionActionError('');
-      const name = valueText(payload.name, selectedSession);
-      setSelectedSession(name);
-      setSessionRename(valueText(payload.display_name || payload.name, name));
-      queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
-      queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-    },
-    onError: (error) => setSessionActionError(errorText(error))
-  });
-  const stopTmux = useMutation({
-    mutationFn: (name: string) => stopTmuxSession(name),
-    onSuccess: () => {
-      setSessionActionError('');
-      setSelectedSession('');
-      setSessionRename('');
-      setSessionScreen('');
-      queryClient.invalidateQueries({ queryKey: ['tmux-workspace'] });
-      queryClient.invalidateQueries({ queryKey: ['console-overview'] });
-    },
-    onError: (error) => setSessionActionError(errorText(error))
-  });
-  const applyTemplate = useMutation({
-    mutationFn: ({ template, values }: { template: PromptTemplate; values: Record<string, unknown> }) => previewPromptTemplate({
-      body: template.body,
-      variables: template.variables,
-      values
-    }),
-    onSuccess: (payload) => {
-      setTemplateApplyError('');
-      codeForm.setFieldsValue({ print_prompt: payload.preview.rendered });
-    },
-    onError: (error) => setTemplateApplyError(errorText(error))
-  });
-  const previewPermissions = useMutation({
-    mutationFn: (payload: CodeSessionStartPayload) => previewCodeSessionPermissions(payload),
-    onSuccess: (payload) => setPermissionPreview(payload.permission_preview)
+    onError: (error) => setRestartError(errorText(error))
   });
   const dispatchCommand = useMutation({
-    mutationFn: (command: ConsoleCommand) => dispatchConsoleCommand(command.id, { session: selectedSession }),
+    mutationFn: (command: ConsoleCommand) => dispatchConsoleCommand(command.id),
     onSuccess: (payload) => setCommandDispatchResult(`${payload.command.title}: ${String(payload.action?.type || 'action')}`),
     onError: (error) => setCommandDispatchResult(errorText(error))
   });
-
-  const handleApplyTemplate = (template: PromptTemplate) => {
-    const values = jsonObject(templateValues);
-    if (!values) {
-      setTemplateApplyError('Template values must be a JSON object.');
-      return;
-    }
-    applyTemplate.mutate({ template, values });
-  };
-
-  const onProfileChange = (profile: string) => {
-    if (profile === 'careful') {
-      codeForm.setFieldsValue({ permission_mode: 'plan', run_mode: 'interactive' });
-    } else if (profile === 'fullauto') {
-      codeForm.setFieldsValue({ permission_mode: 'bypassPermissions', run_mode: 'interactive' });
-    } else if (profile === 'review') {
-      codeForm.setFieldsValue({ permission_mode: 'manual', run_mode: 'interactive' });
-    } else if (profile === 'background') {
-      codeForm.setFieldsValue({ permission_mode: 'acceptEdits', run_mode: 'background' });
-    } else {
-      codeForm.setFieldsValue({ permission_mode: 'acceptEdits', run_mode: 'interactive' });
-    }
-  };
-
-  const launchCodeSession = (values: CodeSessionStartPayload) => {
-    startSession.mutate({
-      ...values,
-      display_name: values.name,
-      new_session: true,
-      cols: 120,
-      rows: 40
-    });
-  };
 
   return (
     <Space direction="vertical" size={16} className="pageStack">
       <Card className="consoleHeader">
         <Space direction="vertical" size={8}>
-          <Typography.Title level={3}>Console</Typography.Title>
-          <Typography.Text type="secondary">Standing proxy TUI connection for local operations.</Typography.Text>
+          <Typography.Title level={3}>System Operations</Typography.Title>
+          <Typography.Text type="secondary">Proxy status, command palette, and live operational state.</Typography.Text>
           <Space wrap>
-            <Tag color={status.data?.running ? 'green' : 'red'}>{status.data?.running ? 'TUI running' : 'TUI unavailable'}</Tag>
-            <Tag>{controller ? 'You control input' : 'Read-only'}</Tag>
+            <Tag color={status.data?.running ? 'green' : 'red'}>{status.data?.running ? 'Proxy TUI running' : 'Proxy TUI unavailable'}</Tag>
             <Tag color={canControlTui ? 'blue' : 'default'}>{canControlTui ? 'TUI control allowed' : 'TUI control unavailable'}</Tag>
-            <Button data-testid="tui-take-control" type="primary" onClick={() => acquire.mutate()} loading={acquire.isPending} disabled={controller || !canControlTui}>Take control</Button>
-            <Button data-testid="tui-release-control" onClick={() => release.mutate()} loading={release.isPending} disabled={!controller}>Release</Button>
+            <Button data-testid="tui-restart" onClick={() => restart.mutate()} loading={restart.isPending} disabled={!canControlTui}>Restart proxy TUI</Button>
           </Space>
-          {controlError ? <Alert type="error" showIcon message={controlError} /> : null}
+          {restartError ? <Alert type="error" showIcon message={restartError} /> : null}
           {capabilities.data ? (
             <Typography.Text type="secondary">Actor: {capabilities.data.actor.id} · {capabilities.data.actor.roles.join(', ') || 'no roles'}</Typography.Text>
           ) : null}
-        </Space>
-      </Card>
-          <TuiTerminal clientId={client} controller={controller} />
-      <Card
-        title={<Space><CarbonIcon path="apps/utilities-terminal-symbolic.svg" label="TMux" />TMux Workspace</Space>}
-        data-testid="tmux-workspace"
-      >
-        <Space direction="vertical" size={16} className="pageStack">
-          {!canControlTmux ? <Alert type="info" showIcon message="TMux capture and control require tmux.control permission." /> : null}
-          {tmuxWorkspace.error ? <Alert type="error" showIcon message={errorText(tmuxWorkspace.error)} /> : null}
-          {Object.entries(tmuxWorkspace.data?.errors ?? {}).length ? (
-            <Alert
-              type="warning"
-              showIcon
-              message="TMux state is degraded"
-              description={Object.entries(tmuxWorkspace.data?.errors ?? {}).map(([key, value]) => `${key}: ${value}`).join(' · ')}
-            />
-          ) : null}
-          <Space wrap className="tmuxSummary">
-            <Tag color="blue">Sessions {tmuxSummary?.sessions_total ?? tmuxSessions.length}</Tag>
-            <Tag color="green">Live {tmuxSummary?.sessions_live ?? tmuxSessions.filter((row) => row.live).length}</Tag>
-            <Tag>Attached {tmuxSummary?.sessions_attached ?? tmuxSessions.filter((row) => row.attached).length}</Tag>
-            <Tag>Read-only {tmuxSummary?.sessions_read_only ?? tmuxSessions.filter((row) => row.read_only || !row.live).length}</Tag>
-            <Tag>Previous {tmuxSummary?.sessions_previous ?? tmuxWorkspace.data?.previous_sessions?.length ?? 0}</Tag>
-            <Tag>Tokens {valueText(tmuxSummary?.estimated_tokens, '0')}</Tag>
-            <Tag>Cost {money(tmuxSummary?.estimated_cost_usd)}</Tag>
-          </Space>
-          <Table<Record<string, unknown>>
-            rowKey={(row) => valueText(row.name || row.display_name)}
-            data-testid="tmux-session-table"
-            dataSource={tmuxSessions}
-            loading={tmuxWorkspace.isLoading && !tmuxSessions.length}
-            pagination={{ pageSize: 5, hideOnSinglePage: true }}
-            columns={[
-              {
-                title: 'Session',
-                dataIndex: 'display_name',
-                render: (_value, row) => (
-                  <Space direction="vertical" size={0}>
-                    <Typography.Text strong>{valueText(row.display_name || row.name)}</Typography.Text>
-                    <Typography.Text type="secondary">{valueText(row.name)}</Typography.Text>
-                  </Space>
-                )
-              },
-              { title: 'State', dataIndex: 'process_status', width: 120, render: (_value, row) => <Tag color={row.live ? 'green' : 'default'}>{valueText(row.process_status || row.status)}</Tag> },
-              { title: 'Attached', dataIndex: 'attached', width: 110, render: (value) => <Tag>{valueText(value)}</Tag> },
-              { title: 'Windows', dataIndex: 'windows', width: 100, render: (value) => valueText(value, '0') },
-              { title: 'Idle', dataIndex: 'idle_seconds', width: 110, render: (value) => `${valueText(value, '0')}s` },
-              { title: 'Project', dataIndex: 'project_dir', ellipsis: true, render: (value) => valueText(value) },
-              {
-                title: 'Action',
-                width: 210,
-                render: (_value, row) => {
-                  const name = valueText(row.name, '');
-                  return (
-                    <Space wrap>
-                      <Button
-                        data-testid="tmux-session-select"
-                        onClick={() => {
-                          setSelectedSession(name);
-                          setSessionRename(valueText(row.display_name || row.name, name));
-                          if (canControlTmux) captureTmux.mutate(name);
-                        }}
-                      >
-                        Select
-                      </Button>
-                      <Button data-testid="tmux-session-open" href={name ? terminalUrl(name, tmuxWorkspace.data) : undefined} target="_blank" disabled={!name}>
-                        Open
-                      </Button>
-                    </Space>
-                  );
-                }
-              }
-            ]}
-          />
-          {sessionActionError ? <Alert type="error" showIcon message={sessionActionError} /> : null}
-          <div className="tmuxControlDock" data-testid="tmux-control-dock">
-            <Space wrap>
-              <Select
-                data-testid="tmux-session-selector"
-                value={selectedSession || undefined}
-                placeholder="Select TMux session"
-                style={{ minWidth: 240 }}
-                onChange={(name) => {
-                  setSelectedSession(name);
-                  setSessionRename(name);
-                  if (canControlTmux) captureTmux.mutate(name);
-                }}
-                options={tmuxSessions.map((session) => ({ value: valueText(session.name), label: valueText(session.display_name || session.name) }))}
-              />
-              <Button
-                data-testid="tmux-capture"
-                disabled={!selectedSession || !canControlTmux}
-                loading={captureTmux.isPending}
-                onClick={() => captureTmux.mutate(selectedSession)}
-              >
-                <CarbonIcon path="actions/view-fullscreen-symbolic.svg" label="Capture" />Capture
-              </Button>
-              <Button
-                data-testid="tmux-attach-toggle"
-                type={tmuxAttachActive ? 'default' : 'primary'}
-                disabled={!selectedSession || !canControlTmux}
-                onClick={() => setTmuxAttachActive(true)}
-              >
-                <CarbonIcon path="actions/media-playback-start-symbolic.svg" label="Attach" />Attach
-              </Button>
-              <Button
-                data-testid="tmux-attach-disconnect"
-                disabled={!tmuxAttachActive}
-                onClick={() => setTmuxAttachActive(false)}
-              >
-                Disconnect
-              </Button>
-              <Button data-testid="tmux-open-terminal" href={selectedSession ? terminalUrl(selectedSession, tmuxWorkspace.data) : undefined} target="_blank" disabled={!selectedSession}>
-                <CarbonIcon path="actions/window-new-symbolic.svg" label="Open" />Open terminal
-              </Button>
-              <Button
-                danger
-                disabled={!selectedSession || !canControlTmux}
-                loading={stopTmux.isPending}
-                onClick={() => stopTmux.mutate(selectedSession)}
-              >
-                <CarbonIcon path="actions/process-stop-symbolic.svg" label="Stop" />Stop
-              </Button>
-            </Space>
-            <Space.Compact block>
-              <Input
-                data-testid="tmux-rename-input"
-                value={sessionRename}
-                onChange={(event) => setSessionRename(event.target.value)}
-                disabled={!selectedSession || !canControlTmux}
-                placeholder="Rename selected TMux session"
-              />
-              <Button
-                data-testid="tmux-rename"
-                disabled={!selectedSession || !sessionRename || !canControlTmux}
-                loading={renameTmux.isPending}
-                onClick={() => renameTmux.mutate()}
-              >
-                Rename
-              </Button>
-            </Space.Compact>
-            <Space.Compact block>
-              <Input
-                data-testid="tmux-input"
-                value={sessionInput}
-                onChange={(event) => setSessionInput(event.target.value)}
-                disabled={!selectedSession || !canControlTmux}
-                placeholder="Paste text into selected TMux session"
-              />
-              <Button
-                data-testid="tmux-send"
-                disabled={!selectedSession || !sessionInput || !canControlTmux}
-                loading={sendTmuxInput.isPending}
-                onClick={() => sendTmuxInput.mutate(false)}
-              >
-                Paste
-              </Button>
-              <Button
-                data-testid="tmux-send-enter"
-                disabled={!selectedSession || !sessionInput || !canControlTmux}
-                loading={sendTmuxInput.isPending}
-                onClick={() => sendTmuxInput.mutate(true)}
-              >
-                Send Enter
-              </Button>
-            </Space.Compact>
-            <div className="tmuxKeyGrid" data-testid="tmux-key-grid">
-              {tmuxAllowedKeys.map((key) => (
-                <Button
-                  key={key}
-                  size="small"
-                  disabled={!selectedSession || !canControlTmux}
-                  loading={sendTmuxControlKey.isPending}
-                  onClick={() => sendTmuxControlKey.mutate(key)}
-                >
-                  {key}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="tmuxAttachDock" data-testid="tmux-attach-dock">
-            <Space wrap className="tmuxAttachHeader">
-              <Typography.Text strong>Live Attach</Typography.Text>
-              <Tag color={tmuxAttachActive ? 'green' : 'default'}>{tmuxAttachActive ? 'Attached' : 'Detached'}</Tag>
-              <Typography.Text type="secondary">{selectedSession || 'Select a session before attaching'}</Typography.Text>
-            </Space>
-            <TmuxTerminal active={tmuxAttachActive} canControl={canControlTmux} sessionName={selectedSession} workspace={tmuxWorkspace.data} />
-          </div>
-          <pre className="sessionScreen tmuxScreen" data-testid="tmux-screen">{sessionScreen || 'Select a TMux session and capture its pane.'}</pre>
         </Space>
       </Card>
       <Card title="Command Palette">
@@ -520,131 +105,6 @@ export default function ConsolePage() {
               }
             ]}
           />
-        </Space>
-      </Card>
-      <Card title="Code Session Launcher" data-testid="code-session-launcher">
-        <Space direction="vertical" size={16} className="pageStack">
-          {!canControlTmux ? <Alert type="info" showIcon message="Code session launch requires tmux.control permission." /> : null}
-          {startSession.error ? <Alert type="error" showIcon message={errorText(startSession.error)} /> : null}
-          <Form form={codeForm} layout="vertical" disabled={!canControlTmux} onFinish={launchCodeSession}>
-            <Space direction="vertical" size={8} className="pageStack">
-              <Space wrap>
-                <Form.Item name="name" label="Session Name" rules={[{ required: true }]}>
-                  <Input data-testid="code-session-name" />
-                </Form.Item>
-                <Form.Item name="project_dir" label="Project Directory" rules={[{ required: true }]}>
-                  <Input data-testid="code-session-project" />
-                </Form.Item>
-                <Form.Item name="model" label="Model">
-                  <ModelCardSelectField testId="code-session-model" models={launcherModels} />
-                </Form.Item>
-                <Form.Item name="profile" label="Profile">
-                  <Select
-                    data-testid="code-session-profile"
-                    style={{ minWidth: 160 }}
-                    onChange={onProfileChange}
-                    options={(defaults.data?.profiles ?? []).map((profile) => ({ value: String(profile.key), label: String(profile.label) }))}
-                  />
-                </Form.Item>
-              </Space>
-              <Space wrap>
-                <Form.Item name="permission_mode" label="Permission">
-                  <Select
-                    data-testid="code-session-permission"
-                    style={{ minWidth: 170 }}
-                    options={[
-                      { value: 'acceptEdits', label: 'Accept edits' },
-                      { value: 'plan', label: 'Plan' },
-                      { value: 'manual', label: 'Manual' },
-                      { value: 'bypassPermissions', label: 'Bypass' }
-                    ]}
-                  />
-                </Form.Item>
-                <Form.Item name="run_mode" label="Run Mode">
-                  <Select
-                    data-testid="code-session-run-mode"
-                    style={{ minWidth: 170 }}
-                    options={[
-                      { value: 'interactive', label: 'Interactive' },
-                      { value: 'print', label: 'Print' },
-                      { value: 'json', label: 'JSON' },
-                      { value: 'stream-json', label: 'Stream JSON' },
-                      { value: 'background', label: 'Background' }
-                    ]}
-                  />
-                </Form.Item>
-              </Space>
-              <Form.Item name="print_prompt" label="Task Prompt">
-                <Input.TextArea data-testid="code-session-prompt" rows={4} placeholder="Optional prompt for print/background runs" />
-              </Form.Item>
-              <Card size="small" title="Prompt Templates">
-                <Space direction="vertical" size={8} className="pageStack">
-                  <Input.TextArea
-                    data-testid="code-template-values"
-                    value={templateValues}
-                    onChange={(event) => setTemplateValues(event.target.value)}
-                    rows={3}
-                    placeholder='{"goal":"refactor safely","audience":"operators"}'
-                  />
-                  {templateApplyError ? <Alert type="error" showIcon message={templateApplyError} /> : null}
-                  <Table<PromptTemplate>
-                    rowKey="id"
-                    data-testid="code-template-table"
-                    dataSource={templates}
-                    pagination={{ pageSize: 4, hideOnSinglePage: true }}
-                    columns={[
-                      { title: 'Template', dataIndex: 'name' },
-                      { title: 'Tags', dataIndex: 'tags', render: (tags: string[]) => <Space wrap>{tags.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-                      {
-                        title: 'Action',
-                        width: 110,
-                        render: (_value, template) => (
-                          <Button data-testid="code-template-apply" loading={applyTemplate.isPending} onClick={() => handleApplyTemplate(template)}>Apply</Button>
-                        )
-                      }
-                    ]}
-                  />
-                </Space>
-              </Card>
-              <Space wrap>
-                <Button
-                  data-testid="code-session-permission-preview"
-                  onClick={() => previewPermissions.mutate(codeForm.getFieldsValue())}
-                  loading={previewPermissions.isPending}
-                >
-                  Preview permissions
-                </Button>
-                <Button data-testid="code-session-start" type="primary" htmlType="submit" loading={startSession.isPending}>Start code session</Button>
-              </Space>
-              {permissionPreview ? (
-                <Card size="small" data-testid="code-permission-preview" title="Permission Preview">
-                  <Space direction="vertical" size={8} className="pageStack">
-                    <Space wrap>
-                      <Tag color={permissionPreview.risk_level === 'critical' ? 'red' : permissionPreview.risk_level === 'high' ? 'orange' : 'blue'}>{permissionPreview.risk_level}</Tag>
-                      <Tag>{permissionPreview.allows_edits ? 'edits' : 'read-only'}</Tag>
-                      <Tag>{permissionPreview.allows_bash ? 'bash' : 'no bash'}</Tag>
-                    </Space>
-                    <Table<Record<string, unknown>>
-                      rowKey={(row) => String(row.code || row.message)}
-                      dataSource={permissionPreview.warnings || []}
-                      pagination={false}
-                      size="small"
-                      columns={[
-                        { title: 'Severity', dataIndex: 'severity', width: 100, render: (value: string) => <Tag color={value === 'critical' ? 'red' : value === 'high' ? 'orange' : 'default'}>{value}</Tag> },
-                        { title: 'Warning', dataIndex: 'message' }
-                      ]}
-                    />
-                    <Typography.Text type="secondary">
-                      Suggested preset: {String(permissionPreview.suggested_preset?.profile || 'n/a')} / {String(permissionPreview.suggested_preset?.permission_mode || 'n/a')}
-                    </Typography.Text>
-                  </Space>
-                </Card>
-              ) : null}
-            </Space>
-          </Form>
-          <Typography.Text type="secondary">
-            Started sessions are selected automatically in the TMux control dock above for capture, input, rename, attach, and stop.
-          </Typography.Text>
         </Space>
       </Card>
       <Card title="Operational State" data-testid="console-operational-state">

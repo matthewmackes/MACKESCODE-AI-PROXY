@@ -223,14 +223,14 @@ export function WhatsNewModal({ data, onClose }: { data: WhatsNewPayload; onClos
         <div className="whatsNewHeader">
           <div>
             <p className="eyebrow">Startup Alert</p>
-            <h2 id="whats-new-title">Whats New</h2>
+            <h2 id="whats-new-title">What's New</h2>
             <p>{data.summary.new_models || 0} new models · {data.summary.attention || 0} need attention · {data.summary.route_enabled || 0} routable.</p>
           </div>
-          <button className="closeButton modalCloseButton" type="button" aria-label="Close Whats New" onClick={onClose}>
+          <button className="closeButton modalCloseButton" type="button" aria-label="Close What's New" onClick={onClose}>
             <CarbonIcon path="actions/window-close-symbolic.svg" label="Close" />
           </button>
         </div>
-        <div className="whatsNewJumpStrip" aria-label="Whats New sections">
+        <div className="whatsNewJumpStrip" aria-label="What's New sections">
           <button type="button" onClick={() => scrollToSection(newModelsRef)}><CarbonIcon path="apps/list--checked.svg" label="New models" />New <strong>{data.new_models.length}</strong></button>
           <button type="button" onClick={() => scrollToSection(attentionRef)}><CarbonIcon path="apps/information--filled.svg" label="Needs attention" />Attention <strong>{data.attention.length}</strong></button>
           <button type="button" onClick={() => scrollToSection(digitalOceanRef)}><CarbonIcon path="actions/insert-link-symbolic.svg" label="DigitalOcean links" />DigitalOcean <strong>{data.digitalocean.links.length}</strong></button>
@@ -4051,6 +4051,24 @@ export function ModelsPage() {
   const [inspectedModelId, setInspectedModelId] = useState(restoredShowcase.inspectedModelId);
   const [compareIds, setCompareIds] = useState<string[]>(restoredShowcase.compareIds);
   const discover = useMutation({ mutationFn: discoverModels, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['models'] }); queryClient.invalidateQueries({ queryKey: ['whats-new'] }); } });
+  // Models is the Advanced landing (the former Overview folds in here): surface
+  // the cross-tab release-readiness pulse and prompt for auth on load failures.
+  const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000, retry: false });
+  const [confirmDiscover, setConfirmDiscover] = useState(false);
+  const openOperate = () => window.dispatchEvent(new CustomEvent(V2_ADVANCED_TAB_EVENT, { detail: { tab: 'operate' } }));
+  const authPrompted = useRef(false);
+  useEffect(() => {
+    if (authPrompted.current) return;
+    if (![models.error, discover.error, operate.error].some(authLikeError)) return;
+    authPrompted.current = true;
+    window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
+      detail: {
+        title: 'Console Access Required',
+        detail: 'Sign in with a console token to load the model catalog and run discovery.',
+      },
+    }));
+  }, [models.error, discover.error, operate.error]);
+  const runDiscover = () => { setConfirmDiscover(false); discover.mutate(); };
   const allCards = models.data?.models || [];
   const attentionCount = allCards.filter((model) => !model.route_enabled || ['not_checked', 'forbidden', 'rate_limited', 'probe_failed', 'removed'].includes(model.access_status)).length;
   const cards = allCards
@@ -4094,13 +4112,26 @@ export function ModelsPage() {
           <p>Every LLM gets country-of-training color, company artwork, pricing, access state, and route status.</p>
         </div>
         <div className="heroActions">
-          <button className="secondaryButton" type="button" onClick={() => setShowWhatsNew(true)} disabled={!whatsNew.data}>Whats New</button>
-          <button className="primaryButton" type="button" onClick={() => discover.mutate()} disabled={discover.isPending}>Discover Models</button>
+          <button className="secondaryButton" type="button" onClick={() => setShowWhatsNew(true)} disabled={!whatsNew.data}>What's New</button>
+          <button className="primaryButton" type="button" onClick={() => setConfirmDiscover(true)} disabled={discover.isPending}>Discover Models</button>
         </div>
       </div>
+      <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={openOperate} />
+      {confirmDiscover ? (
+        <div className="discoverConfirm" role="alertdialog" aria-label="Confirm model discovery">
+          <div>
+            <strong>Run live model discovery?</strong>
+            <p>This syncs the DigitalOcean catalog and runs a live access probe against every serverless text model to decide what becomes routable. It can take a minute and counts against the configured key.</p>
+          </div>
+          <div className="discoverConfirmActions">
+            <button className="secondaryButton" type="button" onClick={() => setConfirmDiscover(false)}>Cancel</button>
+            <button className="primaryButton" type="button" onClick={runDiscover}>Run discovery</button>
+          </div>
+        </div>
+      ) : null}
       {models.isLoading ? <StatusPanel tone="loading" title="Loading model showcase" /> : null}
       {models.error ? <StatusPanel tone="error" title="Model registry unavailable" detail={errorText(models.error)} /> : null}
-      {whatsNew.error ? <StatusPanel tone="error" title="Whats New unavailable" detail={errorText(whatsNew.error)} /> : null}
+      {whatsNew.error ? <StatusPanel tone="error" title="What's New unavailable" detail={errorText(whatsNew.error)} /> : null}
       {discover.isPending ? <StatusPanel tone="loading" title="Discovering DigitalOcean models" detail="Live access checks decide which newly discovered text LLMs become routable." /> : null}
       {discover.error ? <StatusPanel tone="error" title="Model discovery failed" detail={errorText(discover.error)} /> : null}
       <div className="modelCommandBoard">
@@ -4165,19 +4196,32 @@ function clientId(): string {
 }
 
 const ADVANCED_TAB_SESSION_KEY = V2_WORKSPACE_SESSION_KEYS.advancedTab;
-// The TMux/TUI console moved to the Code hero; stale saved tabs fall back to the overview dashboard.
-const ADVANCED_TABS = ['overview', 'models', 'console', 'run', 'observe', 'operate'];
+// The TMux/TUI console and code-session launcher live in the Code hero (ADR-0002).
+// Tabs are grouped by workflow — Configure / Monitor / Govern — with Models as
+// the landing (the former Overview dashboard folds into it). Stale saved tabs
+// fall back to Models.
+type AdvancedTabDef = { key: string; label: string; icon: string; group: string; hint: string };
+const ADVANCED_TAB_DEFS: AdvancedTabDef[] = [
+  { key: 'models', label: 'Models', icon: 'apps/chat-bot.svg', group: 'Configure', hint: 'LLM catalog — measured health, pricing, access state, discovery' },
+  { key: 'run', label: 'Run', icon: 'actions/system-run-symbolic.svg', group: 'Configure', hint: 'Prompt templates, run profiles, eval gates, replay' },
+  { key: 'console', label: 'Console', icon: 'apps/settings.svg', group: 'Configure', hint: 'System operations — proxy status, command palette, live state' },
+  { key: 'observe', label: 'Observe', icon: 'actions/system-search-symbolic.svg', group: 'Monitor', hint: 'Traces, cost, provider health, audit, reporting' },
+  { key: 'operate', label: 'Operate', icon: 'apps/ai-governance--tracked.svg', group: 'Govern', hint: 'Release readiness, cost guard, config drift, automation' },
+];
+const ADVANCED_TAB_GROUPS = ['Configure', 'Monitor', 'Govern'];
+const ADVANCED_TABS = ADVANCED_TAB_DEFS.map((def) => def.key);
+const DEFAULT_ADVANCED_TAB = 'models';
 
 function normalizeAdvancedTab(value: unknown): string {
-  return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : 'overview';
+  return typeof value === 'string' && ADVANCED_TABS.includes(value) ? value : DEFAULT_ADVANCED_TAB;
 }
 
 function loadAdvancedTab(): string {
-  if (typeof window === 'undefined') return 'overview';
+  if (typeof window === 'undefined') return DEFAULT_ADVANCED_TAB;
   try {
     return normalizeAdvancedTab(window.sessionStorage.getItem(ADVANCED_TAB_SESSION_KEY));
   } catch {
-    return 'overview';
+    return DEFAULT_ADVANCED_TAB;
   }
 }
 
@@ -4185,7 +4229,7 @@ function saveAdvancedTab(tab: string): void {
   if (typeof window === 'undefined') return;
   try {
     const normalized = normalizeAdvancedTab(tab);
-    if (normalized === 'overview') {
+    if (normalized === DEFAULT_ADVANCED_TAB) {
       window.sessionStorage.removeItem(ADVANCED_TAB_SESSION_KEY);
       return;
     }
@@ -4280,46 +4324,6 @@ function ReleaseReadinessPulse({ payload, loading, error, onOpen }: { payload?: 
   );
 }
 
-function AdvancedOverview({ onOpenOperate }: { onOpenOperate: () => void }) {
-  const models = useQuery({ queryKey: ['models'], queryFn: getModels, retry: false });
-  const operate = useQuery({ queryKey: ['operate'], queryFn: getOperate, refetchInterval: 30000, retry: false });
-  const authPrompted = useRef(false);
-  useEffect(() => {
-    if (authPrompted.current) return;
-    if (![models.error, operate.error].some(authLikeError)) return;
-    authPrompted.current = true;
-    window.dispatchEvent(new CustomEvent(V2_AUTH_REQUIRED_EVENT, {
-      detail: {
-        title: 'Console Access Required',
-        detail: 'Sign in with a console token to load Advanced overview intelligence.',
-      },
-    }));
-  }, [models.error, operate.error]);
-  return (
-    <div className="advancedOverview" data-testid="advanced-overview">
-      <article className="advancedOverviewCard advancedWorkspaceCard" data-testid="advanced-active-workspace">
-        <div className="advancedOverviewIdentity">
-          <span className="advancedOverviewIcon">
-            <CarbonIcon path="actions/document-properties-symbolic.svg" label="Advanced" />
-          </span>
-          <div>
-            <span>Active Workspace</span>
-            <strong>Advanced</strong>
-            <p>Owner/admin tools</p>
-          </div>
-        </div>
-        <div className="advancedOverviewFacts" aria-label="Advanced workspace summary">
-          <span><b>4</b> primary workspaces</span>
-          <span><b>6</b> advanced tabs</span>
-        </div>
-      </article>
-      <ReleaseReadinessPulse payload={operate.data} loading={operate.isLoading} error={operate.error} onOpen={onOpenOperate} />
-      <HomeSummary models={models.data?.models || []} />
-      {models.error ? <StatusPanel tone="error" title="Model intelligence unavailable" detail={errorText(models.error)} /> : null}
-    </div>
-  );
-}
-
 export function AdvancedPage() {
   const [tab, setTab] = useState(loadAdvancedTab);
   useEffect(() => {
@@ -4333,7 +4337,6 @@ export function AdvancedPage() {
     window.addEventListener(V2_ADVANCED_TAB_EVENT, onTabChange);
     return () => window.removeEventListener(V2_ADVANCED_TAB_EVENT, onTabChange);
   }, []);
-  const openOperateTab = () => setTab('operate');
   return (
     <section className="heroWorkspace advancedHero">
       <div className="heroHeader">
@@ -4343,10 +4346,21 @@ export function AdvancedPage() {
           <p>Operational dashboards, reporting, governance, evals, automation, and raw diagnostics.</p>
         </div>
       </div>
-      <div className="advancedTabs">
-        {ADVANCED_TABS.map((item) => <button className={tab === item ? 'active' : ''} key={item} type="button" onClick={() => setTab(item)}>{item}</button>)}
+      <div className="advancedTabs" aria-label="Advanced workspaces">
+        {ADVANCED_TAB_GROUPS.map((group) => (
+          <div className="advancedTabGroup" key={group}>
+            <span className="advancedTabGroupLabel">{group}</span>
+            <div className="advancedTabGroupItems">
+              {ADVANCED_TAB_DEFS.filter((def) => def.group === group).map((def) => (
+                <button className={tab === def.key ? 'active' : ''} key={def.key} type="button" aria-current={tab === def.key ? 'page' : undefined} title={def.hint} onClick={() => setTab(def.key)}>
+                  <CarbonIcon path={def.icon} label={def.label} />
+                  <span>{def.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-      {tab === 'overview' ? <AdvancedOverview onOpenOperate={openOperateTab} /> : null}
       {tab === 'models' ? <ModelsPage /> : null}
       <Suspense fallback={<AdvancedLoading label={tab} />}>
         {tab === 'console' || tab === 'run' || tab === 'observe' || tab === 'operate' ? (

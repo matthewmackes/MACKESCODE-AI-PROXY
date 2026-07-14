@@ -1,11 +1,11 @@
 # Create Experience
 
-The Create tab is the shared text and image workspace. It uses a scenic wallpaper background, a centered prompt, compact mode controls, and floating chat replies so the wallpaper stays visible.
+The Create tab is the image-creation workspace. It uses a scenic wallpaper background, a centered prompt, and compact controls so the wallpaper stays visible.
 
 ## First View
 
 - The greeting reserves fixed space above the prompt, replays a typewriter animation when Create opens, and can be clicked to finish immediately.
-- Greeting text names the selected text model and adds local weather context only when weather data is available.
+- Greeting text names the selected image model and adds local weather context only when weather data is available.
 - Suggestion chips dim while the greeting types, then return to normal.
 - The weather mood pill starts from local time and upgrades with browser geolocation plus Open-Meteo when permission and network access are available.
 - If geolocation or weather lookup fails, the pill shows a graceful unavailable state and the greeting omits weather.
@@ -18,17 +18,9 @@ The Create tab is the shared text and image workspace. It uses a scenic wallpape
 - `Info` displays available title, caption, copyright/source, or fallback error detail.
 - If wallpaper loading fails, the page keeps a dark scenic fallback instead of blocking the workflow.
 
-## Text
-
-- Text mode routes the centered prompt through the selected chat model.
-- Replies show the answering model, original question, posed time, estimated cost, token detail, routing detail, and a model-styled answer body.
-- New replies progressively reveal word by word. Clicking a revealing reply skips to the full answer.
-- Model comparison supports up to five selected models and saves the comparison as one chat-history entry.
-- A comparison reply can be continued as a normal single-model conversation with `Continue with this model`.
-
 ## Images
 
-- Image mode sends the same centered prompt into the image studio controls.
+- Create sends the centered prompt into the image studio controls.
 - Image model, size, generation history, iteration, save, delete, and style comparison remain available in the panels below the first-view prompt.
 
 ## Model Styling

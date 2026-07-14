@@ -346,14 +346,14 @@ def run_mobile_whats_new_smoke(browser, base_url: str) -> None:
     try:
         artwork_events = install_model_artwork_guard(page)
         page.goto(base_url, wait_until="networkidle")
-        expect(page.get_by_role("heading", name="Whats New")).to_be_visible()
+        expect(page.get_by_role("heading", name="What's New")).to_be_visible()
         modal = page.locator(".whatsNewModal")
         expect(modal).to_be_visible()
         box = modal.bounding_box()
         viewport = page.viewport_size or {"height": 844}
         assert box is not None, "mobile Whats New modal did not produce a layout box"
         assert box["y"] >= 0 and box["height"] <= viewport["height"] - 20, "mobile Whats New modal does not fit the viewport"
-        expect(page.get_by_role("button", name="Close Whats New")).to_be_visible()
+        expect(page.get_by_role("button", name="Close What's New")).to_be_visible()
         digitalocean_shortcut = page.get_by_role("button", name=re.compile("DigitalOcean"))
         expect(digitalocean_shortcut).to_be_visible()
         digitalocean_shortcut.click()
@@ -372,8 +372,8 @@ def run_mobile_whats_new_smoke(browser, base_url: str) -> None:
             timeout=5000,
         )
         expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
-        expect(page.get_by_role("button", name="Close Whats New")).to_be_visible()
-        page.get_by_role("button", name="Close Whats New").click()
+        expect(page.get_by_role("button", name="Close What's New")).to_be_visible()
+        page.get_by_role("button", name="Close What's New").click()
         expect(page.locator(".whatsNewModal")).to_have_count(0)
         assert_no_model_artwork_guard_events(artwork_events, "mobile Whats New")
     finally:
@@ -389,7 +389,7 @@ def dismiss_whats_new_if_present(page, timeout: int = 5000) -> None:
         modal.wait_for(state="visible", timeout=timeout)
     except PlaywrightTimeoutError:
         return
-    page.get_by_role("button", name="Close Whats New").click()
+    page.get_by_role("button", name="Close What's New").click()
     expect(modal).to_have_count(0)
 
 
@@ -422,9 +422,12 @@ def open_advanced_workspace(page) -> None:
 def open_advanced_tab(page, tab: str) -> None:
     from playwright.sync_api import expect
 
+    # Advanced tabs are workflow-grouped with humanized labels ("Models", "Run",
+    # …); match the key case-insensitively so callers keep passing lowercase keys.
+    name = re.compile(rf"^{re.escape(tab)}$", re.IGNORECASE)
     open_advanced_workspace(page)
-    page.locator(".advancedTabs").get_by_role("button", name=tab, exact=True).click()
-    expect(page.locator(".advancedTabs").get_by_role("button", name=tab, exact=True)).to_have_class(re.compile("active"))
+    page.locator(".advancedTabs").get_by_role("button", name=name).click()
+    expect(page.locator(".advancedTabs").get_by_role("button", name=name)).to_have_class(re.compile("active"))
 
 
 def run_mobile_create_smoke(browser, base_url: str) -> None:
@@ -452,24 +455,19 @@ def run_mobile_advanced_smoke(browser, base_url: str) -> None:
         page.goto(base_url + "#advanced", wait_until="domcontentloaded", timeout=60000)
         dismiss_whats_new_if_present(page)
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.get_by_test_id("advanced-overview")).to_be_visible()
+        # Models is the Advanced landing (Overview folded in); the readiness pulse lives here.
+        expect(page.get_by_role("heading", name="Models", exact=True)).to_be_visible()
         expect(page.get_by_test_id("advanced-readiness-pulse")).to_be_visible()
-        for label in ("overview", "models", "console", "run", "observe", "operate"):
+        for label in ("Models", "Console", "Run", "Observe", "Operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
-        page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Models", exact=True)).to_have_class(re.compile("active"))
+        # Console is now a lean System Operations dashboard; terminal/tmux live in Code (ADR-0002).
+        page.locator(".advancedTabs").get_by_role("button", name="Console", exact=True).click()
         expect(page.locator(".consoleHeader")).to_be_visible(timeout=45000)
-        expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
-        expect(page.get_by_test_id("tmux-session-table")).to_be_visible()
-        expect(page.get_by_test_id("tmux-control-dock")).to_be_visible()
-        expect(page.get_by_test_id("tmux-key-grid")).to_have_count(1)
-        expect(page.get_by_test_id("tmux-attach-dock")).to_be_visible()
-        expect(page.get_by_test_id("tmux-attach-terminal")).to_be_visible()
-        expect(page.get_by_test_id("tmux-attach-status")).to_contain_text("Select a session")
         expect(page.get_by_test_id("console-command-table")).to_be_visible()
-        expect(page.get_by_test_id("code-session-launcher")).to_be_visible()
         expect(page.get_by_test_id("console-operational-state")).to_be_visible()
         assert_no_document_horizontal_overflow(page, "mobile Advanced console")
+        # The terminal/tmux workflow lives in Code, where it is covered here.
         navigate_shell(page, "code")
         expect(page.get_by_role("heading", name="Code")).to_be_visible()
         expect(page.get_by_test_id("code-tui-section")).to_be_visible()
@@ -505,7 +503,7 @@ def run_advanced_loading_skeleton_smoke(browser, base_url: str) -> None:
             """,
             timeout=5000,
         )
-        expect(page.get_by_test_id("tmux-workspace")).to_be_visible(timeout=8000)
+        expect(page.get_by_test_id("console-operational-state")).to_be_visible(timeout=8000)
         expect(page.get_by_test_id("advanced-loading-skeleton")).to_have_count(0)
         assert_no_document_horizontal_overflow(page, "Advanced lazy-loading skeleton")
     finally:
@@ -796,17 +794,19 @@ def run_readiness_advisory_label_smoke(browser, base_url: str) -> None:
         expect(pulse).to_contain_text("1 low-risk drift item")
         expect(pulse).not_to_contain_text("Ready With Handoff")
         pulse.click()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Operate", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("1 active config drift item")
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("Highest risk: low")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("tmux session registry")
+        # Forensic drift detail is now behind an expandable row (compact table + Descriptions).
+        page.get_by_test_id("operate-rollback").locator(".ant-table-row-expand-icon").first.click()
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("Inspect the archive manifest")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("current-smoke-sha")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("baseline-smoke-sha")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("file / 3502")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("file / 3400")
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("JSON yes")
-        expect(page.get_by_test_id("operate-rollback")).to_contain_text("restore available")
+        expect(page.get_by_test_id("operate-rollback")).to_contain_text("Restore available")
         expect(page.get_by_test_id("operate-rollback").get_by_role("button", name="Copy Evidence")).to_be_visible()
         page.get_by_test_id("operate-rollback").get_by_role("button", name="Copy Evidence").click()
         expect(page.get_by_test_id("operate-rollback")).to_contain_text("Evidence copied")
@@ -989,7 +989,8 @@ def run_high_risk_config_drift_guard_smoke(browser, base_url: str) -> None:
         dismiss_whats_new_if_present(page)
         page.get_by_test_id("advanced-readiness-pulse").click()
         expect(page.get_by_test_id("operate-config-drift-summary")).to_contain_text("Highest risk: high")
-        expect(page.get_by_test_id("operate-rollback")).to_contain_text("manual compare")
+        page.get_by_test_id("operate-rollback").locator(".ant-table-row-expand-icon").first.click()
+        expect(page.get_by_test_id("operate-rollback")).to_contain_text("Manual compare")
         expect(page.get_by_test_id("operate-config-drift-high-risk-warning")).to_contain_text("console_config")
         expect(page.get_by_test_id("operate-config-drift-actions")).to_contain_text("high risk locked")
         expect(page.get_by_test_id("operate-config-drift-acknowledge")).to_be_disabled()
@@ -1261,12 +1262,12 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".sideRail")).to_have_count(0)
         expect(page.locator(".heroNav")).to_have_count(0)
 
-        expect(page.get_by_role("heading", name="Whats New")).to_be_visible()
+        expect(page.get_by_role("heading", name="What's New")).to_be_visible()
         expect(page.locator(".whatsNewSections")).to_be_visible()
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="DigitalOcean LLM links").first).to_be_visible()
         expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
         assert_no_broken_model_artwork(page, "startup Whats New")
-        page.get_by_role("button", name="Close Whats New").click()
+        page.get_by_role("button", name="Close What's New").click()
         expect(page.locator(".whatsNewModal")).to_have_count(0)
         page.get_by_test_id("shell-cost-control").locator("summary").click()
         expect(page.locator(".shellCostPanel")).to_be_visible()
@@ -1296,18 +1297,16 @@ def run_browser_smoke(base_url: str) -> None:
         drawer.get_by_test_id("shell-drawer-settings").click()
         expect(page.get_by_test_id("shell-navigation-drawer")).not_to_be_visible()
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.get_by_test_id("advanced-overview")).to_be_visible()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
-        model_intelligence = page.get_by_test_id("home-model-intelligence")
-        expect(model_intelligence).to_be_visible()
-        expect(model_intelligence).to_contain_text("Model Intelligence")
-        expect(model_intelligence).to_contain_text("Total")
-        expect(model_intelligence).to_contain_text("Routable")
-        expect(model_intelligence).to_contain_text("New")
-        expect(model_intelligence).to_contain_text("Attention")
-        expect(model_intelligence.locator(".homeNationMix span").first).to_be_visible()
-        expect(model_intelligence.locator(".mdlCard").first).to_be_visible()
-        expect(model_intelligence.locator(".modelLogo").first).to_be_visible()
+        expect(page.get_by_role("heading", name="Models", exact=True)).to_be_visible()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Models", exact=True)).to_have_class(re.compile("active"))
+        # Models is the Advanced landing (Overview folded in): its metrics strip and brand-card grid.
+        model_metrics = page.locator(".modelMetrics")
+        expect(model_metrics).to_be_visible()
+        expect(model_metrics).to_contain_text("Total")
+        expect(model_metrics).to_contain_text("Routable")
+        expect(model_metrics).to_contain_text("Attention")
+        expect(page.locator(".modelGrid .mdlCard").first).to_be_visible()
+        expect(page.locator(".modelGrid .modelLogo").first).to_be_visible()
         readiness_pulse = page.get_by_test_id("advanced-readiness-pulse")
         expect(readiness_pulse).to_be_visible()
         expect(readiness_pulse).not_to_contain_text("Syncing Readiness", timeout=20000)
@@ -1324,7 +1323,7 @@ def run_browser_smoke(base_url: str) -> None:
             expect(readiness_reasons.first).to_be_visible()
             expect(readiness_reasons.first).not_to_contain_text("#1 Operator Action")
         readiness_pulse.click()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="operate", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Operate", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_test_id("operate-payment-review")).to_be_visible()
         expect(page.get_by_test_id("operate-payment-review")).to_contain_text("Payment Review and Cost Guard")
         expect(page.get_by_test_id("operate-cost-threshold")).to_be_visible()
@@ -1406,7 +1405,7 @@ def run_browser_smoke(base_url: str) -> None:
 
         page.goto(base_url + "#models", wait_until="networkidle")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="models", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Models", exact=True)).to_have_class(re.compile("active"))
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
         drawer = open_shell_drawer(page)
         expect(drawer.get_by_test_id("shell-nav-models")).to_have_count(0)
@@ -1890,9 +1889,9 @@ def run_browser_smoke(base_url: str) -> None:
 
         open_advanced_tab(page, "models")
         expect(page.get_by_role("heading", name="Models")).to_be_visible()
-        expect(page.get_by_role("button", name="Whats New", exact=True)).to_be_enabled()
-        page.get_by_role("button", name="Whats New", exact=True).click()
-        expect(page.get_by_role("heading", name="Whats New")).to_be_visible()
+        expect(page.get_by_role("button", name="What's New", exact=True)).to_be_enabled()
+        page.get_by_role("button", name="What's New", exact=True).click()
+        expect(page.get_by_role("heading", name="What's New")).to_be_visible()
         expect(page.locator(".whatsNewSections")).to_be_visible()
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="New models").first).to_be_visible()
         expect(page.locator(".whatsNewSectionHeader").filter(has_text="Need attention").first).to_be_visible()
@@ -1900,7 +1899,7 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".whatsNewModal .mdlCard").first).to_be_visible()
         expect(page.get_by_role("link", name="Available Inference Models")).to_be_visible()
         assert_no_broken_model_artwork(page, "models Whats New")
-        page.get_by_role("button", name="Close Whats New").click()
+        page.get_by_role("button", name="Close What's New").click()
         expect(page.locator(".whatsNewModal")).to_have_count(0)
         expect(page.locator(".modelMetric")).to_have_count(4)
         showcase_cards = page.locator('[data-testid="model-showcase-card"]')
@@ -1997,17 +1996,18 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.get_by_text("No models match this filter")).to_be_visible()
 
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        for label in ("overview", "models", "console", "run", "observe", "operate"):
+        for label in ("Models", "Console", "Run", "Observe", "Operate"):
             expect(page.locator(".advancedTabs").get_by_role("button", name=label, exact=True)).to_be_visible()
         expect(page.locator(".advancedTabs").get_by_role("button", name="tui", exact=True)).to_have_count(0)
-        page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True).click()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_count(0)
+        page.locator(".advancedTabs").get_by_role("button", name="Observe", exact=True).click()
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Observe", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate("window.sessionStorage.getItem('matts-v2-advanced-tab')") == "observe"
         navigate_shell(page, "chat")
         expect(page.get_by_role("heading", name="Chat")).to_be_visible()
         page.evaluate("window.location.hash = '#advanced'")
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Observe", exact=True)).to_have_class(re.compile("active"))
         page.keyboard.press("Control+K")
         expect(page.get_by_role("heading", name="Switch Workspace")).to_be_visible()
         expect(page.locator(".quickSwitcherFooter")).to_contain_text("Saved State")
@@ -2036,7 +2036,7 @@ def run_browser_smoke(base_url: str) -> None:
         assert workspace_state_download.value.suggested_filename.endswith(".json")
         page.locator(".quickSwitcherFooter").get_by_role("button", name="Reset Saved State").click()
         expect(page.locator(".quickSwitcher")).to_have_count(0)
-        expect(page.locator(".advancedTabs").get_by_role("button", name="overview", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Models", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate(
             """
             [
@@ -2063,7 +2063,7 @@ def run_browser_smoke(base_url: str) -> None:
         page.locator('[data-testid="workspace-state-import"]').set_input_files(str(workspace_state_path))
         expect(page.locator(".quickSwitcher")).to_have_count(0)
         expect(page.get_by_role("heading", name="Advanced")).to_be_visible()
-        expect(page.locator(".advancedTabs").get_by_role("button", name="observe", exact=True)).to_have_class(re.compile("active"))
+        expect(page.locator(".advancedTabs").get_by_role("button", name="Observe", exact=True)).to_have_class(re.compile("active"))
         assert page.evaluate("window.location.hash") == "#advanced"
         restored_create = page.evaluate("window.sessionStorage.getItem('matts-v2-create-workspace')")
         assert restored_create and "smoke image prompt" in restored_create and "researchResult" not in restored_create and "imageResult" in restored_create
@@ -2096,16 +2096,11 @@ def run_browser_smoke(base_url: str) -> None:
         expect(page.locator(".quickSwitcher")).to_have_count(0)
 
         open_advanced_workspace(page)
-        page.locator(".advancedTabs").get_by_role("button", name="console", exact=True).click()
-        expect(page.get_by_test_id("tmux-workspace")).to_be_visible()
-        expect(page.get_by_text("Smoke TMux")).to_be_visible()
-        page.get_by_test_id("tmux-session-select").first.click()
-        expect(page.get_by_test_id("tmux-attach-status")).to_contain_text("Ready to attach")
-        terminal_href = page.get_by_test_id("tmux-open-terminal").get_attribute("href") or ""
-        assert ":18182/" in terminal_href and "session=smoke-tmux" in terminal_href and "#code" in terminal_href, "tmux terminal link did not preserve V2 route/session: %s" % terminal_href
-        row_terminal_href = page.get_by_test_id("tmux-session-open").first.get_attribute("href") or ""
-        assert ":18182/" in row_terminal_href and "session=smoke-tmux" in row_terminal_href and "#code" in row_terminal_href, "tmux row terminal link did not preserve V2 route/session: %s" % row_terminal_href
-        page.locator(".advancedTabs").get_by_role("button", name="run", exact=True).click()
+        page.locator(".advancedTabs").get_by_role("button", name="Console", exact=True).click()
+        # Console is now a System Operations dashboard; the tmux/terminal workflow lives in Code.
+        expect(page.locator(".consoleHeader")).to_be_visible(timeout=45000)
+        expect(page.get_by_test_id("console-operational-state")).to_be_visible()
+        page.locator(".advancedTabs").get_by_role("button", name="Run", exact=True).click()
         expect(page.get_by_role("heading", name="Run")).to_be_visible(timeout=45000)
         expect(page.get_by_test_id("chat-run-panel")).to_be_visible()
         page.get_by_test_id("chat-run-prompt").fill("generated-client-error-smoke")

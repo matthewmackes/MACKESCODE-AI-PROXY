@@ -74,8 +74,11 @@ def main() -> int:
         if static_import.search(entry):
             return fail("entry chunk statically imports %s" % pattern)
 
+    # Entry budget for the eager shell (drawer + Chat/Code/Research/Create +
+    # Models/Advanced landing). Advanced's Console/Run/Observe/Operate tabs stay
+    # lazy (enforced above). Raised modestly for the Advanced redesign.
     main_chunk_size = entry_path.stat().st_size
-    if main_chunk_size > 180_000:
+    if main_chunk_size > 190_000:
         return fail("entry chunk is too large for the shell: %s bytes" % main_chunk_size)
 
     print("V2 frontend bundle check passed: %s is %s bytes and Advanced chunks are lazy" % (entry_ref, main_chunk_size))

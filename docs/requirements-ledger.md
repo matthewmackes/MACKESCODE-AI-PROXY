@@ -57,7 +57,7 @@ This ledger keeps survey decisions executable after chat compaction. It is not a
 
 | Decision | Evidence | Owner |
 | --- | --- | --- |
-| Console should be organized into distinct operational areas: Accounting & Time, Inference Hosting Lifecycle, LLM Management, AgentBoard, and System Operations. | Confirmed | `INT-014`, `INT-016` |
+| Advanced groups its tabs into Monitor (Observe), Configure (Models, Run, Console), and Govern (Operate), with Models as the centerpiece and Overview folded into the Models landing. The Console tab is a lean System Operations dashboard (proxy/TUI status, command palette, operational state); accounting, reporting, governance, evals, and deprecations live across the Operate, Observe, and Models tabs. Terminal/TMux/TUI and code-session controls live in Code (ADR-0002); there is no dedicated LLM-Management UI, and key audit is a backend/CLI action whose results surface as access-state on the Models tab. | Confirmed | `INT-014`, `INT-016` |
 | Console should use Carbon-inspired dense operational styling rather than marketing-page styling. | Confirmed | `INT-014`, `INT-012` |
 | Console content must not bleed under Code/Create and must load pinned to the top. | Confirmed | `INT-014`, `INT-005` |
 | Header ordering should keep primary tabs centered and operational controls on the right: Dark Mode, Status, Cost, Console icon. | Confirmed | `INT-014`, `INT-012` |
